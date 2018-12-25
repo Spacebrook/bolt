@@ -327,10 +327,10 @@ fn circle_rectangle_collision(circle: Circle, rectangle: Rectangle) -> bool {
     let distance_x = (circle.x - rectangle.x - rect_half_width).abs();
     let distance_y = (circle.y - rectangle.y - rect_half_height).abs();
 
-    if distance_x > rect_half_width + circle.radius {
+    if distance_x >= rect_half_width + circle.radius {
         return false;
     }
-    if distance_y > rect_half_height + circle.radius {
+    if distance_y >= rect_half_height + circle.radius {
         return false;
     }
 
