@@ -334,15 +334,15 @@ fn circle_rectangle_collision(circle: Circle, rectangle: Rectangle) -> bool {
         return false;
     }
 
-    if distance_x <= rect_half_width {
+    if distance_x < rect_half_width {
         return true;
     }
-    if distance_y <= rect_half_height {
+    if distance_y < rect_half_height {
         return true;
     }
 
     let center_rect_distance_x = distance_x - rect_half_width;
     let center_rect_distance_y = distance_y - rect_half_height;
 
-    center_rect_distance_x.pow(2) + center_rect_distance_y.pow(2) <= circle.radius.pow(2)
+    center_rect_distance_x.pow(2) + center_rect_distance_y.pow(2) < circle.radius.pow(2)
 }
