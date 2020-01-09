@@ -124,8 +124,8 @@ impl QuadTree {
 
     fn subdivide_node(&mut self, node_index: usize) {
         let node_bb = self.nodes[node_index].bb;
-        let half_width = node_bb.width / 2;
-        let half_height = node_bb.height / 2;
+        let half_width = node_bb.width / 2.;
+        let half_height = node_bb.height / 2.;
 
         let nw = self.add_new_node(Rectangle {
             x: node_bb.x,
@@ -266,17 +266,17 @@ pub enum Shape {
 
 #[derive(Copy, Clone, Debug)]
 pub struct Circle {
-    pub x: i32,
-    pub y: i32,
-    pub radius: i32,
+    pub x: f32,
+    pub y: f32,
+    pub radius: f32,
 }
 
 #[derive(Copy, Clone, Debug)]
 pub struct Rectangle {
-    pub x: i32,
-    pub y: i32,
-    pub width: i32,
-    pub height: i32,
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
 }
 
 impl Shape {
@@ -286,8 +286,8 @@ impl Shape {
                 Rectangle {
                     x: circle.x - circle.radius,
                     y: circle.y - circle.radius,
-                    width: circle.radius * 2,
-                    height: circle.radius * 2,
+                    width: circle.radius * 2.,
+                    height: circle.radius * 2.,
                 }
             }
             Shape::Rectangle(rectangle) => {
@@ -298,10 +298,10 @@ impl Shape {
 }
 
 impl Rectangle {
-    fn right(&self) -> i32 {
+    fn right(&self) -> f32 {
         self.x + self.width
     }
-    fn bottom(&self) -> i32 {
+    fn bottom(&self) -> f32 {
         self.y + self.height
     }
 }
@@ -310,7 +310,7 @@ fn circle_circle_collision(circle_a: Circle, circle_b: Circle) -> bool {
     let collision_distance = circle_a.radius + circle_b.radius;
     let distance_x = circle_a.x - circle_b.x;
     let distance_y = circle_a.y - circle_b.y;
-    distance_x.pow(2) + distance_y.pow(2) < collision_distance.pow(2)
+    distance_x.powf(2.) + distance_y.powf(2.) < collision_distance.powf(2.)
 }
 
 fn rectangle_rectangle_collision(rectangle_a: Rectangle, rectangle_b: Rectangle) -> bool {
@@ -321,8 +321,8 @@ fn rectangle_rectangle_collision(rectangle_a: Rectangle, rectangle_b: Rectangle)
 }
 
 fn circle_rectangle_collision(circle: Circle, rectangle: Rectangle) -> bool {
-    let rect_half_width = rectangle.width / 2;
-    let rect_half_height = rectangle.height / 2;
+    let rect_half_width = rectangle.width / 2.;
+    let rect_half_height = rectangle.height / 2.;
 
     let distance_x = (circle.x - rectangle.x - rect_half_width).abs();
     let distance_y = (circle.y - rectangle.y - rect_half_height).abs();
@@ -344,5 +344,5 @@ fn circle_rectangle_collision(circle: Circle, rectangle: Rectangle) -> bool {
     let center_rect_distance_x = distance_x - rect_half_width;
     let center_rect_distance_y = distance_y - rect_half_height;
 
-    center_rect_distance_x.pow(2) + center_rect_distance_y.pow(2) < circle.radius.pow(2)
+    center_rect_distance_x.powf(2.) + center_rect_distance_y.powf(2.) < circle.radius.powf(2.)
 }
