@@ -439,6 +439,12 @@ impl QuadTree {
         }
     }
 
+    pub fn relocate_batch(&mut self, relocation_requests: Vec<RelocationRequest>) {
+        for request in relocation_requests {
+            self.relocate(request.value, request.shape);
+        }
+    }
+
     fn relocate_in(&mut self, node: Rc<RefCell<QuadNode>>, value: u32, shape: Box<dyn Shape>) {
         let mut next_node = None;
         {
@@ -606,6 +612,11 @@ impl QuadTree {
             self.shapes(&se, shapes);
         }
     }
+}
+
+pub struct RelocationRequest {
+    pub value: u32,
+    pub shape: Box<dyn Shape>,
 }
 
 // Implement the Resettable trait for QuadNode

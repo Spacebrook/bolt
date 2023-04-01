@@ -1,4 +1,4 @@
-use quadtree::quadtree::QuadTree;
+use quadtree::quadtree::{QuadTree, RelocationRequest};
 use quadtree::shapes::{Circle, Rectangle, Shape};
 
 use pyo3::exceptions::PyTypeError;
@@ -8,6 +8,7 @@ use pyo3::pyclass;
 use pyo3::pymethods;
 use pyo3::pymodule;
 use pyo3::types::PyModule;
+use pyo3::types::PyTuple;
 use pyo3::IntoPy;
 use pyo3::Py;
 use pyo3::PyObject;
@@ -95,6 +96,23 @@ fn pyquadtree(_py: Python, m: &PyModule) -> PyResult<()> {
         pub fn relocate(&mut self, py: Python, value: u32, shape: PyObject) -> PyResult<()> {
             let shape = self.extract_shape(py, shape)?;
             self.quadtree.relocate(value, shape);
+            Ok(())
+        }
+
+        pub fn relocate_batch(&mut self, py: Python, relocation_requests: Vec<&PyTuple>
+        ) -> PyResult<()> {
+            // Convert the Python tuples into Rust RelocationRequest objects
+            let requests: Vec<RelocationRequest> = relocation_requests
+                .into_iter()
+                .map(|tuple| {
+                    let value = tuple.get_item(0).unwrap().extract::<u32>().unwrap();
+                    let shape = self.extract_shape(py, tuple.get_item(1).unwrap().into()).unwrap();
+                    RelocationRequest { value, shape }
+                })
+                .collect();
+
+            self.quadtree.relocate_batch(requests);
+
             Ok(())
         }
 
