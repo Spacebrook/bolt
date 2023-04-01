@@ -70,7 +70,10 @@ fn test_huge_bounds() {
     qt.insert(0, Box::new(Rectangle::new(16000.0, -355.0, 60.0, 60.0)));
     qt.insert(1, Box::new(Rectangle::new(15980.0, -350.0, 60.0, 60.0)));
     let mut collisions: Vec<u32> = Vec::new();
-    qt.collisions(&Rectangle::new(15980.0, -350.0, 60.0, 60.0), &mut collisions);
+    qt.collisions(
+        &Rectangle::new(15980.0, -350.0, 60.0, 60.0),
+        &mut collisions,
+    );
     let collision_set: HashSet<_> = collisions.into_iter().collect();
     assert_eq!(collision_set.len(), 2);
     assert!(collision_set.contains(&0));
@@ -165,8 +168,7 @@ fn test_query_with_large_shape() {
 #[test]
 fn test_boundary_collision() {
     // Test case where a query shape is positioned on the boundary of another shape
-    let mut qt = QuadTree::new(Rectangle::new
-        (0.0, 0.0, 100.0, 100.0));
+    let mut qt = QuadTree::new(Rectangle::new(0.0, 0.0, 100.0, 100.0));
     qt.insert(0, Box::new(Rectangle::new(10.0, 10.0, 20.0, 20.0)));
     let mut collisions: Vec<u32> = Vec::new();
     qt.collisions(&Rectangle::new(30.0, 10.0, 10.0, 10.0), &mut collisions);

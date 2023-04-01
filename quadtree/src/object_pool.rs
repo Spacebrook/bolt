@@ -3,7 +3,10 @@ pub struct ObjectPool<T: Resettable> {
     max_size: usize,
 }
 
-impl<T> ObjectPool<T> where T: Resettable {
+impl<T> ObjectPool<T>
+where
+    T: Resettable,
+{
     // Create a new ObjectPool with a specified maximum size
     pub fn new(max_size: usize) -> Self {
         ObjectPool {
@@ -14,8 +17,8 @@ impl<T> ObjectPool<T> where T: Resettable {
 
     // Get an object from the pool if available, otherwise return a default object
     pub fn get(&mut self) -> T
-        where
-            T: Default,
+    where
+        T: Default,
     {
         match self.pool.pop() {
             Some(obj) => obj,
@@ -32,7 +35,6 @@ impl<T> ObjectPool<T> where T: Resettable {
         }
     }
 
-
     // Clear all objects from the pool
     pub fn clear(&mut self) {
         self.pool.clear();
@@ -46,7 +48,6 @@ impl<T: Resettable> Drop for ObjectPool<T> {
         }
     }
 }
-
 
 // Define the Resettable trait
 pub trait Resettable {

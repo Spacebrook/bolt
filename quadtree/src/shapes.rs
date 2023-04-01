@@ -111,7 +111,12 @@ pub struct Rectangle {
 
 impl Rectangle {
     pub fn new(x: f32, y: f32, width: f32, height: f32) -> Self {
-        Self { x, y, width, height }
+        Self {
+            x,
+            y,
+            width,
+            height,
+        }
     }
 
     pub fn x(&self) -> f32 {
@@ -149,7 +154,12 @@ impl Rectangle {
 
 impl Default for Rectangle {
     fn default() -> Self {
-        Self { x: 0.0, y: 0.0, width: 0.0, height: 0.0 }
+        Self {
+            x: 0.0,
+            y: 0.0,
+            width: 0.0,
+            height: 0.0,
+        }
     }
 }
 

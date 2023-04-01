@@ -22,6 +22,14 @@ struct PyCircle {
     radius: f32,
 }
 
+#[pymethods]
+impl PyCircle {
+    #[new]
+    pub fn new(x: f32, y: f32, radius: f32) -> Self {
+        PyCircle { x, y, radius }
+    }
+}
+
 #[derive(Debug, Clone)]
 #[pyclass(name = "Rectangle")]
 struct PyRectangle {
@@ -29,6 +37,19 @@ struct PyRectangle {
     y: f32,
     width: f32,
     height: f32,
+}
+
+#[pymethods]
+impl PyRectangle {
+    #[new]
+    pub fn new(x: f32, y: f32, width: f32, height: f32) -> Self {
+        PyRectangle {
+            x,
+            y,
+            width,
+            height,
+        }
+    }
 }
 
 #[pymodule]
@@ -100,7 +121,7 @@ fn pyquadtree(_py: Python, m: &PyModule) -> PyResult<()> {
                             radius: circle.radius,
                         },
                     )?
-                        .into_py(py)
+                    .into_py(py)
                 } else if let Some(rect) = shape.as_any().downcast_ref::<Rectangle>() {
                     Py::new(
                         py,
@@ -111,7 +132,7 @@ fn pyquadtree(_py: Python, m: &PyModule) -> PyResult<()> {
                             height: rect.height,
                         },
                     )?
-                        .into_py(py)
+                    .into_py(py)
                 } else {
                     return Err(PyTypeError::new_err("Unknown shape"));
                 };

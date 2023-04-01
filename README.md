@@ -96,33 +96,33 @@ Here's an example of how to use the pyquadtree library in Python:
 import pyquadtree
 
 # 🟩 Create instances of Rectangle and Circle
-rect1 = pyquadtree.Rectangle(x=2.0, y=3.0, width=4.0, height=5.0)
-circle1 = pyquadtree.Circle(x=6.0, y=7.0, radius=2.0)
+rect1 = pyquadtree.Rectangle(2.0, 3.0, 4.0, 5.0)
+circle1 = pyquadtree.Circle(6.0, 7.0, 2.0)
 
 # 🖼️ Create a bounding rectangle for the quadtree
-bounding_box = pyquadtree.Rectangle(x=0.0, y=0.0, width=10.0, height=10.0)
+bounding_box = pyquadtree.Rectangle(0.0, 0.0, 10.0, 10.0)
 
 # 🌳 Create a QuadTree with the given bounding box
 quadtree = pyquadtree.QuadTree(bounding_box)
 
 # ➕ Insert shapes into the quadtree with associated values
-quadtree.insert_shape(value=1, shape=rect1)
-quadtree.insert_shape(value=2, shape=circle1)
+quadtree.insert(1, rect1)
+quadtree.insert(2, circle1)
 
 # 🔍 Check for collisions with a given shape
-collisions_with_rect = quadtree.collisions(shape=rect1)
+collisions_with_rect = quadtree.collisions(rect1)
 print("Collisions with rect1:", collisions_with_rect)  # Output: [1, 2]
 
 # 🔁 Relocate an existing shape in the quadtree
-rect2 = pyquadtree.Rectangle(x=5.0, y=5.0, width=1.0, height=1.0)
-quadtree.relocate(value=1, shape=rect2)
+rect2 = pyquadtree.Rectangle(5.0, 5.0, 1.0, 1.0)
+quadtree.relocate(1, rect2)
 
 # 🔍 Check for collisions with a given shape after relocation
-collisions_with_rect2 = quadtree.collisions(shape=rect2)
+collisions_with_rect2 = quadtree.collisions(rect2)
 print("Collisions with rect2:", collisions_with_rect2)  # Output: [1, 2]
 
 # ❌ Delete a shape from the quadtree
-quadtree.delete(value=2)
+quadtree.delete(2)
 
 # 📋 Get all shapes in the quadtree
 all_shapes = quadtree.all_shapes()

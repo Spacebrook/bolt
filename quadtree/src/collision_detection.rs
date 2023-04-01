@@ -1,9 +1,11 @@
-use crate::shapes::{Circle, Shape, Rectangle};
+use crate::shapes::{Circle, Rectangle, Shape};
 
 // Check that Rectangle inner is fully contained in Rectangle outer
 pub fn rectangle_contains_rectangle(outer: &Rectangle, inner: &Rectangle) -> bool {
-    outer.x <= inner.x && outer.right() >= inner.right()
-        && outer.y <= inner.y && outer.bottom() >= inner.bottom()
+    outer.x <= inner.x
+        && outer.right() >= inner.right()
+        && outer.y <= inner.y
+        && outer.bottom() >= inner.bottom()
 }
 
 pub fn rectangle_rectangle(a: &Rectangle, b: &Rectangle) -> bool {
@@ -42,13 +44,25 @@ pub fn circle_rectangle(circle: &Circle, rectangle: &Rectangle) -> bool {
 }
 
 pub fn shape_shape(a: &dyn Shape, b: &dyn Shape) -> bool {
-    if let (Some(circle_a), Some(circle_b)) = (a.as_any().downcast_ref::<Circle>(), b.as_any().downcast_ref::<Circle>()) {
+    if let (Some(circle_a), Some(circle_b)) = (
+        a.as_any().downcast_ref::<Circle>(),
+        b.as_any().downcast_ref::<Circle>(),
+    ) {
         circle_circle(circle_a, circle_b)
-    } else if let (Some(circle), Some(rectangle)) = (a.as_any().downcast_ref::<Circle>(), b.as_any().downcast_ref::<Rectangle>()) {
+    } else if let (Some(circle), Some(rectangle)) = (
+        a.as_any().downcast_ref::<Circle>(),
+        b.as_any().downcast_ref::<Rectangle>(),
+    ) {
         circle_rectangle(circle, rectangle)
-    } else if let (Some(rectangle), Some(circle)) = (a.as_any().downcast_ref::<Rectangle>(), b.as_any().downcast_ref::<Circle>()) {
+    } else if let (Some(rectangle), Some(circle)) = (
+        a.as_any().downcast_ref::<Rectangle>(),
+        b.as_any().downcast_ref::<Circle>(),
+    ) {
         circle_rectangle(circle, rectangle)
-    } else if let (Some(rectangle_a), Some(rectangle_b)) = (a.as_any().downcast_ref::<Rectangle>(), b.as_any().downcast_ref::<Rectangle>()) {
+    } else if let (Some(rectangle_a), Some(rectangle_b)) = (
+        a.as_any().downcast_ref::<Rectangle>(),
+        b.as_any().downcast_ref::<Rectangle>(),
+    ) {
         rectangle_rectangle(rectangle_a, rectangle_b)
     } else {
         panic!("Unknown shape types");

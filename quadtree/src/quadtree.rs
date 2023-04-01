@@ -1,10 +1,10 @@
-use crate::{collision_detection};
+use crate::collision_detection;
 use crate::object_pool::{ObjectPool, Resettable};
-use crate::shapes::{Shape, Rectangle};
+use crate::shapes::{Rectangle, Shape};
 
-use std::collections::HashMap;
 use std::cell::Ref;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::ops::Deref;
 use std::rc::Rc;
 use std::rc::Weak;
@@ -39,7 +39,12 @@ impl QuadNode {
         }
     }
 
-    pub fn initialize(&mut self, bounding_box: Rectangle, parent: Option<Weak<RefCell<QuadNode>>>, depth: i32) {
+    pub fn initialize(
+        &mut self,
+        bounding_box: Rectangle,
+        parent: Option<Weak<RefCell<QuadNode>>>,
+        depth: i32,
+    ) {
         self.bounding_box = bounding_box;
         self.parent = parent;
         self.depth = depth;
@@ -52,8 +57,11 @@ impl QuadNode {
     }
 
     // Returns an iterator over all items in the QuadNode, including child nodes
-    pub fn all_items(&self) -> Box<dyn Iterator<Item=(u32, Box<dyn Shape>)> + '_> {
-        let items = self.items.iter().map(|(id, shape)| (*id, shape.box_clone()));
+    pub fn all_items(&self) -> Box<dyn Iterator<Item = (u32, Box<dyn Shape>)> + '_> {
+        let items = self
+            .items
+            .iter()
+            .map(|(id, shape)| (*id, shape.box_clone()));
         if !self.subdivided {
             return Box::new(items);
         }
@@ -63,27 +71,32 @@ impl QuadNode {
     }
 
     // Returns an iterator over items in child nodes
-    fn child_items(&self) -> Box<dyn Iterator<Item=(u32, Box<dyn Shape>)> + '_> {
+    fn child_items(&self) -> Box<dyn Iterator<Item = (u32, Box<dyn Shape>)> + '_> {
         if !self.subdivided {
             return Box::new(std::iter::empty());
         }
 
-        let items: Vec<_> = [self.nw.as_ref(), self.ne.as_ref(), self.sw.as_ref(), self.se.as_ref()]
-            .iter()
-            .flat_map(|opt_node| {
-                opt_node
-                    .map(|node_rc| {
-                        node_rc
-                            .borrow()
-                            .all_items()
-                            .map(|(id, shape)| (id, shape.box_clone()))
-                            .collect::<Vec<_>>()
-                            .into_iter()
-                    })
-                    .into_iter()
-                    .flatten()
-            })
-            .collect();
+        let items: Vec<_> = [
+            self.nw.as_ref(),
+            self.ne.as_ref(),
+            self.sw.as_ref(),
+            self.se.as_ref(),
+        ]
+        .iter()
+        .flat_map(|opt_node| {
+            opt_node
+                .map(|node_rc| {
+                    node_rc
+                        .borrow()
+                        .all_items()
+                        .map(|(id, shape)| (id, shape.box_clone()))
+                        .collect::<Vec<_>>()
+                        .into_iter()
+                })
+                .into_iter()
+                .flatten()
+        })
+        .collect();
 
         Box::new(items.into_iter())
     }
@@ -95,10 +108,22 @@ impl QuadNode {
             return count;
         }
 
-        count += self.nw.as_ref().map_or(0, |nw| nw.borrow().count_all_items());
-        count += self.ne.as_ref().map_or(0, |ne| ne.borrow().count_all_items());
-        count += self.sw.as_ref().map_or(0, |sw| sw.borrow().count_all_items());
-        count += self.se.as_ref().map_or(0, |se| se.borrow().count_all_items());
+        count += self
+            .nw
+            .as_ref()
+            .map_or(0, |nw| nw.borrow().count_all_items());
+        count += self
+            .ne
+            .as_ref()
+            .map_or(0, |ne| ne.borrow().count_all_items());
+        count += self
+            .sw
+            .as_ref()
+            .map_or(0, |sw| sw.borrow().count_all_items());
+        count += self
+            .se
+            .as_ref()
+            .map_or(0, |se| se.borrow().count_all_items());
         return count;
     }
 }
@@ -137,14 +162,21 @@ impl QuadTree {
     }
 
     // Insert a shape into a given node or its children
-    fn insert_into(&mut self, mut node: Rc<RefCell<QuadNode>>, value: u32, shape: Box<dyn Shape>) -> Rc<RefCell<QuadNode>> {
+    fn insert_into(
+        &mut self,
+        mut node: Rc<RefCell<QuadNode>>,
+        value: u32,
+        shape: Box<dyn Shape>,
+    ) -> Rc<RefCell<QuadNode>> {
         loop {
             let mut need_subdivide = false;
             {
                 let node_borrow = node.borrow_mut();
 
                 // Check if node has room or reached max depth
-                if (node_borrow.items.len() < QuadNode::CAPACITY && !node_borrow.subdivided) || node_borrow.depth == QuadNode::MAX_DEPTH {
+                if (node_borrow.items.len() < QuadNode::CAPACITY && !node_borrow.subdivided)
+                    || node_borrow.depth == QuadNode::MAX_DEPTH
+                {
                     drop(node_borrow);
                     self.add(&node, value, shape.box_clone());
                     return node.clone();
@@ -161,7 +193,8 @@ impl QuadTree {
                     let sw = node_borrow.sw.clone();
                     let se = node_borrow.se.clone();
 
-                    let destination = self.get_destination_node(&node, subdivided, nw, ne, sw, se, &*shape);
+                    let destination =
+                        self.get_destination_node(&node, subdivided, nw, ne, sw, se, &*shape);
                     if Rc::ptr_eq(&destination, &node) {
                         drop(node_borrow);
                         self.add(&node, value, shape.box_clone());
@@ -197,16 +230,28 @@ impl QuadTree {
         }
 
         let bounding_box = shape.bounding_box();
-        if collision_detection::rectangle_contains_rectangle(&nw.as_ref().unwrap().borrow().bounding_box, &bounding_box) {
+        if collision_detection::rectangle_contains_rectangle(
+            &nw.as_ref().unwrap().borrow().bounding_box,
+            &bounding_box,
+        ) {
             return nw.unwrap();
         }
-        if collision_detection::rectangle_contains_rectangle(&ne.as_ref().unwrap().borrow().bounding_box, &bounding_box) {
+        if collision_detection::rectangle_contains_rectangle(
+            &ne.as_ref().unwrap().borrow().bounding_box,
+            &bounding_box,
+        ) {
             return ne.unwrap();
         }
-        if collision_detection::rectangle_contains_rectangle(&sw.as_ref().unwrap().borrow().bounding_box, &bounding_box) {
+        if collision_detection::rectangle_contains_rectangle(
+            &sw.as_ref().unwrap().borrow().bounding_box,
+            &bounding_box,
+        ) {
             return sw.unwrap();
         }
-        if collision_detection::rectangle_contains_rectangle(&se.as_ref().unwrap().borrow().bounding_box, &bounding_box) {
+        if collision_detection::rectangle_contains_rectangle(
+            &se.as_ref().unwrap().borrow().bounding_box,
+            &bounding_box,
+        ) {
             return se.unwrap();
         }
 
@@ -225,7 +270,9 @@ impl QuadTree {
 
     pub fn delete(&mut self, value: u32) {
         if let Some(node_weak) = self.owner_map.remove(&value) {
-            let node_rc = node_weak.upgrade().expect("Failed to upgrade Weak reference to Rc");
+            let node_rc = node_weak
+                .upgrade()
+                .expect("Failed to upgrade Weak reference to Rc");
             self.delete_from(node_rc, value);
         }
     }
@@ -233,7 +280,9 @@ impl QuadTree {
     fn delete_from(&mut self, node: Rc<RefCell<QuadNode>>, value: u32) {
         // Remove the item from the QuadNode's items
         let mut node_borrow = node.borrow_mut();
-        node_borrow.items.retain(|item_value, _| *item_value != value);
+        node_borrow
+            .items
+            .retain(|item_value, _| *item_value != value);
     }
 
     // Subdivide a node into quadrants
@@ -254,25 +303,56 @@ impl QuadTree {
         // Create new quadrants
         node_borrow.nw = Some(Rc::new(RefCell::new(self.quad_node_pool.get())));
         node_borrow.nw.as_ref().unwrap().borrow_mut().initialize(
-            Rectangle { x: nw_x, y: nw_y, width: half_width, height: half_height },
-            Some(parent_weak.clone()), node_borrow.depth + 1);
+            Rectangle {
+                x: nw_x,
+                y: nw_y,
+                width: half_width,
+                height: half_height,
+            },
+            Some(parent_weak.clone()),
+            node_borrow.depth + 1,
+        );
         node_borrow.ne = Some(Rc::new(RefCell::new(self.quad_node_pool.get())));
         node_borrow.ne.as_ref().unwrap().borrow_mut().initialize(
-            Rectangle { x: ne_x, y: nw_y, width: half_width, height: half_height },
-            Some(parent_weak.clone()), node_borrow.depth + 1);
+            Rectangle {
+                x: ne_x,
+                y: nw_y,
+                width: half_width,
+                height: half_height,
+            },
+            Some(parent_weak.clone()),
+            node_borrow.depth + 1,
+        );
         node_borrow.sw = Some(Rc::new(RefCell::new(self.quad_node_pool.get())));
         node_borrow.sw.as_ref().unwrap().borrow_mut().initialize(
-            Rectangle { x: nw_x, y: sw_y, width: half_width, height: half_height },
-            Some(parent_weak.clone()), node_borrow.depth + 1);
+            Rectangle {
+                x: nw_x,
+                y: sw_y,
+                width: half_width,
+                height: half_height,
+            },
+            Some(parent_weak.clone()),
+            node_borrow.depth + 1,
+        );
         node_borrow.se = Some(Rc::new(RefCell::new(self.quad_node_pool.get())));
         node_borrow.se.as_ref().unwrap().borrow_mut().initialize(
-            Rectangle { x: ne_x, y: sw_y, width: half_width, height: half_height },
-            Some(parent_weak.clone()), node_borrow.depth + 1);
+            Rectangle {
+                x: ne_x,
+                y: sw_y,
+                width: half_width,
+                height: half_height,
+            },
+            Some(parent_weak.clone()),
+            node_borrow.depth + 1,
+        );
 
         node_borrow.subdivided = true;
 
         // Redistribute the items to the appropriate quadrants
-        let old_items = node_borrow.items.drain().collect::<Vec<(u32, Box<dyn Shape>)>>();
+        let old_items = node_borrow
+            .items
+            .drain()
+            .collect::<Vec<(u32, Box<dyn Shape>)>>();
         drop(node_borrow);
         for (value, shape) in old_items {
             self.owner_map.remove(&value);
@@ -315,16 +395,28 @@ impl QuadTree {
 
         // Continue with child nodes if the node has been subdivided
         if let (Some(nw), Some(ne), Some(sw), Some(se)) = (nw, ne, sw, se) {
-            if collision_detection::rectangle_rectangle(&nw.borrow().bounding_box, &query_shape_bounding_box) {
+            if collision_detection::rectangle_rectangle(
+                &nw.borrow().bounding_box,
+                &query_shape_bounding_box,
+            ) {
                 self.collisions_from(&nw, query_shape, collisions);
             }
-            if collision_detection::rectangle_rectangle(&ne.borrow().bounding_box, &query_shape_bounding_box) {
+            if collision_detection::rectangle_rectangle(
+                &ne.borrow().bounding_box,
+                &query_shape_bounding_box,
+            ) {
                 self.collisions_from(&ne, query_shape, collisions);
             }
-            if collision_detection::rectangle_rectangle(&sw.borrow().bounding_box, &query_shape_bounding_box) {
+            if collision_detection::rectangle_rectangle(
+                &sw.borrow().bounding_box,
+                &query_shape_bounding_box,
+            ) {
                 self.collisions_from(&sw, query_shape, collisions);
             }
-            if collision_detection::rectangle_rectangle(&se.borrow().bounding_box, &query_shape_bounding_box) {
+            if collision_detection::rectangle_rectangle(
+                &se.borrow().bounding_box,
+                &query_shape_bounding_box,
+            ) {
                 self.collisions_from(&se, query_shape, collisions);
             }
         }
@@ -332,7 +424,9 @@ impl QuadTree {
 
     pub fn relocate(&mut self, value: u32, shape: Box<dyn Shape>) {
         if let Some(node_weak) = self.owner_map.get(&value) {
-            let node = node_weak.upgrade().expect("Failed to upgrade Weak reference to node");
+            let node = node_weak
+                .upgrade()
+                .expect("Failed to upgrade Weak reference to node");
             self.delete_from(node.clone(), value);
             self.relocate_in(node, value, shape);
         } else {
@@ -343,7 +437,10 @@ impl QuadTree {
     fn relocate_in(&mut self, node: Rc<RefCell<QuadNode>>, value: u32, shape: Box<dyn Shape>) {
         let bounding_box = shape.bounding_box();
         let node_borrow = node.borrow();
-        if collision_detection::rectangle_contains_rectangle(&node_borrow.bounding_box, &bounding_box) {
+        if collision_detection::rectangle_contains_rectangle(
+            &node_borrow.bounding_box,
+            &bounding_box,
+        ) {
             drop(node_borrow);
             let destination = self.insert_into(node.clone(), value, shape);
             if Rc::ptr_eq(&destination, &node) {
@@ -353,7 +450,9 @@ impl QuadTree {
         }
 
         if let Some(parent_weak) = node_borrow.parent.as_ref() {
-            let parent = parent_weak.upgrade().expect("Failed to upgrade Weak reference to parent");
+            let parent = parent_weak
+                .upgrade()
+                .expect("Failed to upgrade Weak reference to parent");
             drop(node_borrow);
             self.relocate_in(parent, value, shape);
         } else {
@@ -380,7 +479,10 @@ impl QuadTree {
             }
 
             // Helper function to return the child node to the object pool
-            fn return_child_to_pool(pool: &mut ObjectPool<QuadNode>, child: Option<Rc<RefCell<QuadNode>>>) {
+            fn return_child_to_pool(
+                pool: &mut ObjectPool<QuadNode>,
+                child: Option<Rc<RefCell<QuadNode>>>,
+            ) {
                 if let Some(child_rc) = child {
                     if let Ok(node) = Rc::try_unwrap(child_rc) {
                         pool.return_object(node.into_inner());
@@ -424,7 +526,11 @@ impl QuadTree {
     }
 
     // Helper method to recursively retrieve node bounding boxes
-    fn node_bounding_boxes(&self, node: &Rc<RefCell<QuadNode>>, bounding_boxes: &mut Vec<Rectangle>) {
+    fn node_bounding_boxes(
+        &self,
+        node: &Rc<RefCell<QuadNode>>,
+        bounding_boxes: &mut Vec<Rectangle>,
+    ) {
         // Add the bounding box of the current node to the list
         bounding_boxes.push(node.borrow().bounding_box);
 
