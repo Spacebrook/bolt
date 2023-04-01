@@ -440,39 +440,41 @@ impl QuadTree {
     }
 
     fn relocate_in(&mut self, node: Rc<RefCell<QuadNode>>, value: u32, shape: Box<dyn Shape>) {
-        let bounding_box = shape.bounding_box();
-        let node_borrow = node.borrow();
-        if collision_detection::rectangle_contains_rectangle(
-            &node_borrow.bounding_box,
-            &bounding_box,
-        ) {
-            // Check if the item belongs to one of the child nodes (if they exist)
-            let child = self.get_destination_node(
-                &node,
-                node_borrow.subdivided,
-                node_borrow.nw.clone(),
-                node_borrow.ne.clone(),
-                node_borrow.sw.clone(),
-                node_borrow.se.clone(),
-                &*shape,
-            );
-            if !Rc::ptr_eq(&child, &node) {
-                // Add the item to the child node
-                self.add(&child, value, shape.box_clone());
+        let mut next_node = None;
+        {
+            let bounding_box = shape.bounding_box();
+            let node_borrow = node.borrow();
+            if collision_detection::rectangle_contains_rectangle(
+                &node_borrow.bounding_box,
+                &bounding_box,
+            ) {
+                // Check if the item belongs to one of the child nodes (if they exist)
+                let child = self.get_destination_node(
+                    &node,
+                    node_borrow.subdivided,
+                    node_borrow.nw.clone(),
+                    node_borrow.ne.clone(),
+                    node_borrow.sw.clone(),
+                    node_borrow.se.clone(),
+                    &*shape,
+                );
+                if !Rc::ptr_eq(&child, &node) {
+                    // Add the item to the child node
+                    self.add(&child, value, shape.box_clone());
+                    return;
+                }
+                // Add the item to the current node
+                drop(node_borrow);
+                self.add(&node, value, shape.box_clone());
                 return;
             }
 
-            // Add the item to the current node
-            drop(node_borrow);
-            self.add(&node, value, shape.box_clone());
-            return;
+            if let Some(parent_weak) = node_borrow.parent.as_ref() {
+                next_node = parent_weak.upgrade();
+            }
         }
 
-        if let Some(parent_weak) = node_borrow.parent.as_ref() {
-            let parent = parent_weak
-                .upgrade()
-                .expect("Failed to upgrade Weak reference to parent");
-            drop(node_borrow);
+        if let Some(parent) = next_node {
             self.relocate_in(parent, value, shape);
         } else {
             node.borrow_mut().items.insert(value, shape);

@@ -243,3 +243,21 @@ fn test_object_insertion_with_same_key() {
     qt.collisions(&Rectangle::new(60.0, 60.0, 10.0, 10.0), &mut collisions);
     assert_eq!(collisions, vec![0]);
 }
+
+#[test]
+fn test_relocation_outside_quadtree_bounds() {
+    // Create a QuadTree with a bounding box of (0.0, 0.0, 100.0, 100.0)
+    let mut qt = QuadTree::new(Rectangle::new(0.0, 0.0, 100.0, 100.0));
+
+    // Insert an object with ID 0 and a bounding box (10.0, 10.0, 10.0, 10.0)
+    qt.insert(0, Box::new(Rectangle::new(10.0, 10.0, 10.0, 10.0)));
+
+    // Attempt to relocate the object to a position outside the bounds of the quadtree
+    // This would trigger the "already borrowed" error prior to the fix
+    qt.relocate(0, Box::new(Rectangle::new(200.0, 200.0, 10.0, 10.0)));
+
+    // Verify that the object is still in the quadtree
+    let mut collisions: Vec<u32> = Vec::new();
+    qt.collisions(&Rectangle::new(200.0, 200.0, 10.0, 10.0), &mut collisions);
+    assert_eq!(collisions, vec![0]);
+}
