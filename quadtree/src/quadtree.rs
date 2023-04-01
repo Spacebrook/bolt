@@ -9,7 +9,7 @@ use std::ops::Deref;
 use std::rc::Rc;
 use std::rc::Weak;
 
-pub struct QuadNode {
+struct QuadNode {
     items: HashMap<u32, Box<dyn Shape>>,
     bounding_box: Rectangle,
     nw: Option<Rc<RefCell<QuadNode>>>,
