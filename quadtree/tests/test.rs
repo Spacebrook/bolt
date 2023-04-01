@@ -119,6 +119,17 @@ fn test_object_relocation() {
 }
 
 #[test]
+fn test_object_relocation_initial() {
+    // Test case where an object is relocated without ever being inserted
+    let mut qt = QuadTree::new(Rectangle::new(0.0, 0.0, 100.0, 100.0));
+    qt.relocate(0, Box::new(Rectangle::new(10.0, 10.0, 10.0, 10.0)));
+    qt.relocate(0, Box::new(Rectangle::new(60.0, 60.0, 10.0, 10.0)));
+    let mut collisions: Vec<u32> = Vec::new();
+    qt.collisions(&Rectangle::new(60.0, 60.0, 10.0, 10.0), &mut collisions);
+    assert_eq!(collisions, vec![0]);
+}
+
+#[test]
 fn test_object_deletion() {
     // Test case where an object is deleted from the quadtree
     let mut qt = QuadTree::new(Rectangle::new(0.0, 0.0, 100.0, 100.0));

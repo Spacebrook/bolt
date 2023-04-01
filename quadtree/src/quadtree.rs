@@ -424,11 +424,17 @@ impl QuadTree {
 
     pub fn relocate(&mut self, value: u32, shape: Box<dyn Shape>) {
         if let Some(node_weak) = self.owner_map.get(&value) {
-            let node = node_weak
-                .upgrade()
-                .expect("Failed to upgrade Weak reference to node");
-            self.delete_from(node.clone(), value);
-            self.relocate_in(node, value, shape);
+            match node_weak.upgrade() {
+                Some(node) => {
+                    // If the upgrade is successful, proceed with delete_from and relocate_in
+                    self.delete_from(node.clone(), value);
+                    self.relocate_in(node, value, shape);
+                }
+                None => {
+                    // If the upgrade fails, insert the shape as a new entry
+                    self.insert(value, shape);
+                }
+            }
         } else {
             self.insert(value, shape);
         }
