@@ -3,9 +3,6 @@ use std::fmt::Debug;
 pub trait Shape: Debug {
     fn bounding_box(&self) -> Rectangle;
     fn as_any(&self) -> &dyn std::any::Any;
-    fn box_clone(&self) -> Box<dyn Shape>;
-    #[cfg(feature = "pyo3")]
-    fn box_clone_py(&self) -> PyObject;
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -88,17 +85,6 @@ impl Shape for Circle {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
-
-    fn box_clone(&self) -> Box<dyn Shape> {
-        Box::new(self.clone())
-    }
-
-    #[cfg(feature = "pyo3")]
-    fn box_clone_py(&self) -> PyObject {
-        let gil = Python::acquire_gil();
-        let py = gil.python();
-        PyTuple::new(py, &[self.x, self.y, self.radius]).into_py(py)
-    }
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -171,15 +157,26 @@ impl Shape for Rectangle {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
+}
 
-    fn box_clone(&self) -> Box<dyn Shape> {
-        Box::new(self.clone())
+#[derive(Clone, Debug)]
+pub enum ShapeEnum {
+    Circle(Circle),
+    Rectangle(Rectangle),
+}
+
+impl Shape for ShapeEnum {
+    fn bounding_box(&self) -> Rectangle {
+        match self {
+            ShapeEnum::Circle(circle) => circle.bounding_box(),
+            ShapeEnum::Rectangle(rectangle) => rectangle.bounding_box(),
+        }
     }
 
-    #[cfg(feature = "pyo3")]
-    fn box_clone_py(&self) -> PyObject {
-        let gil = Python::acquire_gil();
-        let py = gil.python();
-        PyTuple::new(py, &[self.x, self.y, self.width, self.height]).into_py(py)
+    fn as_any(&self) -> &dyn std::any::Any {
+        match self {
+            ShapeEnum::Circle(circle) => circle.as_any(),
+            ShapeEnum::Rectangle(rectangle) => rectangle.as_any(),
+        }
     }
 }

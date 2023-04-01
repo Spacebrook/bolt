@@ -1,5 +1,5 @@
 use quadtree::quadtree::{QuadTree, RelocationRequest};
-use quadtree::shapes::{Circle, Rectangle, Shape};
+use quadtree::shapes::{Circle, Rectangle, Shape, ShapeEnum};
 
 use pyo3::exceptions::PyTypeError;
 #[cfg(feature = "pyo3")]
@@ -89,7 +89,7 @@ fn pyquadtree(_py: Python, m: &PyModule) -> PyResult<()> {
             let shape = self.extract_shape(py, shape)?;
             let mut collisions = Vec::new();
             // Dereference the box and then take a reference to the trait object.
-            self.quadtree.collisions(&*shape, &mut collisions);
+            self.quadtree.collisions(shape, &mut collisions);
             Ok(collisions)
         }
 
@@ -99,14 +99,19 @@ fn pyquadtree(_py: Python, m: &PyModule) -> PyResult<()> {
             Ok(())
         }
 
-        pub fn relocate_batch(&mut self, py: Python, relocation_requests: Vec<&PyTuple>
+        pub fn relocate_batch(
+            &mut self,
+            py: Python,
+            relocation_requests: Vec<&PyTuple>,
         ) -> PyResult<()> {
             // Convert the Python tuples into Rust RelocationRequest objects
             let requests: Vec<RelocationRequest> = relocation_requests
                 .into_iter()
                 .map(|tuple| {
                     let value = tuple.get_item(0).unwrap().extract::<u32>().unwrap();
-                    let shape = self.extract_shape(py, tuple.get_item(1).unwrap().into()).unwrap();
+                    let shape = self
+                        .extract_shape(py, tuple.get_item(1).unwrap().into())
+                        .unwrap();
                     RelocationRequest { value, shape }
                 })
                 .collect();
@@ -161,16 +166,16 @@ fn pyquadtree(_py: Python, m: &PyModule) -> PyResult<()> {
     }
 
     impl QuadTreeWrapper {
-        fn extract_shape(&self, py: Python, shape: PyObject) -> PyResult<Box<dyn Shape>> {
+        fn extract_shape(&self, py: Python, shape: PyObject) -> PyResult<ShapeEnum> {
             if let Ok(py_rectangle) = shape.extract::<PyRectangle>(py) {
-                Ok(Box::new(Rectangle {
+                Ok(ShapeEnum::Rectangle(Rectangle {
                     x: py_rectangle.x,
                     y: py_rectangle.y,
                     width: py_rectangle.width,
                     height: py_rectangle.height,
                 }))
             } else if let Ok(py_circle) = shape.extract::<PyCircle>(py) {
-                Ok(Box::new(Circle::new(
+                Ok(ShapeEnum::Circle(Circle::new(
                     py_circle.x,
                     py_circle.y,
                     py_circle.radius,

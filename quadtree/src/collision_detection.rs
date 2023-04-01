@@ -1,4 +1,4 @@
-use crate::shapes::{Circle, Rectangle, Shape};
+use crate::shapes::{Circle, Rectangle, ShapeEnum};
 
 // Check that Rectangle inner is fully contained in Rectangle outer
 pub fn rectangle_contains_rectangle(outer: &Rectangle, inner: &Rectangle) -> bool {
@@ -43,28 +43,17 @@ pub fn circle_rectangle(circle: &Circle, rectangle: &Rectangle) -> bool {
     corner_distance_sq <= circle.radius * circle.radius
 }
 
-pub fn shape_shape(a: &dyn Shape, b: &dyn Shape) -> bool {
-    if let (Some(circle_a), Some(circle_b)) = (
-        a.as_any().downcast_ref::<Circle>(),
-        b.as_any().downcast_ref::<Circle>(),
-    ) {
-        circle_circle(circle_a, circle_b)
-    } else if let (Some(circle), Some(rectangle)) = (
-        a.as_any().downcast_ref::<Circle>(),
-        b.as_any().downcast_ref::<Rectangle>(),
-    ) {
-        circle_rectangle(circle, rectangle)
-    } else if let (Some(rectangle), Some(circle)) = (
-        a.as_any().downcast_ref::<Rectangle>(),
-        b.as_any().downcast_ref::<Circle>(),
-    ) {
-        circle_rectangle(circle, rectangle)
-    } else if let (Some(rectangle_a), Some(rectangle_b)) = (
-        a.as_any().downcast_ref::<Rectangle>(),
-        b.as_any().downcast_ref::<Rectangle>(),
-    ) {
-        rectangle_rectangle(rectangle_a, rectangle_b)
-    } else {
-        panic!("Unknown shape types");
+pub fn shape_shape(a: &ShapeEnum, b: &ShapeEnum) -> bool {
+    match (a, b) {
+        (ShapeEnum::Circle(circle_a), ShapeEnum::Circle(circle_b)) => {
+            circle_circle(circle_a, circle_b)
+        }
+        (ShapeEnum::Circle(circle), ShapeEnum::Rectangle(rectangle))
+        | (ShapeEnum::Rectangle(rectangle), ShapeEnum::Circle(circle)) => {
+            circle_rectangle(circle, rectangle)
+        }
+        (ShapeEnum::Rectangle(rectangle_a), ShapeEnum::Rectangle(rectangle_b)) => {
+            rectangle_rectangle(rectangle_a, rectangle_b)
+        }
     }
 }
