@@ -4,6 +4,8 @@ pub trait Shape: Debug {
     fn bounding_box(&self) -> Rectangle;
     fn as_any(&self) -> &dyn std::any::Any;
     fn box_clone(&self) -> Box<dyn Shape>;
+    #[cfg(feature = "pyo3")]
+    fn box_clone_py(&self) -> PyObject;
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -90,6 +92,13 @@ impl Shape for Circle {
     fn box_clone(&self) -> Box<dyn Shape> {
         Box::new(self.clone())
     }
+
+    #[cfg(feature = "pyo3")]
+    fn box_clone_py(&self) -> PyObject {
+        let gil = Python::acquire_gil();
+        let py = gil.python();
+        PyTuple::new(py, &[self.x, self.y, self.radius]).into_py(py)
+    }
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -155,5 +164,12 @@ impl Shape for Rectangle {
 
     fn box_clone(&self) -> Box<dyn Shape> {
         Box::new(self.clone())
+    }
+
+    #[cfg(feature = "pyo3")]
+    fn box_clone_py(&self) -> PyObject {
+        let gil = Python::acquire_gil();
+        let py = gil.python();
+        PyTuple::new(py, &[self.x, self.y, self.width, self.height]).into_py(py)
     }
 }

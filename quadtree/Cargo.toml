@@ -1,0 +1,11 @@
+[package]
+name = "quadtree"
+version = "0.2.0"
+authors = ["Steve Mostovoy <stevemostovoysm@gmail.com>"]
+edition = "2021"
+
+[lib]
+name = "quadtree"
+
+[dev-dependencies]
+rand = "0.8.5"

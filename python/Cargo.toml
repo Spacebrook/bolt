@@ -1,0 +1,11 @@
+[package]
+name = "pyquadtree"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pyo3 = { version = "0.18.2", features = ["extension-module"] }
+quadtree = { path = "../quadtree" }
+
+[lib]
+crate-type = ["cdylib"]
