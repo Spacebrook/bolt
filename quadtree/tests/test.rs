@@ -130,6 +130,40 @@ fn test_object_relocation_initial() {
 }
 
 #[test]
+fn test_object_relocation_multiple_times() {
+    use rand::Rng;
+
+    // Test case where 10,000 objects are created and each relocated 10 times at random locations
+    let mut qt = QuadTree::new(Rectangle::new(0.0, 0.0, 100.0, 100.0));
+    let num_objects = 1_000;
+    let relocation_count = 10;
+    let mut rng = rand::thread_rng();
+
+    // Helper function to generate random rectangles within quadtree bounds
+    fn random_rectangle(rng: &mut rand::rngs::ThreadRng) -> Rectangle {
+        let x = rng.gen_range(0.0..90.0);
+        let y = rng.gen_range(0.0..90.0);
+        let width = rng.gen_range(1.0..10.0);
+        let height = rng.gen_range(1.0..10.0);
+        Rectangle::new(x, y, width, height)
+    }
+
+    // Insert 10,000 objects at random locations
+    for i in 0..num_objects {
+        let rect = random_rectangle(&mut rng);
+        qt.insert(i as u32, Box::new(rect));
+    }
+
+    // Relocate each object 10 times
+    for i in 0..num_objects {
+        for _ in 0..relocation_count {
+            let rect = random_rectangle(&mut rng);
+            qt.relocate(i as u32, Box::new(rect));
+        }
+    }
+}
+
+#[test]
 fn test_object_deletion() {
     // Test case where an object is deleted from the quadtree
     let mut qt = QuadTree::new(Rectangle::new(0.0, 0.0, 100.0, 100.0));

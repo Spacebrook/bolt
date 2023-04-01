@@ -229,6 +229,11 @@ impl QuadTree {
             return node.clone();
         }
 
+        assert!(nw.is_some(), "nw should be set when subdivided is true");
+        assert!(ne.is_some(), "ne should be set when subdivided is true");
+        assert!(sw.is_some(), "sw should be set when subdivided is true");
+        assert!(se.is_some(), "se should be set when subdivided is true");
+
         let bounding_box = shape.bounding_box();
         if collision_detection::rectangle_contains_rectangle(
             &nw.as_ref().unwrap().borrow().bounding_box,
@@ -424,17 +429,11 @@ impl QuadTree {
 
     pub fn relocate(&mut self, value: u32, shape: Box<dyn Shape>) {
         if let Some(node_weak) = self.owner_map.get(&value) {
-            match node_weak.upgrade() {
-                Some(node) => {
-                    // If the upgrade is successful, proceed with delete_from and relocate_in
-                    self.delete_from(node.clone(), value);
-                    self.relocate_in(node, value, shape);
-                }
-                None => {
-                    // If the upgrade fails, insert the shape as a new entry
-                    self.insert(value, shape);
-                }
-            }
+            let node = node_weak
+                .upgrade()
+                .expect("Failed to upgrade Weak reference to node");
+            self.delete_from(node.clone(), value);
+            self.relocate_in(node, value, shape);
         } else {
             self.insert(value, shape);
         }
@@ -447,11 +446,25 @@ impl QuadTree {
             &node_borrow.bounding_box,
             &bounding_box,
         ) {
-            drop(node_borrow);
-            let destination = self.insert_into(node.clone(), value, shape);
-            if Rc::ptr_eq(&destination, &node) {
-                self.clean_upwards(destination.clone());
+            // Check if the item belongs to one of the child nodes (if they exist)
+            let child = self.get_destination_node(
+                &node,
+                node_borrow.subdivided,
+                node_borrow.nw.clone(),
+                node_borrow.ne.clone(),
+                node_borrow.sw.clone(),
+                node_borrow.se.clone(),
+                &*shape,
+            );
+            if !Rc::ptr_eq(&child, &node) {
+                // Add the item to the child node
+                self.add(&child, value, shape.box_clone());
+                return;
             }
+
+            // Add the item to the current node
+            drop(node_borrow);
+            self.add(&node, value, shape.box_clone());
             return;
         }
 
