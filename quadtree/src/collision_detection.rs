@@ -1,6 +1,6 @@
 use crate::shapes::{Circle, Rectangle, ShapeEnum};
 
-// Check that Rectangle inner is fully contained in Rectangle outer
+// Check that Rectangle inner is fully contained in Rectangle outer, including on the boundary
 pub fn rectangle_contains_rectangle(outer: &Rectangle, inner: &Rectangle) -> bool {
     outer.x <= inner.x
         && outer.right() >= inner.right()

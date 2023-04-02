@@ -193,7 +193,7 @@ fn test_object_relocation_initial() {
 fn test_object_relocation_multiple_times() {
     use rand::Rng;
 
-    // Test case where 10,000 objects are created and each relocated 10 times at random locations
+    // Test case where 1,000 objects are created and each relocated 10 times at random locations
     let mut qt = QuadTree::new(Rectangle::new(0.0, 0.0, 100.0, 100.0));
     let num_objects = 1_000;
     let relocation_count = 10;
@@ -208,7 +208,7 @@ fn test_object_relocation_multiple_times() {
         Rectangle::new(x, y, width, height)
     }
 
-    // Insert 10,000 objects at random locations
+    // Insert 1,000 objects at random locations
     for i in 0..num_objects {
         let rect = random_rectangle(&mut rng);
         qt.insert(i as u32, ShapeEnum::Rectangle(rect));

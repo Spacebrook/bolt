@@ -1,4 +1,4 @@
-use quadtree::quadtree::{QuadTree, RelocationRequest};
+use quadtree::quadtree::{Config, QuadTree, RelocationRequest};
 use quadtree::shapes::{Circle, Rectangle, Shape, ShapeEnum};
 
 use pyo3::exceptions::PyTypeError;
@@ -53,6 +53,26 @@ impl PyRectangle {
     }
 }
 
+#[derive(Clone)]
+#[pyclass(name = "Config")]
+pub struct PyConfig {
+    pool_size: usize,
+    node_capacity: usize,
+    max_depth: usize,
+}
+
+#[pymethods]
+impl PyConfig {
+    #[new]
+    pub fn new(pool_size: usize, node_capacity: usize, max_depth: usize) -> Self {
+        PyConfig {
+            pool_size,
+            node_capacity,
+            max_depth,
+        }
+    }
+}
+
 #[pymodule]
 fn pyquadtree(_py: Python, m: &PyModule) -> PyResult<()> {
     #[pyclass(name = "QuadTree", unsendable)]
@@ -72,6 +92,24 @@ fn pyquadtree(_py: Python, m: &PyModule) -> PyResult<()> {
             };
             QuadTreeWrapper {
                 quadtree: QuadTree::new(bounding_rect),
+            }
+        }
+
+        #[staticmethod]
+        pub fn new_with_config(bounding_box: PyRectangle, config: PyConfig) -> Self {
+            let bounding_rect = Rectangle {
+                x: bounding_box.x,
+                y: bounding_box.y,
+                width: bounding_box.width,
+                height: bounding_box.height,
+            };
+            let rust_config = Config {
+                pool_size: config.pool_size,
+                node_capacity: config.node_capacity,
+                max_depth: config.max_depth,
+            };
+            QuadTreeWrapper {
+                quadtree: QuadTree::new_with_config(bounding_rect, rust_config),
             }
         }
 

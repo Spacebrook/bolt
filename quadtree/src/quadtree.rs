@@ -18,14 +18,11 @@ struct QuadNode {
     se: Option<Rc<RefCell<QuadNode>>>,
     parent: Option<Weak<RefCell<QuadNode>>>,
     subdivided: bool,
-    depth: i32,
+    depth: usize,
     self_rc: Option<Weak<RefCell<QuadNode>>>,
 }
 
 impl QuadNode {
-    const CAPACITY: usize = 4;
-    const MAX_DEPTH: i32 = 6;
-
     pub fn new() -> Self {
         Self {
             items: HashMap::new(),
@@ -45,7 +42,7 @@ impl QuadNode {
         &mut self,
         bounding_box: Rectangle,
         parent: Option<Weak<RefCell<QuadNode>>>,
-        depth: i32,
+        depth: usize,
     ) {
         self.bounding_box = bounding_box;
         self.parent = parent;
@@ -138,17 +135,37 @@ impl Default for QuadNode {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct Config {
+    pub pool_size: usize,
+    pub node_capacity: usize,
+    pub max_depth: usize,
+}
+
+// Implement Default trait for Config
+impl Default for Config {
+    fn default() -> Self {
+        Config {
+            // With a max depth of 6, there could be up to 5461 nodes.
+            // Let's set a reasonable max pool size of 4000.
+            pool_size: 4000,
+            node_capacity: 4,
+            max_depth: 6,
+        }
+    }
+}
+
 pub struct QuadTree {
     root: Rc<RefCell<QuadNode>>,
     owner_map: HashMap<u32, Weak<RefCell<QuadNode>>>,
     quad_node_pool: ObjectPool<QuadNode>,
+
+    config: Config,
 }
 
 impl QuadTree {
-    pub fn new(bounding_box: Rectangle) -> Self {
-        // With a max depth of 6, there could be up to 5461 nodes.
-        // Let's set a reasonable max pool size of 4000.
-        let mut quad_node_pool = ObjectPool::<QuadNode>::new(4000);
+    pub fn new_with_config(bounding_box: Rectangle, config: Config) -> Self {
+        let mut quad_node_pool = ObjectPool::<QuadNode>::new(config.pool_size);
         let root = Rc::new(RefCell::new(quad_node_pool.get()));
         root.borrow_mut().initialize(bounding_box, None, 0);
         root.borrow_mut().set_self_rc(Rc::downgrade(&root));
@@ -158,7 +175,12 @@ impl QuadTree {
             quad_node_pool,
             root,
             owner_map,
+            config,
         }
+    }
+
+    pub fn new(bounding_box: Rectangle) -> Self {
+        Self::new_with_config(bounding_box, Config::default())
     }
 
     // Insert a shape with a given value into the quadtree
@@ -179,8 +201,8 @@ impl QuadTree {
                 let node_borrow = node.borrow_mut();
 
                 // Check if node has room or reached max depth
-                if (node_borrow.items.len() < QuadNode::CAPACITY && !node_borrow.subdivided)
-                    || node_borrow.depth == QuadNode::MAX_DEPTH
+                if (node_borrow.items.len() < self.config.node_capacity && !node_borrow.subdivided)
+                    || node_borrow.depth == self.config.max_depth
                 {
                     drop(node_borrow);
                     self.add(&node, value, shape);
@@ -188,7 +210,7 @@ impl QuadTree {
                 }
 
                 // Subdivide node if needed
-                if !node_borrow.subdivided && node_borrow.depth < QuadNode::MAX_DEPTH {
+                if !node_borrow.subdivided && node_borrow.depth < self.config.max_depth {
                     need_subdivide = true;
                 } else {
                     let destination = self.get_destination_node(&node_borrow, shape.clone());
@@ -277,7 +299,9 @@ impl QuadTree {
             let node_rc = node_weak
                 .upgrade()
                 .expect("Failed to upgrade Weak reference to Rc");
-            self.delete_from(node_rc, value);
+            self.delete_from(node_rc.clone(), value);
+            // Clean up the node and its ancestors after deleting an item
+            self.clean_upwards(node_rc);
         }
     }
 
@@ -339,7 +363,7 @@ impl QuadTree {
             .as_ref()
             .unwrap()
             .borrow_mut()
-            .set_self_rc(Rc::downgrade(&node_borrow.nw.as_ref().unwrap()));
+            .set_self_rc(Rc::downgrade(&node_borrow.ne.as_ref().unwrap()));
 
         node_borrow.sw = Some(Rc::new(RefCell::new(self.quad_node_pool.get())));
         node_borrow.sw.as_ref().unwrap().borrow_mut().initialize(
@@ -357,7 +381,7 @@ impl QuadTree {
             .as_ref()
             .unwrap()
             .borrow_mut()
-            .set_self_rc(Rc::downgrade(&node_borrow.nw.as_ref().unwrap()));
+            .set_self_rc(Rc::downgrade(&node_borrow.sw.as_ref().unwrap()));
 
         node_borrow.se = Some(Rc::new(RefCell::new(self.quad_node_pool.get())));
         node_borrow.se.as_ref().unwrap().borrow_mut().initialize(
@@ -375,7 +399,7 @@ impl QuadTree {
             .as_ref()
             .unwrap()
             .borrow_mut()
-            .set_self_rc(Rc::downgrade(&node_borrow.nw.as_ref().unwrap()));
+            .set_self_rc(Rc::downgrade(&node_borrow.se.as_ref().unwrap()));
 
         node_borrow.subdivided = true;
 
@@ -450,63 +474,77 @@ impl QuadTree {
         }
     }
 
-    pub fn relocate(&mut self, value: u32, shape: ShapeEnum) {
-        if let Some(node_weak) = self.owner_map.get(&value) {
-            let node = node_weak
-                .upgrade()
-                .expect("Failed to upgrade Weak reference to node");
-            self.delete_from(node.clone(), value);
-            self.relocate_in(node, value, shape);
-        } else {
-            self.insert(value, shape);
-        }
-    }
-
     pub fn relocate_batch(&mut self, relocation_requests: Vec<RelocationRequest>) {
         for request in relocation_requests {
             self.relocate(request.value, request.shape);
         }
     }
 
-    fn relocate_in(&mut self, node: Rc<RefCell<QuadNode>>, value: u32, shape: ShapeEnum) {
-        let mut next_node = None;
-        {
+    pub fn relocate(&mut self, value: u32, shape: ShapeEnum) {
+        if let Some(node_weak) = self.owner_map.get(&value) {
+            let node = node_weak
+                .upgrade()
+                .expect("Failed to upgrade Weak reference to node");
+
+            // Check if the item still fits in the current node
             let bounding_box = shape.bounding_box();
-            let node_borrow = node.borrow();
             if collision_detection::rectangle_contains_rectangle(
-                &node_borrow.bounding_box,
+                &node.borrow().bounding_box,
                 &bounding_box,
             ) {
-                // Check if the item belongs to one of the child nodes (if they exist)
-                let child = self.get_destination_node(&node_borrow, shape.clone());
-                if !Rc::ptr_eq(&child, &node) {
-                    // Add the item to the child node
-                    self.add(&child, value, shape);
-                    return;
-                }
-                // Add the item to the current node
-                drop(node_borrow);
+                // Item is still in the correct node, no need to relocate
                 self.add(&node, value, shape);
                 return;
             }
 
-            if let Some(parent_weak) = node_borrow.parent.as_ref() {
-                next_node = parent_weak.upgrade();
-            }
-        }
-
-        if let Some(parent) = next_node {
-            self.relocate_in(parent, value, shape);
+            // Delete the item from the current node and relocate to the appropriate node
+            self.delete_from(node.clone(), value);
+            self.relocate_in(node, value, shape);
         } else {
-            node.borrow_mut().items.insert(value, shape);
-            self.clean_upwards(node.clone());
+            // If the object is not found in the owner_map, insert it into the quadtree
+            self.insert(value, shape);
+        }
+    }
+
+    fn relocate_in(&mut self, mut node: Rc<RefCell<QuadNode>>, value: u32, shape: ShapeEnum) {
+        let bounding_box = shape.bounding_box();
+        let root_node = self.root.clone();
+        loop {
+            // Check if the shape fits within the current node's bounding box
+            let node_bounding_box = node.borrow().bounding_box.clone();
+            if collision_detection::rectangle_contains_rectangle(&node_bounding_box, &bounding_box)
+            {
+                // Find the appropriate child node or keep the current node
+                let destination = self.get_destination_node(&node.borrow(), shape.clone());
+                if Rc::ptr_eq(&destination, &node) {
+                    self.add(&node, value, shape);
+                    return;
+                }
+                node = destination;
+            } else {
+                // Move up to the parent node
+                let next_node = node
+                    .borrow()
+                    .parent
+                    .as_ref()
+                    .and_then(|weak| weak.upgrade());
+                if let Some(parent) = next_node {
+                    node = parent;
+                } else {
+                    // Item is outside the bounds of the QuadTree, add it to the root
+                    self.add(&root_node, value, shape);
+                    // Clean up the root node and its ancestors
+                    self.clean_upwards(root_node);
+                    return;
+                }
+            }
         }
     }
 
     fn clean(&mut self, node: Rc<RefCell<QuadNode>>) {
         let should_collect_items = {
             let node_borrow = node.borrow();
-            node_borrow.count_all_items() <= QuadNode::CAPACITY
+            node_borrow.count_all_items() <= self.config.node_capacity
         };
 
         let child_items: Vec<_> = if should_collect_items {
@@ -635,6 +673,7 @@ impl QuadTree {
     }
 }
 
+#[derive(Clone)]
 pub struct RelocationRequest {
     pub value: u32,
     pub shape: ShapeEnum,
