@@ -226,8 +226,9 @@ fn pyquadtree(_py: Python, m: &PyModule) -> PyResult<()> {
         }
     }
 
+    m.add_class::<QuadTreeWrapper>()?;
     m.add_class::<PyCircle>()?;
     m.add_class::<PyRectangle>()?;
-    m.add_class::<QuadTreeWrapper>()?;
+    m.add_class::<PyConfig>()?;
     Ok(())
 }
