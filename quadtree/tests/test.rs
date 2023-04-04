@@ -10,6 +10,7 @@ fn test_single_collision() {
     qt.insert(
         0,
         ShapeEnum::Rectangle(Rectangle::new(0.0, 15.0, 100.0, 50.0)),
+        None,
     );
     let mut collisions: Vec<u32> = Vec::new();
     qt.collisions(
@@ -25,8 +26,9 @@ fn test_full_tree() {
     qt.insert(
         0,
         ShapeEnum::Rectangle(Rectangle::new(500.0, 500.0, 50.0, 50.0)),
+        None,
     );
-    qt.insert(1, ShapeEnum::Circle(Circle::new(500.0, 500.0, 25.0)));
+    qt.insert(1, ShapeEnum::Circle(Circle::new(500.0, 500.0, 25.0)), None);
 
     let mut rng = rand::thread_rng();
     for i in 2..5 {
@@ -38,6 +40,7 @@ fn test_full_tree() {
                 rng.gen_range(0.0..100.0),
                 rng.gen_range(0.0..100.0),
             )),
+            None,
         );
     }
 
@@ -49,6 +52,7 @@ fn test_full_tree() {
                 rng.gen_range(0.0..950.0),
                 rng.gen_range(0.0..50.0),
             )),
+            None,
         );
     }
 
@@ -80,15 +84,16 @@ fn test_full_tree() {
 
 #[test]
 fn test_huge_bounds() {
-    let bounds = Rectangle::new(-1000000.0, -1000000.0, 2000000.0, 2000000.0);
-    let mut qt = QuadTree::new(bounds);
+    let mut qt = QuadTree::new(Rectangle::new(-1000000.0, -1000000.0, 2000000.0, 2000000.0));
     qt.insert(
         0,
         ShapeEnum::Rectangle(Rectangle::new(16000.0, -355.0, 60.0, 60.0)),
+        None,
     );
     qt.insert(
         1,
         ShapeEnum::Rectangle(Rectangle::new(15980.0, -350.0, 60.0, 60.0)),
+        None,
     );
     let mut collisions: Vec<u32> = Vec::new();
     qt.collisions(
@@ -108,10 +113,12 @@ fn test_no_collision() {
     qt.insert(
         0,
         ShapeEnum::Rectangle(Rectangle::new(10.0, 10.0, 20.0, 20.0)),
+        None,
     );
     qt.insert(
         1,
         ShapeEnum::Rectangle(Rectangle::new(50.0, 50.0, 20.0, 20.0)),
+        None,
     );
     let mut collisions: Vec<u32> = Vec::new();
     qt.collisions(
@@ -128,14 +135,17 @@ fn test_multiple_collisions() {
     qt.insert(
         0,
         ShapeEnum::Rectangle(Rectangle::new(10.0, 10.0, 20.0, 20.0)),
+        None,
     );
     qt.insert(
         1,
         ShapeEnum::Rectangle(Rectangle::new(20.0, 20.0, 30.0, 30.0)),
+        None,
     );
     qt.insert(
         2,
         ShapeEnum::Rectangle(Rectangle::new(15.0, 15.0, 15.0, 15.0)),
+        None,
     );
     let mut collisions: Vec<u32> = Vec::new();
     qt.collisions(
@@ -156,10 +166,12 @@ fn test_object_relocation() {
     qt.insert(
         0,
         ShapeEnum::Rectangle(Rectangle::new(10.0, 10.0, 10.0, 10.0)),
+        None,
     );
     qt.relocate(
         0,
         ShapeEnum::Rectangle(Rectangle::new(60.0, 60.0, 10.0, 10.0)),
+        None,
     );
     let mut collisions: Vec<u32> = Vec::new();
     qt.collisions(
@@ -176,10 +188,12 @@ fn test_object_relocation_initial() {
     qt.relocate(
         0,
         ShapeEnum::Rectangle(Rectangle::new(10.0, 10.0, 10.0, 10.0)),
+        None,
     );
     qt.relocate(
         0,
         ShapeEnum::Rectangle(Rectangle::new(60.0, 60.0, 10.0, 10.0)),
+        None,
     );
     let mut collisions: Vec<u32> = Vec::new();
     qt.collisions(
@@ -211,14 +225,14 @@ fn test_object_relocation_multiple_times() {
     // Insert 1,000 objects at random locations
     for i in 0..num_objects {
         let rect = random_rectangle(&mut rng);
-        qt.insert(i as u32, ShapeEnum::Rectangle(rect));
+        qt.insert(i as u32, ShapeEnum::Rectangle(rect), None);
     }
 
     // Relocate each object 10 times
     for i in 0..num_objects {
         for _ in 0..relocation_count {
             let rect = random_rectangle(&mut rng);
-            qt.relocate(i as u32, ShapeEnum::Rectangle(rect));
+            qt.relocate(i as u32, ShapeEnum::Rectangle(rect), None);
         }
     }
 }
@@ -230,10 +244,12 @@ fn test_object_deletion() {
     qt.insert(
         0,
         ShapeEnum::Rectangle(Rectangle::new(10.0, 10.0, 10.0, 10.0)),
+        None,
     );
     qt.insert(
         1,
         ShapeEnum::Rectangle(Rectangle::new(50.0, 50.0, 10.0, 10.0)),
+        None,
     );
     qt.delete(0);
     let mut collisions: Vec<u32> = Vec::new();
@@ -251,6 +267,7 @@ fn test_object_out_of_bounds() {
     qt.insert(
         0,
         ShapeEnum::Rectangle(Rectangle::new(150.0, 150.0, 10.0, 10.0)),
+        None,
     );
     let mut collisions: Vec<u32> = Vec::new();
     qt.collisions(
@@ -279,14 +296,17 @@ fn test_query_with_large_shape() {
     qt.insert(
         0,
         ShapeEnum::Rectangle(Rectangle::new(10.0, 10.0, 10.0, 10.0)),
+        None,
     );
     qt.insert(
         1,
         ShapeEnum::Rectangle(Rectangle::new(50.0, 50.0, 10.0, 10.0)),
+        None,
     );
     qt.insert(
         2,
         ShapeEnum::Rectangle(Rectangle::new(70.0, 70.0, 10.0, 10.0)),
+        None,
     );
     let mut collisions: Vec<u32> = Vec::new();
     qt.collisions(
@@ -307,6 +327,7 @@ fn test_boundary_collision() {
     qt.insert(
         0,
         ShapeEnum::Rectangle(Rectangle::new(10.0, 10.0, 20.0, 20.0)),
+        None,
     );
     let mut collisions: Vec<u32> = Vec::new();
     qt.collisions(
@@ -323,6 +344,7 @@ fn test_shape_spanning_multiple_quadrants() {
     qt.insert(
         0,
         ShapeEnum::Rectangle(Rectangle::new(45.0, 45.0, 10.0, 10.0)),
+        None,
     );
     let mut collisions: Vec<u32> = Vec::new();
     qt.collisions(
@@ -339,10 +361,12 @@ fn test_object_insertion_with_same_key() {
     qt.insert(
         0,
         ShapeEnum::Rectangle(Rectangle::new(10.0, 10.0, 10.0, 10.0)),
+        None,
     );
     qt.insert(
         0,
         ShapeEnum::Rectangle(Rectangle::new(60.0, 60.0, 10.0, 10.0)),
+        None,
     ); // Same key as the first object
     let mut collisions: Vec<u32> = Vec::new();
     qt.collisions(
@@ -367,11 +391,13 @@ fn test_relocation_outside_quadtree_bounds() {
     qt.insert(
         0,
         ShapeEnum::Rectangle(Rectangle::new(10.0, 10.0, 10.0, 10.0)),
+        None,
     );
     // Attempt to relocate the object to a position outside the bounds of the quadtree
     qt.relocate(
         0,
         ShapeEnum::Rectangle(Rectangle::new(200.0, 200.0, 10.0, 10.0)),
+        None,
     );
 
     // Verify that the object is still in the quadtree
@@ -411,6 +437,7 @@ fn test_no_multiple_subdivision() {
             width: 60.0,
             height: 60.0,
         }),
+        None,
     );
     qt.insert(
         2,
@@ -420,6 +447,7 @@ fn test_no_multiple_subdivision() {
             width: 10.0,
             height: 10.0,
         }),
+        None,
     );
     qt.insert(
         3,
@@ -429,6 +457,7 @@ fn test_no_multiple_subdivision() {
             width: 10.0,
             height: 10.0,
         }),
+        None,
     );
     qt.insert(
         4,
@@ -438,6 +467,7 @@ fn test_no_multiple_subdivision() {
             width: 10.0,
             height: 10.0,
         }),
+        None,
     );
 
     // The next insertion will trigger subdivision of the root node
@@ -449,6 +479,7 @@ fn test_no_multiple_subdivision() {
             width: 40.0,
             height: 40.0,
         }),
+        None,
     );
 
     // Insert more items into the QuadTree to trigger the second subdivision
@@ -460,6 +491,7 @@ fn test_no_multiple_subdivision() {
             width: 10.0,
             height: 10.0,
         }),
+        None,
     );
     qt.insert(
         7,
@@ -469,6 +501,7 @@ fn test_no_multiple_subdivision() {
             width: 10.0,
             height: 10.0,
         }),
+        None,
     );
     qt.insert(
         8,
@@ -478,6 +511,7 @@ fn test_no_multiple_subdivision() {
             width: 10.0,
             height: 10.0,
         }),
+        None,
     );
     qt.insert(
         9,
@@ -487,6 +521,7 @@ fn test_no_multiple_subdivision() {
             width: 10.0,
             height: 10.0,
         }),
+        None,
     );
 
     // Without the fix, the next insertion would recursively trigger subdivision and overwrite child nodes
@@ -498,6 +533,7 @@ fn test_no_multiple_subdivision() {
             width: 40.0,
             height: 40.0,
         }),
+        None,
     );
 
     // Check that all items were successfully redistributed and the QuadTree is in a consistent state
@@ -528,9 +564,9 @@ fn test_collisions_batch() {
     let shape2 = ShapeEnum::Circle(Circle::new(4.0, 4.0, 1.0));
     let shape3 = ShapeEnum::Circle(Circle::new(6.0, 6.0, 1.0));
 
-    quadtree.insert(1, shape1);
-    quadtree.insert(2, shape2);
-    quadtree.insert(3, shape3);
+    quadtree.insert(1, shape1, None);
+    quadtree.insert(2, shape2, None);
+    quadtree.insert(3, shape3, None);
 
     // Define batch collision queries.
     let query1 = ShapeEnum::Circle(Circle::new(2.0, 2.0, 1.5));
@@ -558,4 +594,56 @@ fn test_collisions_batch() {
     assert!(!collision_results[2].contains(&1));
     assert!(!collision_results[2].contains(&2));
     assert!(!collision_results[2].contains(&3));
+}
+
+#[test]
+fn test_collisions_with_entity_type_filter() {
+    // Define the bounds of the QuadTree
+    let mut qt = QuadTree::new(Rectangle {
+        x: 0.0,
+        y: 0.0,
+        width: 10.0,
+        height: 10.0,
+    });
+
+    // Insert entities into the QuadTree
+    let entity_type_1: Option<u32> = Some(1);
+    let entity_type_2: Option<u32> = Some(2);
+
+    // Entity 1
+    let shape_1 = ShapeEnum::Circle(Circle::new(2.0, 2.0, 1.0));
+    qt.insert(1, shape_1.clone(), entity_type_1);
+
+    // Entity 2
+    let shape_2 = ShapeEnum::Circle(Circle::new(4.0, 2.0, 1.0));
+    qt.insert(2, shape_2.clone(), entity_type_2);
+
+    // Entity 3
+    let shape_3 = ShapeEnum::Circle(Circle::new(7.0, 5.0, 1.0));
+    qt.insert(3, shape_3.clone(), entity_type_1);
+
+    // Query shape for collisions
+    let query_shape = ShapeEnum::Circle(Circle::new(3.0, 3.0, 2.0));
+
+    // Test collisions with normal collisions method
+    let mut collisions = Vec::new();
+    qt.collisions(query_shape.clone(), &mut collisions);
+    collisions.sort();
+    assert_eq!(collisions, vec![1, 2]);
+
+    // Test collisions without entity type filter
+    let mut collisions = Vec::new();
+    qt.collisions_filter(query_shape.clone(), None, &mut collisions);
+    collisions.sort();
+    assert_eq!(collisions, vec![1, 2]);
+
+    // Test collisions with entity type filter (only entity type 1)
+    let mut collisions = Vec::new();
+    qt.collisions_filter(query_shape.clone(), Some(vec![1]), &mut collisions);
+    assert_eq!(collisions, vec![1]);
+
+    // Test collisions with entity type filter (only entity type 2)
+    let mut collisions = Vec::new();
+    qt.collisions_filter(query_shape.clone(), Some(vec![2]), &mut collisions);
+    assert_eq!(collisions, vec![2]);
 }

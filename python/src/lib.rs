@@ -113,9 +113,15 @@ fn pyquadtree(_py: Python, m: &PyModule) -> PyResult<()> {
             }
         }
 
-        pub fn insert(&mut self, py: Python, value: u32, shape: PyObject) -> PyResult<()> {
+        pub fn insert(
+            &mut self,
+            py: Python,
+            value: u32,
+            shape: PyObject,
+            entity_type: Option<u32>,
+        ) -> PyResult<()> {
             let shape = self.extract_shape(py, shape)?;
-            self.quadtree.insert(value, shape);
+            self.quadtree.insert(value, shape, entity_type);
             Ok(())
         }
 
@@ -140,9 +146,15 @@ fn pyquadtree(_py: Python, m: &PyModule) -> PyResult<()> {
             Ok(self.quadtree.collisions_batch(shapes))
         }
 
-        pub fn relocate(&mut self, py: Python, value: u32, shape: PyObject) -> PyResult<()> {
+        pub fn relocate(
+            &mut self,
+            py: Python,
+            value: u32,
+            shape: PyObject,
+            entity_type: Option<u32>,
+        ) -> PyResult<()> {
             let shape = self.extract_shape(py, shape)?;
-            self.quadtree.relocate(value, shape);
+            self.quadtree.relocate(value, shape, entity_type);
             Ok(())
         }
 
@@ -159,7 +171,15 @@ fn pyquadtree(_py: Python, m: &PyModule) -> PyResult<()> {
                     let shape = self
                         .extract_shape(py, tuple.get_item(1).unwrap().into())
                         .unwrap();
-                    RelocationRequest { value, shape }
+                    let entity_type: Option<u32> = match tuple.get_item(2).unwrap() {
+                        obj if obj.is_none() => None, // Check if it's a Python None
+                        obj => Some(obj.extract::<u32>().unwrap()),
+                    };
+                    RelocationRequest {
+                        value,
+                        shape,
+                        entity_type,
+                    }
                 })
                 .collect();
 
