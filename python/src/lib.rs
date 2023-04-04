@@ -130,20 +130,43 @@ fn pyquadtree(_py: Python, m: &PyModule) -> PyResult<()> {
         }
 
         pub fn collisions(&self, py: Python, shape: PyObject) -> PyResult<Vec<u32>> {
+            return self.collisions_filter(py, shape, None);
+        }
+
+        pub fn collisions_filter(
+            &self,
+            py: Python,
+            shape: PyObject,
+            entity_types: Option<&PyList>,
+        ) -> PyResult<Vec<u32>> {
             let shape = self.extract_shape(py, shape)?;
+
+            let entity_types = self.extract_entity_types(entity_types)?;
+
             let mut collisions = Vec::new();
-            // Dereference the box and then take a reference to the trait object.
-            self.quadtree.collisions(shape, &mut collisions);
+            self.quadtree
+                .collisions_filter(shape, entity_types, &mut collisions);
             Ok(collisions)
         }
 
         pub fn collisions_batch(&self, py: Python, shapes: &PyList) -> PyResult<Vec<Vec<u32>>> {
+            self.collisions_batch_filter(py, shapes, None)
+        }
+
+        pub fn collisions_batch_filter(
+            &self,
+            py: Python,
+            shapes: &PyList,
+            entity_types: Option<&PyList>,
+        ) -> PyResult<Vec<Vec<u32>>> {
             let shapes: Vec<ShapeEnum> = shapes
                 .iter()
                 .map(|shape| self.extract_shape(py, shape.into()))
                 .collect::<Result<_, _>>()?;
 
-            Ok(self.quadtree.collisions_batch(shapes))
+            let entity_types = self.extract_entity_types(entity_types)?;
+
+            Ok(self.quadtree.collisions_batch_filter(shapes, entity_types))
         }
 
         pub fn relocate(
@@ -251,6 +274,22 @@ fn pyquadtree(_py: Python, m: &PyModule) -> PyResult<()> {
                 Err(PyTypeError::new_err(
                     "Expected a Rectangle or Circle object",
                 ))
+            }
+        }
+
+        fn extract_entity_types(
+            &self,
+            entity_types: Option<&PyList>,
+        ) -> PyResult<Option<Vec<u32>>> {
+            match entity_types {
+                Some(entity_types_list) => {
+                    let et: Result<Vec<u32>, _> = entity_types_list
+                        .iter()
+                        .map(|item| item.extract::<u32>())
+                        .collect();
+                    Ok(Some(et?))
+                }
+                None => Ok(None),
             }
         }
     }
