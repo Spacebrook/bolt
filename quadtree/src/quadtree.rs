@@ -39,7 +39,6 @@ impl Resettable for QuadNode {
     }
 }
 
-
 impl QuadNode {
     pub fn new() -> Self {
         Self {
@@ -81,7 +80,7 @@ impl QuadNode {
     }
 
     // Returns an iterator over all items in the QuadNode, including child nodes
-    pub fn all_items(&self) -> Box<dyn Iterator<Item = (u32, ShapeEnum)> + '_> {
+    pub fn all_items(&self) -> Box<dyn Iterator<Item=(u32, ShapeEnum)> + '_> {
         let items = self.items.iter().map(|(id, shape)| (*id, shape.clone()));
         if !self.subdivided {
             return Box::new(items);
@@ -92,7 +91,7 @@ impl QuadNode {
     }
 
     // Returns an iterator over items in child nodes
-    fn child_items(&self) -> Box<dyn Iterator<Item = (u32, ShapeEnum)> + '_> {
+    fn child_items(&self) -> Box<dyn Iterator<Item=(u32, ShapeEnum)> + '_> {
         if !self.subdivided {
             return Box::new(std::iter::empty());
         }
@@ -103,21 +102,21 @@ impl QuadNode {
             self.sw.as_ref(),
             self.se.as_ref(),
         ]
-        .iter()
-        .flat_map(|opt_node| {
-            opt_node
-                .map(|node_rc| {
-                    node_rc
-                        .borrow()
-                        .all_items()
-                        .map(|(id, shape)| (id, shape.clone()))
-                        .collect::<Vec<_>>()
-                        .into_iter()
-                })
-                .into_iter()
-                .flatten()
-        })
-        .collect();
+            .iter()
+            .flat_map(|opt_node| {
+                opt_node
+                    .map(|node_rc| {
+                        node_rc
+                            .borrow()
+                            .all_items()
+                            .map(|(id, shape)| (id, shape.clone()))
+                            .collect::<Vec<_>>()
+                            .into_iter()
+                    })
+                    .into_iter()
+                    .flatten()
+            })
+            .collect();
 
         Box::new(items.into_iter())
     }
@@ -255,7 +254,7 @@ impl QuadTree {
 
     // Determine which child node the shape belongs to
     fn get_destination_node(&self, node: &QuadNode, shape: ShapeEnum) -> Rc<RefCell<QuadNode>> {
-        if !node.subdivided {
+        if !node.subdivided || node.subdividing {
             return node
                 .self_rc
                 .as_ref()
