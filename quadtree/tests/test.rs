@@ -1,4 +1,4 @@
-use quadtree::quadtree::QuadTree;
+use quadtree::quadtree::{Config, QuadTree};
 use quadtree::shapes::{Circle, Rectangle, ShapeEnum};
 
 use rand::Rng;
@@ -381,4 +381,51 @@ fn test_relocation_outside_quadtree_bounds() {
         &mut collisions,
     );
     assert_eq!(collisions, vec![0]);
+}
+
+#[test]
+fn test_no_multiple_subdivision() {
+    let bounding_box = Rectangle {
+        x: 0.0,
+        y: 0.0,
+        width: 100.0,
+        height: 100.0,
+    };
+
+    let config = Config {
+        pool_size: 4000,
+        node_capacity: 4,
+        max_depth: 2,
+    };
+
+    // Create a QuadTree with the custom config
+    let mut qt = QuadTree::new_with_config(bounding_box, config);
+
+    // Insert shapes into the QuadTree in such a way that they will be redistributed
+    // during the subdivision process and cause multiple subdivision attempts
+    qt.insert(1, ShapeEnum::Rectangle(Rectangle { x: 10.0, y: 10.0, width: 60.0, height: 60.0 }));
+    qt.insert(2, ShapeEnum::Rectangle(Rectangle { x: 40.0, y: 10.0, width: 10.0, height: 10.0 }));
+    qt.insert(3, ShapeEnum::Rectangle(Rectangle { x: 10.0, y: 40.0, width: 10.0, height: 10.0 }));
+    qt.insert(4, ShapeEnum::Rectangle(Rectangle { x: 40.0, y: 40.0, width: 10.0, height: 10.0 }));
+
+    // The next insertion will trigger subdivision of the root node
+    qt.insert(5, ShapeEnum::Rectangle(Rectangle { x: 30.0, y: 30.0, width: 40.0, height: 40.0 }));
+
+    // Insert more items into the QuadTree to trigger the second subdivision
+    qt.insert(6, ShapeEnum::Rectangle(Rectangle { x: 10.0, y: 10.0, width: 10.0, height: 10.0 }));
+    qt.insert(7, ShapeEnum::Rectangle(Rectangle { x: 40.0, y: 10.0, width: 10.0, height: 10.0 }));
+    qt.insert(8, ShapeEnum::Rectangle(Rectangle { x: 10.0, y: 40.0, width: 10.0, height: 10.0 }));
+    qt.insert(9, ShapeEnum::Rectangle(Rectangle { x: 40.0, y: 40.0, width: 10.0, height: 10.0 }));
+
+    // Without the fix, the next insertion would recursively trigger subdivision and overwrite child nodes
+    qt.insert(10, ShapeEnum::Rectangle(Rectangle { x: 30.0, y: 30.0, width: 40.0, height: 40.0 }));
+
+    // Check that all items were successfully redistributed and the QuadTree is in a consistent state
+    let mut all_shapes = Vec::new();
+    qt.all_shapes(&mut all_shapes);
+    assert_eq!(all_shapes.len(), 10);
+
+    let mut all_bounding_boxes = Vec::new();
+    qt.all_node_bounding_boxes(&mut all_bounding_boxes);
+    assert!(all_bounding_boxes.len() > 1);
 }

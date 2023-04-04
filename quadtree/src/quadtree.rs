@@ -18,9 +18,27 @@ struct QuadNode {
     se: Option<Rc<RefCell<QuadNode>>>,
     parent: Option<Weak<RefCell<QuadNode>>>,
     subdivided: bool,
+    subdividing: bool,
     depth: usize,
     self_rc: Option<Weak<RefCell<QuadNode>>>,
 }
+
+// Implement the Resettable trait for QuadNode
+impl Resettable for QuadNode {
+    fn reset(&mut self) {
+        self.bounding_box = Rectangle::default();
+        self.parent = None;
+        self.depth = 0;
+        self.items.clear();
+        self.nw = None;
+        self.ne = None;
+        self.sw = None;
+        self.se = None;
+        self.subdivided = false;
+        self.subdividing = false;
+    }
+}
+
 
 impl QuadNode {
     pub fn new() -> Self {
@@ -33,6 +51,7 @@ impl QuadNode {
             se: None,
             parent: None,
             subdivided: false,
+            subdividing: false,
             depth: 0,
             self_rc: None,
         }
@@ -53,6 +72,7 @@ impl QuadNode {
         self.sw = None;
         self.se = None;
         self.subdivided = false;
+        self.subdividing = false;
     }
 
     // New method to initialize the self_rc field.
@@ -316,6 +336,13 @@ impl QuadTree {
     // Subdivide a node into quadrants
     fn subdivide(&mut self, node: Rc<RefCell<QuadNode>>) {
         let mut node_borrow = node.borrow_mut();
+
+        // If the node is already being subdivided, do not subdivide again
+        if node_borrow.subdividing {
+            return;
+        }
+        node_borrow.subdividing = true;
+
         let half_width = node_borrow.bounding_box.width / 2.0;
         let half_height = node_borrow.bounding_box.height / 2.0;
 
@@ -410,6 +437,8 @@ impl QuadTree {
             self.owner_map.remove(&value);
             self.insert_into(node.clone(), value, shape);
         }
+
+        node.borrow_mut().subdividing = false;
     }
 
     pub fn collisions(&self, shape: ShapeEnum, collisions: &mut Vec<u32>) {
@@ -677,19 +706,4 @@ impl QuadTree {
 pub struct RelocationRequest {
     pub value: u32,
     pub shape: ShapeEnum,
-}
-
-// Implement the Resettable trait for QuadNode
-impl Resettable for QuadNode {
-    fn reset(&mut self) {
-        self.bounding_box = Rectangle::default();
-        self.parent = None;
-        self.depth = 0;
-        self.items.clear();
-        self.nw = None;
-        self.ne = None;
-        self.sw = None;
-        self.se = None;
-        self.subdivided = false;
-    }
 }
