@@ -18,7 +18,6 @@ struct QuadNode {
     se: Option<Rc<RefCell<QuadNode>>>,
     parent: Option<Weak<RefCell<QuadNode>>>,
     subdivided: bool,
-    subdividing: bool,
     depth: usize,
     self_rc: Option<Weak<RefCell<QuadNode>>>,
 }
@@ -35,7 +34,6 @@ impl Resettable for QuadNode {
         self.sw = None;
         self.se = None;
         self.subdivided = false;
-        self.subdividing = false;
     }
 }
 
@@ -50,7 +48,6 @@ impl QuadNode {
             se: None,
             parent: None,
             subdivided: false,
-            subdividing: false,
             depth: 0,
             self_rc: None,
         }
@@ -71,7 +68,6 @@ impl QuadNode {
         self.sw = None;
         self.se = None;
         self.subdivided = false;
-        self.subdividing = false;
     }
 
     // New method to initialize the self_rc field.
@@ -254,7 +250,7 @@ impl QuadTree {
 
     // Determine which child node the shape belongs to
     fn get_destination_node(&self, node: &QuadNode, shape: ShapeEnum) -> Rc<RefCell<QuadNode>> {
-        if !node.subdivided || node.subdividing {
+        if !node.subdivided {
             return node
                 .self_rc
                 .as_ref()
@@ -335,12 +331,6 @@ impl QuadTree {
     // Subdivide a node into quadrants
     fn subdivide(&mut self, node: Rc<RefCell<QuadNode>>) {
         let mut node_borrow = node.borrow_mut();
-
-        // If the node is already being subdivided, do not subdivide again
-        if node_borrow.subdividing {
-            return;
-        }
-        node_borrow.subdividing = true;
 
         let half_width = node_borrow.bounding_box.width / 2.0;
         let half_height = node_borrow.bounding_box.height / 2.0;
@@ -436,8 +426,6 @@ impl QuadTree {
             self.owner_map.remove(&value);
             self.insert_into(node.clone(), value, shape);
         }
-
-        node.borrow_mut().subdividing = false;
     }
 
     pub fn collisions(&self, shape: ShapeEnum, collisions: &mut Vec<u32>) {
@@ -609,6 +597,9 @@ impl QuadTree {
             return_child_to_pool(&mut self.quad_node_pool, node_borrow_mut.ne.take());
             return_child_to_pool(&mut self.quad_node_pool, node_borrow_mut.sw.take());
             return_child_to_pool(&mut self.quad_node_pool, node_borrow_mut.se.take());
+
+            // Set subdivided flag to false as all child nodes are removed
+            node_borrow_mut.subdivided = false;
         }
     }
 
