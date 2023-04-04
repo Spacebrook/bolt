@@ -76,7 +76,7 @@ impl QuadNode {
     }
 
     // Returns an iterator over all items in the QuadNode, including child nodes
-    pub fn all_items(&self) -> Box<dyn Iterator<Item=(u32, ShapeEnum)> + '_> {
+    pub fn all_items(&self) -> Box<dyn Iterator<Item = (u32, ShapeEnum)> + '_> {
         let items = self.items.iter().map(|(id, shape)| (*id, shape.clone()));
         if !self.subdivided {
             return Box::new(items);
@@ -87,7 +87,7 @@ impl QuadNode {
     }
 
     // Returns an iterator over items in child nodes
-    fn child_items(&self) -> Box<dyn Iterator<Item=(u32, ShapeEnum)> + '_> {
+    fn child_items(&self) -> Box<dyn Iterator<Item = (u32, ShapeEnum)> + '_> {
         if !self.subdivided {
             return Box::new(std::iter::empty());
         }
@@ -98,21 +98,21 @@ impl QuadNode {
             self.sw.as_ref(),
             self.se.as_ref(),
         ]
-            .iter()
-            .flat_map(|opt_node| {
-                opt_node
-                    .map(|node_rc| {
-                        node_rc
-                            .borrow()
-                            .all_items()
-                            .map(|(id, shape)| (id, shape.clone()))
-                            .collect::<Vec<_>>()
-                            .into_iter()
-                    })
-                    .into_iter()
-                    .flatten()
-            })
-            .collect();
+        .iter()
+        .flat_map(|opt_node| {
+            opt_node
+                .map(|node_rc| {
+                    node_rc
+                        .borrow()
+                        .all_items()
+                        .map(|(id, shape)| (id, shape.clone()))
+                        .collect::<Vec<_>>()
+                        .into_iter()
+                })
+                .into_iter()
+                .flatten()
+        })
+        .collect();
 
         Box::new(items.into_iter())
     }
@@ -486,6 +486,71 @@ impl QuadTree {
                 &query_shape_bounding_box,
             ) {
                 self.collisions_from(&se, query_shape, collisions);
+            }
+        }
+    }
+
+    pub fn collisions_batch(&self, shapes: Vec<ShapeEnum>) -> Vec<Vec<u32>> {
+        let mut results: Vec<Vec<u32>> = vec![Vec::new(); shapes.len()];
+        let mut active_queries: Vec<(ShapeEnum, usize)> = shapes
+            .into_iter()
+            .enumerate()
+            .map(|(idx, shape)| (shape, idx))
+            .collect();
+        self.collisions_batch_from(&self.root, &mut active_queries, &mut results);
+        results
+    }
+
+    fn collisions_batch_from(
+        &self,
+        node: &Rc<RefCell<QuadNode>>,
+        active_queries: &mut Vec<(ShapeEnum, usize)>,
+        results: &mut Vec<Vec<u32>>,
+    ) {
+        let node_ref = node.borrow();
+
+        for (query_shape, query_idx) in active_queries.iter() {
+            for (&value, shape) in node_ref.items.iter() {
+                if collision_detection::shape_shape(query_shape, shape) {
+                    results[*query_idx].push(value);
+                }
+            }
+        }
+
+        if !node_ref.subdivided {
+            return;
+        }
+
+        let mut next_active_queries = Vec::new();
+        for (query_shape, query_idx) in active_queries.iter() {
+            let query_bbox = query_shape.bounding_box();
+            if let (Some(nw), Some(ne), Some(sw), Some(se)) =
+                (&node_ref.nw, &node_ref.ne, &node_ref.sw, &node_ref.se)
+            {
+                if collision_detection::rectangle_rectangle(&nw.borrow().bounding_box, &query_bbox)
+                {
+                    next_active_queries.push((query_shape.clone(), *query_idx));
+                    self.collisions_batch_from(nw, &mut next_active_queries, results);
+                    next_active_queries.clear();
+                }
+                if collision_detection::rectangle_rectangle(&ne.borrow().bounding_box, &query_bbox)
+                {
+                    next_active_queries.push((query_shape.clone(), *query_idx));
+                    self.collisions_batch_from(ne, &mut next_active_queries, results);
+                    next_active_queries.clear();
+                }
+                if collision_detection::rectangle_rectangle(&sw.borrow().bounding_box, &query_bbox)
+                {
+                    next_active_queries.push((query_shape.clone(), *query_idx));
+                    self.collisions_batch_from(sw, &mut next_active_queries, results);
+                    next_active_queries.clear();
+                }
+                if collision_detection::rectangle_rectangle(&se.borrow().bounding_box, &query_bbox)
+                {
+                    next_active_queries.push((query_shape.clone(), *query_idx));
+                    self.collisions_batch_from(se, &mut next_active_queries, results);
+                    next_active_queries.clear();
+                }
             }
         }
     }

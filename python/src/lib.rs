@@ -7,8 +7,8 @@ use pyo3::prelude::*;
 use pyo3::pyclass;
 use pyo3::pymethods;
 use pyo3::pymodule;
-use pyo3::types::PyModule;
 use pyo3::types::PyTuple;
+use pyo3::types::{PyList, PyModule};
 use pyo3::IntoPy;
 use pyo3::Py;
 use pyo3::PyObject;
@@ -129,6 +129,15 @@ fn pyquadtree(_py: Python, m: &PyModule) -> PyResult<()> {
             // Dereference the box and then take a reference to the trait object.
             self.quadtree.collisions(shape, &mut collisions);
             Ok(collisions)
+        }
+
+        pub fn collisions_batch(&self, py: Python, shapes: &PyList) -> PyResult<Vec<Vec<u32>>> {
+            let shapes: Vec<ShapeEnum> = shapes
+                .iter()
+                .map(|shape| self.extract_shape(py, shape.into()))
+                .collect::<Result<_, _>>()?;
+
+            Ok(self.quadtree.collisions_batch(shapes))
         }
 
         pub fn relocate(&mut self, py: Python, value: u32, shape: PyObject) -> PyResult<()> {

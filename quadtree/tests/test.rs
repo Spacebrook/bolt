@@ -403,22 +403,102 @@ fn test_no_multiple_subdivision() {
 
     // Insert shapes into the QuadTree in such a way that they will be redistributed
     // during the subdivision process and cause multiple subdivision attempts
-    qt.insert(1, ShapeEnum::Rectangle(Rectangle { x: 10.0, y: 10.0, width: 60.0, height: 60.0 }));
-    qt.insert(2, ShapeEnum::Rectangle(Rectangle { x: 40.0, y: 10.0, width: 10.0, height: 10.0 }));
-    qt.insert(3, ShapeEnum::Rectangle(Rectangle { x: 10.0, y: 40.0, width: 10.0, height: 10.0 }));
-    qt.insert(4, ShapeEnum::Rectangle(Rectangle { x: 40.0, y: 40.0, width: 10.0, height: 10.0 }));
+    qt.insert(
+        1,
+        ShapeEnum::Rectangle(Rectangle {
+            x: 10.0,
+            y: 10.0,
+            width: 60.0,
+            height: 60.0,
+        }),
+    );
+    qt.insert(
+        2,
+        ShapeEnum::Rectangle(Rectangle {
+            x: 40.0,
+            y: 10.0,
+            width: 10.0,
+            height: 10.0,
+        }),
+    );
+    qt.insert(
+        3,
+        ShapeEnum::Rectangle(Rectangle {
+            x: 10.0,
+            y: 40.0,
+            width: 10.0,
+            height: 10.0,
+        }),
+    );
+    qt.insert(
+        4,
+        ShapeEnum::Rectangle(Rectangle {
+            x: 40.0,
+            y: 40.0,
+            width: 10.0,
+            height: 10.0,
+        }),
+    );
 
     // The next insertion will trigger subdivision of the root node
-    qt.insert(5, ShapeEnum::Rectangle(Rectangle { x: 30.0, y: 30.0, width: 40.0, height: 40.0 }));
+    qt.insert(
+        5,
+        ShapeEnum::Rectangle(Rectangle {
+            x: 30.0,
+            y: 30.0,
+            width: 40.0,
+            height: 40.0,
+        }),
+    );
 
     // Insert more items into the QuadTree to trigger the second subdivision
-    qt.insert(6, ShapeEnum::Rectangle(Rectangle { x: 10.0, y: 10.0, width: 10.0, height: 10.0 }));
-    qt.insert(7, ShapeEnum::Rectangle(Rectangle { x: 40.0, y: 10.0, width: 10.0, height: 10.0 }));
-    qt.insert(8, ShapeEnum::Rectangle(Rectangle { x: 10.0, y: 40.0, width: 10.0, height: 10.0 }));
-    qt.insert(9, ShapeEnum::Rectangle(Rectangle { x: 40.0, y: 40.0, width: 10.0, height: 10.0 }));
+    qt.insert(
+        6,
+        ShapeEnum::Rectangle(Rectangle {
+            x: 10.0,
+            y: 10.0,
+            width: 10.0,
+            height: 10.0,
+        }),
+    );
+    qt.insert(
+        7,
+        ShapeEnum::Rectangle(Rectangle {
+            x: 40.0,
+            y: 10.0,
+            width: 10.0,
+            height: 10.0,
+        }),
+    );
+    qt.insert(
+        8,
+        ShapeEnum::Rectangle(Rectangle {
+            x: 10.0,
+            y: 40.0,
+            width: 10.0,
+            height: 10.0,
+        }),
+    );
+    qt.insert(
+        9,
+        ShapeEnum::Rectangle(Rectangle {
+            x: 40.0,
+            y: 40.0,
+            width: 10.0,
+            height: 10.0,
+        }),
+    );
 
     // Without the fix, the next insertion would recursively trigger subdivision and overwrite child nodes
-    qt.insert(10, ShapeEnum::Rectangle(Rectangle { x: 30.0, y: 30.0, width: 40.0, height: 40.0 }));
+    qt.insert(
+        10,
+        ShapeEnum::Rectangle(Rectangle {
+            x: 30.0,
+            y: 30.0,
+            width: 40.0,
+            height: 40.0,
+        }),
+    );
 
     // Check that all items were successfully redistributed and the QuadTree is in a consistent state
     let mut all_shapes = Vec::new();
@@ -428,4 +508,54 @@ fn test_no_multiple_subdivision() {
     let mut all_bounding_boxes = Vec::new();
     qt.all_node_bounding_boxes(&mut all_bounding_boxes);
     assert!(all_bounding_boxes.len() > 1);
+}
+
+#[test]
+fn test_collisions_batch() {
+    // Define the bounding box of the quadtree.
+    let bounding_box = Rectangle {
+        x: 0.0,
+        y: 0.0,
+        width: 10.0,
+        height: 10.0,
+    };
+
+    // Initialize the quadtree.
+    let mut quadtree = QuadTree::new(bounding_box);
+
+    // Insert shapes into the quadtree.
+    let shape1 = ShapeEnum::Circle(Circle::new(2.0, 2.0, 1.0));
+    let shape2 = ShapeEnum::Circle(Circle::new(4.0, 4.0, 1.0));
+    let shape3 = ShapeEnum::Circle(Circle::new(6.0, 6.0, 1.0));
+
+    quadtree.insert(1, shape1);
+    quadtree.insert(2, shape2);
+    quadtree.insert(3, shape3);
+
+    // Define batch collision queries.
+    let query1 = ShapeEnum::Circle(Circle::new(2.0, 2.0, 1.5));
+    let query2 = ShapeEnum::Circle(Circle::new(6.0, 6.0, 1.5));
+    let query3 = ShapeEnum::Circle(Circle::new(8.0, 8.0, 1.0));
+    let queries = vec![query1, query2, query3];
+
+    // Perform batch collision queries.
+    let collision_results = quadtree.collisions_batch(queries);
+
+    // Check results.
+    assert_eq!(collision_results.len(), 3);
+
+    // Query 1 should collide with shape 1 only.
+    assert!(collision_results[0].contains(&1));
+    assert!(!collision_results[0].contains(&2));
+    assert!(!collision_results[0].contains(&3));
+
+    // Query 2 should collide with shape 3.
+    assert!(!collision_results[1].contains(&1));
+    assert!(!collision_results[1].contains(&2));
+    assert!(collision_results[1].contains(&3));
+
+    // Query 3 should not collide with any shape.
+    assert!(!collision_results[2].contains(&1));
+    assert!(!collision_results[2].contains(&2));
+    assert!(!collision_results[2].contains(&3));
 }
