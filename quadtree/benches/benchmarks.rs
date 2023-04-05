@@ -20,7 +20,7 @@ fn insert_benchmark(c: &mut Criterion) {
                 width: 5.0,
                 height: 5.0,
             });
-            quadtree.insert(black_box(rng.gen()), shape);
+            quadtree.insert(black_box(rng.gen()), shape, None);
         })
     });
 }
@@ -42,7 +42,7 @@ fn delete_benchmark(c: &mut Criterion) {
             height: 5.0,
         });
         let value = rng.gen();
-        quadtree.insert(value, shape);
+        quadtree.insert(value, shape, None);
         items.push(value);
     }
 
@@ -71,8 +71,8 @@ fn relocate_benchmark(c: &mut Criterion) {
             height: 5.0,
         });
         let value = rng.gen();
-        quadtree.insert(value, shape.clone());
-        relocation_requests.push(RelocationRequest { value, shape });
+        quadtree.insert(value, shape.clone(), None);
+        relocation_requests.push(RelocationRequest { value, shape, entity_type: None });
     }
 
     c.bench_function("quadtree_relocate", |b| {
@@ -98,7 +98,7 @@ fn collisions_benchmark(c: &mut Criterion) {
             width: 5.0,
             height: 5.0,
         });
-        quadtree.insert(rng.gen(), shape);
+        quadtree.insert(rng.gen(), shape, None);
     }
 
     // Define a query rectangle

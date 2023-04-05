@@ -9,9 +9,14 @@ use std::ops::Deref;
 use std::rc::Rc;
 use std::rc::Weak;
 
+#[derive(Clone)]
+struct Entity {
+    shape: ShapeEnum,
+    entity_type: Option<u32>,
+}
+
 struct QuadNode {
-    items: HashMap<u32, ShapeEnum>,
-    entity_types: HashMap<u32, Option<u32>>,
+    entities: HashMap<u32, Entity>,
     bounding_box: Rectangle,
     nw: Option<Rc<RefCell<QuadNode>>>,
     ne: Option<Rc<RefCell<QuadNode>>>,
@@ -29,8 +34,7 @@ impl Resettable for QuadNode {
         self.bounding_box = Rectangle::default();
         self.parent = None;
         self.depth = 0;
-        self.items.clear();
-        self.entity_types.clear();
+        self.entities.clear();
         self.nw = None;
         self.ne = None;
         self.sw = None;
@@ -42,8 +46,7 @@ impl Resettable for QuadNode {
 impl QuadNode {
     pub fn new() -> Self {
         Self {
-            items: HashMap::new(),
-            entity_types: HashMap::new(),
+            entities: HashMap::new(),
             bounding_box: Rectangle::default(),
             nw: None,
             ne: None,
@@ -65,8 +68,7 @@ impl QuadNode {
         self.bounding_box = bounding_box;
         self.parent = parent;
         self.depth = depth;
-        self.items.clear();
-        self.entity_types.clear();
+        self.entities.clear();
         self.nw = None;
         self.ne = None;
         self.sw = None;
@@ -80,8 +82,8 @@ impl QuadNode {
     }
 
     // Returns an iterator over all items in the QuadNode, including child nodes
-    pub fn all_items(&self) -> Box<dyn Iterator<Item = (u32, ShapeEnum)> + '_> {
-        let items = self.items.iter().map(|(id, shape)| (*id, shape.clone()));
+    pub fn all_items(&self) -> Box<dyn Iterator<Item=(u32, Entity)> + '_> {
+        let items = self.entities.iter().map(|(id, entity)| (*id, entity.clone()));
         if !self.subdivided {
             return Box::new(items);
         }
@@ -91,7 +93,7 @@ impl QuadNode {
     }
 
     // Returns an iterator over items in child nodes
-    fn child_items(&self) -> Box<dyn Iterator<Item = (u32, ShapeEnum)> + '_> {
+    fn child_items(&self) -> Box<dyn Iterator<Item=(u32, Entity)> + '_> {
         if !self.subdivided {
             return Box::new(std::iter::empty());
         }
@@ -102,28 +104,28 @@ impl QuadNode {
             self.sw.as_ref(),
             self.se.as_ref(),
         ]
-        .iter()
-        .flat_map(|opt_node| {
-            opt_node
-                .map(|node_rc| {
-                    node_rc
-                        .borrow()
-                        .all_items()
-                        .map(|(id, shape)| (id, shape.clone()))
-                        .collect::<Vec<_>>()
-                        .into_iter()
-                })
-                .into_iter()
-                .flatten()
-        })
-        .collect();
+            .iter()
+            .flat_map(|opt_node| {
+                opt_node
+                    .map(|node_rc| {
+                        node_rc
+                            .borrow()
+                            .all_items()
+                            .map(|(id, entity)| (id, entity.clone()))
+                            .collect::<Vec<_>>()
+                            .into_iter()
+                    })
+                    .into_iter()
+                    .flatten()
+            })
+            .collect();
 
         Box::new(items.into_iter())
     }
 
     // Counts all items in the QuadNode, including child nodes
     pub fn count_all_items(&self) -> usize {
-        let mut count = self.items.len();
+        let mut count = self.entities.len();
         if !self.subdivided {
             return count;
         }
@@ -151,26 +153,6 @@ impl QuadNode {
 impl Default for QuadNode {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Config {
-    pub pool_size: usize,
-    pub node_capacity: usize,
-    pub max_depth: usize,
-}
-
-// Implement Default trait for Config
-impl Default for Config {
-    fn default() -> Self {
-        Config {
-            // With a max depth of 6, there could be up to 5461 nodes.
-            // Let's set a reasonable max pool size of 4000.
-            pool_size: 4000,
-            node_capacity: 4,
-            max_depth: 6,
-        }
     }
 }
 
@@ -221,7 +203,7 @@ impl QuadTree {
                 let node_borrow = node.borrow_mut();
 
                 // Check if node has room or reached max depth
-                if (node_borrow.items.len() < self.config.node_capacity && !node_borrow.subdivided)
+                if (node_borrow.entities.len() < self.config.node_capacity && !node_borrow.subdivided)
                     || node_borrow.depth == self.config.max_depth
                 {
                     drop(node_borrow);
@@ -314,8 +296,7 @@ impl QuadTree {
         {
             // Limit the scope of the mutable borrow using a block
             let mut node_borrow_mut = node.borrow_mut();
-            node_borrow_mut.items.insert(value, shape);
-            node_borrow_mut.entity_types.insert(value, entity_type);
+            node_borrow_mut.entities.insert(value, Entity { shape, entity_type });
         }
         // The mutable borrow is released here
         self.owner_map.insert(value, Rc::downgrade(&node));
@@ -335,8 +316,7 @@ impl QuadTree {
     fn delete_from(&mut self, node: Rc<RefCell<QuadNode>>, value: u32) {
         // Remove the item from the QuadNode's items
         let mut node_borrow = node.borrow_mut();
-        node_borrow.items.remove(&value);
-        node_borrow.entity_types.remove(&value);
+        node_borrow.entities.remove(&value);
     }
 
     // Subdivide a node into quadrants
@@ -431,14 +411,11 @@ impl QuadTree {
         node_borrow.subdivided = true;
 
         // Redistribute the items to the appropriate quadrants
-        let old_items = node_borrow.items.drain().collect::<Vec<(u32, ShapeEnum)>>();
-        let old_entity_types = node_borrow.entity_types.clone();
+        let old_items = node_borrow.entities.drain().collect::<Vec<(u32, Entity)>>();
         drop(node_borrow);
-        for (value, shape) in old_items {
-            let entity_type = old_entity_types.get(&value).cloned().unwrap();
-
+        for (value, entity) in old_items {
             self.owner_map.remove(&value);
-            self.insert_into(node.clone(), value, shape, entity_type);
+            self.insert_into(node.clone(), value, entity.shape, entity.entity_type);
         }
     }
 
@@ -495,23 +472,19 @@ impl QuadTree {
 
         // Check for collisions with shapes in the current node
         let node_borrow = node.borrow();
-        for (&value, shape) in node_borrow.items.iter() {
+        for (&value, entity) in node_borrow.entities.iter() {
             // Apply the entity type filter, if provided
             if let Some(filter) = &filter_entity_types {
-                if let Some(entity_type) = node_borrow.entity_types.get(&value) {
-                    if let Some(entity_type_value) = entity_type {
-                        if !filter.contains(entity_type_value) {
-                            continue; // Skip items not matching the filter
-                        }
-                    } else {
-                        continue; // Skip items without an entity type
+                if let Some(entity_type) = entity.entity_type {
+                    if !filter.contains(&entity_type) {
+                        continue; // Skip items not matching the filter
                     }
                 } else {
                     continue; // Skip items not found in the entity_types map
                 }
             }
 
-            if collision_detection::shape_shape(&query_shape, &shape) {
+            if collision_detection::shape_shape(&query_shape, &entity.shape) {
                 collisions.push(value);
             }
         }
@@ -649,7 +622,7 @@ impl QuadTree {
             let mut node_borrow_mut = node.borrow_mut();
             for (value, shape) in child_items {
                 self.owner_map.insert(value, Rc::downgrade(&node));
-                node_borrow_mut.items.insert(value, shape.clone());
+                node_borrow_mut.entities.insert(value, shape.clone());
             }
 
             // Helper function to return the child node to the object pool
@@ -740,8 +713,8 @@ impl QuadTree {
     fn shapes(&self, node: &Rc<RefCell<QuadNode>>, shapes: &mut Vec<ShapeEnum>) {
         let node_ref: Ref<QuadNode> = node.as_ref().borrow();
         // Add the shapes in the current node to the list
-        for (_, shape) in node_ref.deref().items.iter() {
-            shapes.push(shape.clone());
+        for (_, entities) in node_ref.deref().entities.iter() {
+            shapes.push(entities.shape.clone());
         }
         // Extract child nodes to avoid multiple borrows in pattern matching
         let (nw, ne, sw, se) = (
@@ -760,6 +733,26 @@ impl QuadTree {
             self.shapes(&ne, shapes);
             self.shapes(&sw, shapes);
             self.shapes(&se, shapes);
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Config {
+    pub pool_size: usize,
+    pub node_capacity: usize,
+    pub max_depth: usize,
+}
+
+// Implement Default trait for Config
+impl Default for Config {
+    fn default() -> Self {
+        Config {
+            // With a max depth of 6, there could be up to 5461 nodes.
+            // Let's set a reasonable max pool size of 4000.
+            pool_size: 4000,
+            node_capacity: 4,
+            max_depth: 6,
         }
     }
 }
