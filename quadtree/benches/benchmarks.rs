@@ -117,11 +117,83 @@ fn collisions_benchmark(c: &mut Criterion) {
     });
 }
 
+fn comprehensive_benchmark(c: &mut Criterion) {
+    let mut rng = rand::thread_rng();
+    let mut quadtree_groups: Vec<Vec<QuadTree>> = Vec::new();
+
+    // Create 101 groups of 5 quadtrees
+    for _ in 0..101 {
+        let mut quadtree_group: Vec<QuadTree> = Vec::new();
+        for _ in 0..5 {
+            let quadtree = QuadTree::new(Rectangle {
+                x: 0.0,
+                y: 0.0,
+                width: 100.0,
+                height: 100.0,
+            });
+            quadtree_group.push(quadtree);
+        }
+        quadtree_groups.push(quadtree_group);
+    }
+
+    c.bench_function("quadtree_comprehensive", |b| {
+        b.iter(|| {
+            for quadtree_group in &mut quadtree_groups {
+                for (i, quadtree) in quadtree_group.iter_mut().enumerate() {
+                    // Perform relocate operations
+                    let mut relocation_requests = Vec::new();
+                    let num_relocate = match i {
+                        0 | 1 | 2 => 2,
+                        3 => rng.gen_range(30..=150),
+                        4 => 100,
+                        _ => unreachable!(),
+                    };
+                    for i in 0..num_relocate {
+                        let shape = ShapeEnum::Rectangle(Rectangle {
+                            x: rng.gen_range(0.0..100.0),
+                            y: rng.gen_range(0.0..100.0),
+                            width: 5.0,
+                            height: 5.0,
+                        });
+                        relocation_requests.push(RelocationRequest {
+                            value: i,
+                            shape: shape.clone(),
+                            entity_type: None,
+                        });
+                    }
+                    quadtree.relocate_batch(relocation_requests);
+
+                    // Perform collision queries
+                    let num_queries = match i {
+                        0 => rng.gen_range(1..=4),
+                        1 => rng.gen_range(1..=180),
+                        2 => rng.gen_range(2..=45),
+                        3 => rng.gen_range(1..=11),
+                        4 => 1,
+                        _ => unreachable!(),
+                    };
+                    for _ in 0..num_queries {
+                        let query_shape = ShapeEnum::Rectangle(Rectangle {
+                            x: rng.gen_range(0.0..100.0),
+                            y: rng.gen_range(0.0..100.0),
+                            width: 5.0,
+                            height: 5.0,
+                        });
+                        let mut collisions: Vec<u32> = Vec::new();
+                        quadtree.collisions(query_shape, &mut collisions);
+                    }
+                }
+            }
+        })
+    });
+}
+
 criterion_group!(
     quadtree_benchmarks,
     insert_benchmark,
     delete_benchmark,
     relocate_benchmark,
-    collisions_benchmark
+    collisions_benchmark,
+    comprehensive_benchmark
 );
 criterion_main!(quadtree_benchmarks);
