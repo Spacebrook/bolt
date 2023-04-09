@@ -82,8 +82,11 @@ impl QuadNode {
     }
 
     // Returns an iterator over all items in the QuadNode, including child nodes
-    pub fn all_items(&self) -> Box<dyn Iterator<Item=(u32, Entity)> + '_> {
-        let items = self.entities.iter().map(|(id, entity)| (*id, entity.clone()));
+    pub fn all_items(&self) -> Box<dyn Iterator<Item = (u32, Entity)> + '_> {
+        let items = self
+            .entities
+            .iter()
+            .map(|(id, entity)| (*id, entity.clone()));
         if !self.subdivided {
             return Box::new(items);
         }
@@ -93,7 +96,7 @@ impl QuadNode {
     }
 
     // Returns an iterator over items in child nodes
-    fn child_items(&self) -> Box<dyn Iterator<Item=(u32, Entity)> + '_> {
+    fn child_items(&self) -> Box<dyn Iterator<Item = (u32, Entity)> + '_> {
         if !self.subdivided {
             return Box::new(std::iter::empty());
         }
@@ -104,21 +107,21 @@ impl QuadNode {
             self.sw.as_ref(),
             self.se.as_ref(),
         ]
-            .iter()
-            .flat_map(|opt_node| {
-                opt_node
-                    .map(|node_rc| {
-                        node_rc
-                            .borrow()
-                            .all_items()
-                            .map(|(id, entity)| (id, entity.clone()))
-                            .collect::<Vec<_>>()
-                            .into_iter()
-                    })
-                    .into_iter()
-                    .flatten()
-            })
-            .collect();
+        .iter()
+        .flat_map(|opt_node| {
+            opt_node
+                .map(|node_rc| {
+                    node_rc
+                        .borrow()
+                        .all_items()
+                        .map(|(id, entity)| (id, entity.clone()))
+                        .collect::<Vec<_>>()
+                        .into_iter()
+                })
+                .into_iter()
+                .flatten()
+        })
+        .collect();
 
         Box::new(items.into_iter())
     }
@@ -203,7 +206,8 @@ impl QuadTree {
                 let node_borrow = node.borrow_mut();
 
                 // Check if node has room or reached max depth
-                if (node_borrow.entities.len() < self.config.node_capacity && !node_borrow.subdivided)
+                if (node_borrow.entities.len() < self.config.node_capacity
+                    && !node_borrow.subdivided)
                     || node_borrow.depth == self.config.max_depth
                 {
                     drop(node_borrow);
@@ -296,7 +300,9 @@ impl QuadTree {
         {
             // Limit the scope of the mutable borrow using a block
             let mut node_borrow_mut = node.borrow_mut();
-            node_borrow_mut.entities.insert(value, Entity { shape, entity_type });
+            node_borrow_mut
+                .entities
+                .insert(value, Entity { shape, entity_type });
         }
         // The mutable borrow is released here
         self.owner_map.insert(value, Rc::downgrade(&node));

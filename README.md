@@ -1,5 +1,5 @@
-# 🌳 Quadtree
-High-performance quadtree implementation in Rust, built for evades.io. This library provides a Python binding for easy integration and use in Python projects. The quadtree data structure is useful for spatial partitioning and efficient collision detection.
+# 🌳 Bolt
+High-performance Physics implementation in Rust, built for evades.io. This library provides a Python binding for easy integration and use in Python projects. The quadtree data structure is useful for spatial partitioning and efficient collision detection.
 
 With Quadtree, you can effortlessly manage spatial data and efficiently perform collision detection. Happy coding! 🚀
 

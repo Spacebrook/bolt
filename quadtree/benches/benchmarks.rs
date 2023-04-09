@@ -72,7 +72,11 @@ fn relocate_benchmark(c: &mut Criterion) {
         });
         let value = rng.gen();
         quadtree.insert(value, shape.clone(), None);
-        relocation_requests.push(RelocationRequest { value, shape, entity_type: None });
+        relocation_requests.push(RelocationRequest {
+            value,
+            shape,
+            entity_type: None,
+        });
     }
 
     c.bench_function("quadtree_relocate", |b| {
