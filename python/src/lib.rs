@@ -1,5 +1,5 @@
-use pyo3::pyclass;
-
+use pyo3::{pyclass};
+use pyo3::prelude::*;
 use ::collisions::ShapeWithPosition;
 use ::quadtree::shapes::{Circle, Rectangle, ShapeEnum};
 use ncollide2d::math::{Isometry, Vector};
@@ -9,8 +9,16 @@ use pyo3::pymethods;
 use pyo3::types::PyList;
 use pyo3::{PyObject, PyResult, Python};
 
-pub mod collisions;
-pub mod quadtree;
+mod collisions;
+mod quadtree;
+
+#[pymodule]
+fn bolt(_py: Python, m: &PyModule) -> PyResult<()> {
+    m.add_wrapped(&|py| collisions::collisions(py, PyModule::new(py, "collisions")?))?;
+    m.add_wrapped(&|py| quadtree::quadtree(py, PyModule::new(py, "quadtree")?))?;
+
+    Ok(())
+}
 
 #[derive(Debug, Clone)]
 #[pyclass(name = "Circle")]

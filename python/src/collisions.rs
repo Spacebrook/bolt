@@ -19,7 +19,7 @@ fn get_mtv(py: Python, entity: PyObject, colliding_polys: &PyList) -> PyResult<O
 }
 
 #[pymodule]
-fn collisions(_py: Python, m: &PyModule) -> PyResult<()> {
+pub fn collisions(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_wrapped(wrap_pyfunction!(get_mtv))?;
     Ok(())
 }

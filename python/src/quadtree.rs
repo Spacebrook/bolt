@@ -37,7 +37,7 @@ impl PyConfig {
 }
 
 #[pymodule]
-fn quadtree(_py: Python, m: &PyModule) -> PyResult<()> {
+pub fn quadtree(_py: Python, m: &PyModule) -> PyResult<()> {
     #[pyclass(name = "QuadTree", unsendable)]
     struct QuadTreeWrapper {
         quadtree: QuadTree,
@@ -217,8 +217,6 @@ fn quadtree(_py: Python, m: &PyModule) -> PyResult<()> {
     }
 
     m.add_class::<QuadTreeWrapper>()?;
-    m.add_class::<PyCircle>()?;
-    m.add_class::<PyRectangle>()?;
     m.add_class::<PyConfig>()?;
     Ok(())
 }
