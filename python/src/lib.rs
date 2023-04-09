@@ -15,32 +15,6 @@ mod quadtree;
 use crate::collisions::get_mtv;
 use crate::quadtree::{PyConfig, QuadTreeWrapper};
 
-#[pymodule]
-fn pycollisions(_py: Python, m: &PyModule) -> PyResult<()> {
-    m.add_wrapped(wrap_pyfunction!(get_mtv))?;
-    Ok(())
-}
-
-#[pymodule]
-fn pyquadtree(_py: Python, m: &PyModule) -> PyResult<()> {
-    m.add_class::<QuadTreeWrapper>()?;
-    m.add_class::<PyConfig>()?;
-    Ok(())
-}
-
-#[pymodule]
-fn bolt(py: Python, m: &PyModule) -> PyResult<()> {
-    let submod_collisions = PyModule::new(py, "collisions")?;
-    pycollisions(py, &submod_collisions)?;
-    m.add_submodule(submod_collisions)?;
-
-    let submod_quadtree = PyModule::new(py, "quadtree")?;
-    pyquadtree(py, &submod_quadtree)?;
-    m.add_submodule(submod_quadtree)?;
-
-    Ok(())
-}
-
 #[derive(Debug, Clone)]
 #[pyclass(name = "Circle")]
 pub struct PyCircle {
@@ -128,4 +102,33 @@ fn extract_entity_types(entity_types: Option<&PyList>) -> PyResult<Option<Vec<u3
         }
         None => Ok(None),
     }
+}
+
+#[pymodule]
+fn pycollisions(_py: Python, m: &PyModule) -> PyResult<()> {
+    m.add_wrapped(wrap_pyfunction!(get_mtv))?;
+    Ok(())
+}
+
+#[pymodule]
+fn pyquadtree(_py: Python, m: &PyModule) -> PyResult<()> {
+    m.add_class::<QuadTreeWrapper>()?;
+    m.add_class::<PyConfig>()?;
+    Ok(())
+}
+
+#[pymodule]
+fn bolt(py: Python, m: &PyModule) -> PyResult<()> {
+    let submod_collisions = PyModule::new(py, "collisions")?;
+    pycollisions(py, &submod_collisions)?;
+    m.add_submodule(submod_collisions)?;
+
+    let submod_quadtree = PyModule::new(py, "quadtree")?;
+    pyquadtree(py, &submod_quadtree)?;
+    m.add_submodule(submod_quadtree)?;
+
+    m.add_class::<PyCircle>()?;
+    m.add_class::<PyRectangle>()?;
+
+    Ok(())
 }
