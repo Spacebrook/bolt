@@ -1,28 +1,49 @@
-use pyo3::{pyclass};
-use pyo3::prelude::*;
 use ::collisions::ShapeWithPosition;
 use ::quadtree::shapes::{Circle, Rectangle, ShapeEnum};
 use ncollide2d::math::{Isometry, Vector};
 use ncollide2d::shape::{Ball, Cuboid};
 use pyo3::exceptions::PyTypeError;
+use pyo3::prelude::*;
 use pyo3::pymethods;
 use pyo3::types::PyList;
+use pyo3::{pyclass, wrap_pyfunction};
 use pyo3::{PyObject, PyResult, Python};
 
 mod collisions;
 mod quadtree;
 
+use crate::collisions::get_mtv;
+use crate::quadtree::{PyConfig, QuadTreeWrapper};
+
 #[pymodule]
-fn bolt(_py: Python, m: &PyModule) -> PyResult<()> {
-    m.add_wrapped(&|py| collisions::collisions(py, PyModule::new(py, "collisions")?))?;
-    m.add_wrapped(&|py| quadtree::quadtree(py, PyModule::new(py, "quadtree")?))?;
+fn pycollisions(_py: Python, m: &PyModule) -> PyResult<()> {
+    m.add_wrapped(wrap_pyfunction!(get_mtv))?;
+    Ok(())
+}
+
+#[pymodule]
+fn pyquadtree(_py: Python, m: &PyModule) -> PyResult<()> {
+    m.add_class::<QuadTreeWrapper>()?;
+    m.add_class::<PyConfig>()?;
+    Ok(())
+}
+
+#[pymodule]
+fn bolt(py: Python, m: &PyModule) -> PyResult<()> {
+    let submod_collisions = PyModule::new(py, "collisions")?;
+    pycollisions(py, &submod_collisions)?;
+    m.add_submodule(submod_collisions)?;
+
+    let submod_quadtree = PyModule::new(py, "quadtree")?;
+    pyquadtree(py, &submod_quadtree)?;
+    m.add_submodule(submod_quadtree)?;
 
     Ok(())
 }
 
 #[derive(Debug, Clone)]
 #[pyclass(name = "Circle")]
-struct PyCircle {
+pub struct PyCircle {
     x: f32,
     y: f32,
     radius: f32,
@@ -38,7 +59,7 @@ impl PyCircle {
 
 #[derive(Debug, Clone)]
 #[pyclass(name = "Rectangle")]
-struct PyRectangle {
+pub struct PyRectangle {
     x: f32,
     y: f32,
     width: f32,
