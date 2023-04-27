@@ -81,13 +81,17 @@ fn extract_shape_ncollide(py: Python, shape: PyObject) -> PyResult<ShapeWithPosi
             shape: Box::new(Ball::new(shape.radius)),
             position: Isometry::new(Vector::new(shape.x, shape.y), 0.0),
         }),
-        ShapeEnum::Rectangle(shape) => Ok(ShapeWithPosition {
-            shape: Box::new(Cuboid::new(Vector::new(
-                shape.width / 2.0,
-                shape.height / 2.0,
-            ))),
-            position: Isometry::new(Vector::new(shape.x, shape.y), 0.0),
-        }),
+        ShapeEnum::Rectangle(shape) => {
+            let center_x = shape.x + shape.width / 2.0;
+            let center_y = shape.y + shape.height / 2.0;
+            Ok(ShapeWithPosition {
+                shape: Box::new(Cuboid::new(Vector::new(
+                    shape.width / 2.0,
+                    shape.height / 2.0,
+                ))),
+                position: Isometry::new(Vector::new(center_x, center_y), 0.0),
+            })
+        },
     }
 }
 
