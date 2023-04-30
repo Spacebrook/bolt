@@ -213,15 +213,17 @@ fn extract_shape(py: Python, shape: PyObject) -> PyResult<ShapeEnum> {
 }
 
 fn extract_shape_ncollide(py: Python, shape: PyObject) -> PyResult<ShapeWithPosition> {
+    // From Python, we are expecting a negated y coordinate plane,
+    // but ncollide2d uses normal cartesian coordinates.
     let shape = extract_shape(py, shape)?;
     match shape {
         ShapeEnum::Circle(shape) => Ok(ShapeWithPosition {
             shape: Box::new(Ball::new(shape.radius)),
-            position: Isometry::new(Vector::new(shape.x, shape.y), 0.0),
+            position: Isometry::new(Vector::new(shape.x, -shape.y), 0.0),
         }),
         ShapeEnum::Rectangle(shape) => {
             let center_x = shape.x + shape.width / 2.0;
-            let center_y = shape.y + shape.height / 2.0;
+            let center_y = -(shape.y + shape.height) / 2.0;
             Ok(ShapeWithPosition {
                 shape: Box::new(Cuboid::new(Vector::new(
                     shape.width / 2.0,
