@@ -102,10 +102,12 @@ impl PyRectangle {
         self.rectangle.y = y + self.rectangle.height / 2.0;
     }
 
+    #[getter]
     pub fn width(&self) -> f32 {
         self.rectangle.width()
     }
 
+    #[getter]
     pub fn height(&self) -> f32 {
         self.rectangle.height()
     }
