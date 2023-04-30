@@ -42,6 +42,7 @@ fn bolt(py: Python, m: &PyModule) -> PyResult<()> {
 
     m.add_class::<PyCircle>()?;
     m.add_class::<PyRectangle>()?;
+    m.add_class::<PyRng>()?;
 
     Ok(())
 }
