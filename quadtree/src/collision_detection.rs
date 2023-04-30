@@ -1,44 +1,45 @@
-use crate::shapes::{Circle, Rectangle, ShapeEnum};
+use common::shapes::{Circle, Rectangle, ShapeEnum};
 
 // Check that Rectangle inner is fully contained in Rectangle outer, including on the boundary
 pub fn rectangle_contains_rectangle(outer: &Rectangle, inner: &Rectangle) -> bool {
-    outer.x <= inner.x
+    outer.left() <= inner.left()
         && outer.right() >= inner.right()
-        && outer.y <= inner.y
+        && outer.top() <= inner.top()
         && outer.bottom() >= inner.bottom()
 }
 
 pub fn rectangle_rectangle(a: &Rectangle, b: &Rectangle) -> bool {
-    a.x < b.right() && a.right() > b.x && a.y < b.bottom() && a.bottom() > b.y
+    a.left() < b.right() && a.right() > b.left() && a.top() < b.bottom() && a.bottom() > b.top()
 }
 
 pub fn circle_circle(a: &Circle, b: &Circle) -> bool {
     let dx = a.x - b.x;
     let dy = a.y - b.y;
     let distance_sq = dx * dx + dy * dy;
-    distance_sq < (a.radius + b.radius) * (a.radius + b.radius)
+    let radius_sum = a.radius + b.radius;
+    distance_sq < radius_sum * radius_sum
 }
 
 pub fn circle_rectangle(circle: &Circle, rectangle: &Rectangle) -> bool {
-    let circle_distance_x = (circle.x - rectangle.center_x()).abs();
-    let circle_distance_y = (circle.y - rectangle.center_y()).abs();
+    let dx = (circle.x - rectangle.x).abs();
+    let dy = (circle.y - rectangle.y).abs();
 
     let half_rect_width = rectangle.width / 2.0;
     let half_rect_height = rectangle.height / 2.0;
 
-    if circle_distance_x > half_rect_width + circle.radius {
-        return false;
-    }
-    if circle_distance_y > half_rect_height + circle.radius {
+    // Check if the circle is outside the rectangle's bounds
+    if dx > half_rect_width + circle.radius || dy > half_rect_height + circle.radius {
         return false;
     }
 
-    if circle_distance_x <= half_rect_width || circle_distance_y <= half_rect_height {
+    // Check if the circle's center is inside the rectangle
+    if dx <= half_rect_width || dy <= half_rect_height {
         return true;
     }
 
-    let corner_dx = circle_distance_x - half_rect_width;
-    let corner_dy = circle_distance_y - half_rect_height;
+    // Check if the circle intersects the rectangle's corner
+    let corner_dx = dx - half_rect_width;
+    let corner_dy = dy - half_rect_height;
     let corner_distance_sq = corner_dx * corner_dx + corner_dy * corner_dy;
 
     corner_distance_sq <= circle.radius * circle.radius

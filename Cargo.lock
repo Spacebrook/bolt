@@ -45,9 +45,11 @@ name = "bolt"
 version = "0.1.0"
 dependencies = [
  "collisions",
+ "common",
  "ncollide2d",
  "pyo3",
  "quadtree",
+ "rand",
 ]
 
 [[package]]
@@ -127,6 +129,13 @@ name = "collisions"
 version = "0.1.0"
 dependencies = [
  "ncollide2d",
+]
+
+[[package]]
+name = "common"
+version = "0.1.0"
+dependencies = [
+ "rand",
 ]
 
 [[package]]
@@ -615,6 +624,7 @@ dependencies = [
 name = "quadtree"
 version = "0.2.0"
 dependencies = [
+ "common",
  "criterion",
  "rand",
 ]

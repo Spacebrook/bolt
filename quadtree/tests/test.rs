@@ -1,20 +1,20 @@
+use common::shapes::{Circle, Rectangle, ShapeEnum};
 use quadtree::quadtree::{Config, QuadTree};
-use quadtree::shapes::{Circle, Rectangle, ShapeEnum};
 
 use rand::Rng;
 use std::collections::HashSet;
 
 #[test]
 fn test_single_collision() {
-    let mut qt = QuadTree::new(Rectangle::new(0.0, 0.0, 100.0, 100.0));
+    let mut qt = QuadTree::new(Rectangle::new(50.0, 50.0, 100.0, 100.0));
     qt.insert(
         0,
-        ShapeEnum::Rectangle(Rectangle::new(0.0, 15.0, 100.0, 50.0)),
+        ShapeEnum::Rectangle(Rectangle::new(50.0, 40.0, 100.0, 50.0)),
         None,
     );
     let mut collisions: Vec<u32> = Vec::new();
     qt.collisions(
-        ShapeEnum::Rectangle(Rectangle::new(0.0, 0.0, 20.0, 20.0)),
+        ShapeEnum::Rectangle(Rectangle::new(10.0, 10.0, 20.0, 20.0)),
         &mut collisions,
     );
     assert_eq!(collisions, vec![0]);
@@ -22,38 +22,32 @@ fn test_single_collision() {
 
 #[test]
 fn test_full_tree() {
-    let mut qt = QuadTree::new(Rectangle::new(0.0, 0.0, 1000.0, 1000.0));
+    let mut qt = QuadTree::new(Rectangle::new(500.0, 500.0, 1000.0, 1000.0));
     qt.insert(
         0,
-        ShapeEnum::Rectangle(Rectangle::new(500.0, 500.0, 50.0, 50.0)),
+        ShapeEnum::Rectangle(Rectangle::new(525.0, 525.0, 50.0, 50.0)),
         None,
     );
     qt.insert(1, ShapeEnum::Circle(Circle::new(500.0, 500.0, 25.0)), None);
 
     let mut rng = rand::thread_rng();
     for i in 2..5 {
+        let width = rng.gen_range(0.0..100.0);
+        let height = rng.gen_range(0.0..100.0);
+        let x = rng.gen_range(0.0..(900.0 - width / 2.0)) + width / 2.0;
+        let y = rng.gen_range(0.0..(900.0 - height / 2.0)) + height / 2.0;
         qt.insert(
             i,
-            ShapeEnum::Rectangle(Rectangle::new(
-                rng.gen_range(0.0..900.0),
-                rng.gen_range(0.0..900.0),
-                rng.gen_range(0.0..100.0),
-                rng.gen_range(0.0..100.0),
-            )),
+            ShapeEnum::Rectangle(Rectangle::new(x, y, width, height)),
             None,
         );
     }
 
     for i in 5..8 {
-        qt.insert(
-            i,
-            ShapeEnum::Circle(Circle::new(
-                rng.gen_range(0.0..950.0),
-                rng.gen_range(0.0..950.0),
-                rng.gen_range(0.0..50.0),
-            )),
-            None,
-        );
+        let radius = rng.gen_range(0.0..50.0);
+        let x = rng.gen_range(0.0..(950.0 - radius)) + radius;
+        let y = rng.gen_range(0.0..(950.0 - radius)) + radius;
+        qt.insert(i, ShapeEnum::Circle(Circle::new(x, y, radius)), None);
     }
 
     // Print out information about the quadtree structure and its contents
@@ -67,7 +61,7 @@ fn test_full_tree() {
 
     let mut collisions: Vec<u32> = Vec::new();
     qt.collisions(
-        ShapeEnum::Rectangle(Rectangle::new(500.0, 500.0, 1.0, 1.0)),
+        ShapeEnum::Rectangle(Rectangle::new(500.5, 500.5, 1.0, 1.0)),
         &mut collisions,
     );
     assert!(collisions.contains(&0));
@@ -84,20 +78,20 @@ fn test_full_tree() {
 
 #[test]
 fn test_huge_bounds() {
-    let mut qt = QuadTree::new(Rectangle::new(-1000000.0, -1000000.0, 2000000.0, 2000000.0));
+    let mut qt = QuadTree::new(Rectangle::new(0.0, 0.0, 2000000.0, 2000000.0));
     qt.insert(
         0,
-        ShapeEnum::Rectangle(Rectangle::new(16000.0, -355.0, 60.0, 60.0)),
+        ShapeEnum::Rectangle(Rectangle::new(16030.0, -325.0, 60.0, 60.0)),
         None,
     );
     qt.insert(
         1,
-        ShapeEnum::Rectangle(Rectangle::new(15980.0, -350.0, 60.0, 60.0)),
+        ShapeEnum::Rectangle(Rectangle::new(16010.0, -320.0, 60.0, 60.0)),
         None,
     );
     let mut collisions: Vec<u32> = Vec::new();
     qt.collisions(
-        ShapeEnum::Rectangle(Rectangle::new(15980.0, -350.0, 60.0, 60.0)),
+        ShapeEnum::Rectangle(Rectangle::new(16010.0, -320.0, 60.0, 60.0)),
         &mut collisions,
     );
     let collision_set: HashSet<_> = collisions.into_iter().collect();
@@ -292,25 +286,25 @@ fn test_empty_quad_tree() {
 #[test]
 fn test_query_with_large_shape() {
     // Test case where a query shape is large and intersects multiple nodes
-    let mut qt = QuadTree::new(Rectangle::new(0.0, 0.0, 100.0, 100.0));
+    let mut qt = QuadTree::new(Rectangle::new(50.0, 50.0, 100.0, 100.0));
     qt.insert(
         0,
-        ShapeEnum::Rectangle(Rectangle::new(10.0, 10.0, 10.0, 10.0)),
+        ShapeEnum::Rectangle(Rectangle::new(15.0, 15.0, 10.0, 10.0)),
         None,
     );
     qt.insert(
         1,
-        ShapeEnum::Rectangle(Rectangle::new(50.0, 50.0, 10.0, 10.0)),
+        ShapeEnum::Rectangle(Rectangle::new(55.0, 55.0, 10.0, 10.0)),
         None,
     );
     qt.insert(
         2,
-        ShapeEnum::Rectangle(Rectangle::new(70.0, 70.0, 10.0, 10.0)),
+        ShapeEnum::Rectangle(Rectangle::new(75.0, 75.0, 10.0, 10.0)),
         None,
     );
     let mut collisions: Vec<u32> = Vec::new();
     qt.collisions(
-        ShapeEnum::Rectangle(Rectangle::new(0.0, 0.0, 100.0, 100.0)),
+        ShapeEnum::Rectangle(Rectangle::new(50.0, 50.0, 100.0, 100.0)),
         &mut collisions,
     );
     let collision_set: HashSet<_> = collisions.into_iter().collect();

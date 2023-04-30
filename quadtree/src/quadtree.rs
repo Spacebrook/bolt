@@ -1,6 +1,6 @@
 use crate::collision_detection;
 use crate::object_pool::{ObjectPool, Resettable};
-use crate::shapes::{Rectangle, Shape, ShapeEnum};
+use common::shapes::{Rectangle, Shape, ShapeEnum};
 
 use std::cell::Ref;
 use std::cell::RefCell;
@@ -333,10 +333,12 @@ impl QuadTree {
         let half_height = node_borrow.bounding_box.height / 2.0;
 
         // Compute coordinates for the new quadrants
-        let nw_x = node_borrow.bounding_box.x;
-        let nw_y = node_borrow.bounding_box.y;
-        let ne_x = nw_x + half_width;
-        let sw_y = nw_y + half_height;
+        let center_x = node_borrow.bounding_box.x;
+        let center_y = node_borrow.bounding_box.y;
+        let west_x = center_x - half_width / 2.0;
+        let east_x = center_x + half_width / 2.0;
+        let north_y = center_y + half_height / 2.0;
+        let south_y = center_y - half_height / 2.0;
 
         // Create a weak reference to the parent node
         let parent_weak = Rc::downgrade(&node);
@@ -345,8 +347,8 @@ impl QuadTree {
         node_borrow.nw = Some(Rc::new(RefCell::new(self.quad_node_pool.get())));
         node_borrow.nw.as_ref().unwrap().borrow_mut().initialize(
             Rectangle {
-                x: nw_x,
-                y: nw_y,
+                x: west_x,
+                y: north_y,
                 width: half_width,
                 height: half_height,
             },
@@ -363,8 +365,8 @@ impl QuadTree {
         node_borrow.ne = Some(Rc::new(RefCell::new(self.quad_node_pool.get())));
         node_borrow.ne.as_ref().unwrap().borrow_mut().initialize(
             Rectangle {
-                x: ne_x,
-                y: nw_y,
+                x: east_x,
+                y: north_y,
                 width: half_width,
                 height: half_height,
             },
@@ -381,8 +383,8 @@ impl QuadTree {
         node_borrow.sw = Some(Rc::new(RefCell::new(self.quad_node_pool.get())));
         node_borrow.sw.as_ref().unwrap().borrow_mut().initialize(
             Rectangle {
-                x: nw_x,
-                y: sw_y,
+                x: west_x,
+                y: south_y,
                 width: half_width,
                 height: half_height,
             },
@@ -399,8 +401,8 @@ impl QuadTree {
         node_borrow.se = Some(Rc::new(RefCell::new(self.quad_node_pool.get())));
         node_borrow.se.as_ref().unwrap().borrow_mut().initialize(
             Rectangle {
-                x: ne_x,
-                y: sw_y,
+                x: east_x,
+                y: south_y,
                 width: half_width,
                 height: half_height,
             },

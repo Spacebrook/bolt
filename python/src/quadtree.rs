@@ -1,5 +1,5 @@
 use ::quadtree::quadtree::{Config, QuadTree, RelocationRequest};
-use ::quadtree::shapes::{Circle, Rectangle, Shape, ShapeEnum};
+use common::shapes::{Circle, Rectangle, Shape, ShapeEnum};
 
 use crate::{extract_entity_types, extract_shape, PyCircle, PyRectangle};
 use pyo3::exceptions::PyTypeError;
@@ -45,10 +45,10 @@ impl QuadTreeWrapper {
     #[new]
     pub fn new(bounding_box: PyRectangle) -> Self {
         let bounding_rect = Rectangle {
-            x: bounding_box.x,
-            y: bounding_box.y,
-            width: bounding_box.width,
-            height: bounding_box.height,
+            x: bounding_box.x(),
+            y: bounding_box.y(),
+            width: bounding_box.width(),
+            height: bounding_box.height(),
         };
         QuadTreeWrapper {
             quadtree: QuadTree::new(bounding_rect),
@@ -58,10 +58,10 @@ impl QuadTreeWrapper {
     #[staticmethod]
     pub fn new_with_config(bounding_box: PyRectangle, config: PyConfig) -> Self {
         let bounding_rect = Rectangle {
-            x: bounding_box.x,
-            y: bounding_box.y,
-            width: bounding_box.width,
-            height: bounding_box.height,
+            x: bounding_box.x(),
+            y: bounding_box.y(),
+            width: bounding_box.width(),
+            height: bounding_box.height(),
         };
         let rust_config = Config {
             pool_size: config.pool_size,
@@ -196,12 +196,7 @@ impl QuadTreeWrapper {
             } else if let Some(rect) = shape.as_any().downcast_ref::<Rectangle>() {
                 Py::new(
                     py,
-                    PyRectangle {
-                        x: rect.x,
-                        y: rect.y,
-                        width: rect.width,
-                        height: rect.height,
-                    },
+                    PyRectangle::new(rect.x, rect.y, rect.width, rect.height),
                 )?
                 .into_py(py)
             } else {

@@ -1,3 +1,4 @@
+use rand::Rng;
 use std::fmt::Debug;
 
 pub trait Shape: Debug {
@@ -16,8 +17,8 @@ pub struct Circle {
 impl Circle {
     pub fn new(x: f32, y: f32, radius: f32) -> Self {
         let bounding_box = Rectangle {
-            x: x - radius,
-            y: y - radius,
+            x: x,
+            y: y,
             width: radius * 2.0,
             height: radius * 2.0,
         };
@@ -105,14 +106,6 @@ impl Rectangle {
         }
     }
 
-    pub fn x(&self) -> f32 {
-        self.x
-    }
-
-    pub fn y(&self) -> f32 {
-        self.y
-    }
-
     pub fn width(&self) -> f32 {
         self.width
     }
@@ -121,20 +114,88 @@ impl Rectangle {
         self.height
     }
 
+    pub fn left(&self) -> f32 {
+        self.x - self.width / 2.0
+    }
+
     pub fn right(&self) -> f32 {
-        self.x + self.width
-    }
-
-    pub fn bottom(&self) -> f32 {
-        self.y + self.height
-    }
-
-    pub fn center_x(&self) -> f32 {
         self.x + self.width / 2.0
     }
 
-    pub fn center_y(&self) -> f32 {
+    pub fn top(&self) -> f32 {
+        self.y - self.height / 2.0
+    }
+
+    pub fn bottom(&self) -> f32 {
         self.y + self.height / 2.0
+    }
+
+    pub fn top_left(&self) -> (f32, f32) {
+        (self.left(), self.top())
+    }
+
+    pub fn top_right(&self) -> (f32, f32) {
+        (self.right(), self.top())
+    }
+
+    pub fn bottom_left(&self) -> (f32, f32) {
+        (self.left(), self.bottom())
+    }
+
+    pub fn bottom_right(&self) -> (f32, f32) {
+        (self.right(), self.bottom())
+    }
+
+    pub fn distance_to_point(&self, x: f32, y: f32) -> f32 {
+        let dx = (x - self.x).abs() - self.width / 2.0;
+        let dy = (y - self.y).abs() - self.height / 2.0;
+        f32::max(dx, 0.0).powi(2) + f32::max(dy, 0.0).powi(2)
+    }
+
+    pub fn contains_circle(&self, x: f32, y: f32, radius: f32) -> bool {
+        let dx = (x - self.x).abs();
+        let dy = (y - self.y).abs();
+        let half_width = self.width / 2.0;
+        let half_height = self.height / 2.0;
+        if dx > half_width + radius || dy > half_height + radius {
+            return false;
+        }
+        if dx <= half_width || dy <= half_height {
+            return true;
+        }
+        let corner_distance_sq = (dx - half_width).powi(2) + (dy - half_height).powi(2);
+        corner_distance_sq <= radius.powi(2)
+    }
+
+    pub fn contains_point(&self, x: f32, y: f32) -> bool {
+        x >= self.left() && x <= self.right() && y >= self.top() && y <= self.bottom()
+    }
+
+    pub fn expand_to_include(&mut self, other: &Rectangle) {
+        let left = f32::min(self.left(), other.left());
+        let right = f32::max(self.right(), other.right());
+        let top = f32::min(self.top(), other.top());
+        let bottom = f32::max(self.bottom(), other.bottom());
+        self.x = (left + right) / 2.0;
+        self.y = (top + bottom) / 2.0;
+        self.width = right - left;
+        self.height = bottom - top;
+    }
+
+    pub fn get_random_circle_coords_inside<R: Rng>(&self, radius: f32, rng: &mut R) -> (f32, f32) {
+        // Increase radius by 1 in calculations to add a minimal margin.
+        let radius = radius + 1.0;
+        (
+            self._safe_randf32(rng, self.left() + radius, self.right() - radius),
+            self._safe_randf32(rng, self.top() + radius, self.bottom() - radius),
+        )
+    }
+
+    fn _safe_randf32<R: Rng>(&self, rng: &mut R, min: f32, max: f32) -> f32 {
+        if min > max {
+            return min;
+        }
+        rng.gen_range(min..=max)
     }
 }
 

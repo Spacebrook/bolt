@@ -8,6 +8,7 @@ pyo3 = { version = "0.18.2", features = ["extension-module"] }
 ncollide2d = "0.33.0"
 quadtree = { path = "../quadtree" }
 collisions = { path = "../collisions" }
-
+common = { path = "../common" }
+rand = "0.8.5"
 [lib]
 crate-type = ["cdylib"]
