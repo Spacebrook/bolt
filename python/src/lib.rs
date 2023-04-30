@@ -162,6 +162,12 @@ impl PyRectangle {
         self.rectangle
             .get_random_circle_coords_inside(radius, &mut rng.rng)
     }
+
+    pub fn copy(&self) -> PyRectangle {
+        PyRectangle {
+            rectangle: self.rectangle.clone(),
+        }
+    }
 }
 
 #[pyclass(name = "Rng")]
