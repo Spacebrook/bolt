@@ -84,22 +84,22 @@ impl PyRectangle {
 
     #[getter]
     pub fn x(&self) -> f32 {
-        self.rectangle.x
+        self.rectangle.left()
     }
 
     #[setter]
     pub fn set_x(&mut self, x: f32) {
-        self.rectangle.x = x;
+        self.rectangle.x = x + self.rectangle.width / 2.0;
     }
 
     #[getter]
     pub fn y(&self) -> f32 {
-        self.rectangle.y
+        self.rectangle.top()
     }
 
     #[setter]
     pub fn set_y(&mut self, y: f32) {
-        self.rectangle.y = y;
+        self.rectangle.y = y + self.rectangle.height / 2.0;
     }
 
     pub fn width(&self) -> f32 {
