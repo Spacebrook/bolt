@@ -75,8 +75,10 @@ pub struct PyRectangle {
 impl PyRectangle {
     #[new]
     pub fn new(x: f32, y: f32, width: f32, height: f32) -> Self {
+        let center_x = x + width / 2.0;
+        let center_y = y + height / 2.0;
         PyRectangle {
-            rectangle: Rectangle::new(x, y, width, height),
+            rectangle: Rectangle::new(center_x, center_y, width, height),
         }
     }
 
