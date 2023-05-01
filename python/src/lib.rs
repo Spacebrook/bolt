@@ -13,9 +13,11 @@ use rand::SeedableRng;
 
 mod collisions;
 mod quadtree;
+mod serialization;
 
 use crate::collisions::get_mtv;
 use crate::quadtree::{PyConfig, QuadTreeWrapper};
+use crate::serialization::DiffFieldSetWrapper;
 
 #[pymodule]
 fn pycollisions(_py: Python, m: &PyModule) -> PyResult<()> {
@@ -31,6 +33,12 @@ fn pyquadtree(_py: Python, m: &PyModule) -> PyResult<()> {
 }
 
 #[pymodule]
+fn pyserialization(_py: Python, m: &PyModule) -> PyResult<()> {
+    m.add_class::<DiffFieldSetWrapper>()?;
+    Ok(())
+}
+
+#[pymodule]
 fn bolt(py: Python, m: &PyModule) -> PyResult<()> {
     let submod_collisions = PyModule::new(py, "collisions")?;
     pycollisions(py, &submod_collisions)?;
@@ -39,6 +47,10 @@ fn bolt(py: Python, m: &PyModule) -> PyResult<()> {
     let submod_quadtree = PyModule::new(py, "quadtree")?;
     pyquadtree(py, &submod_quadtree)?;
     m.add_submodule(submod_quadtree)?;
+
+    let submod_serialization = PyModule::new(py, "serialization")?;
+    pyserialization(py, &submod_serialization)?;
+    m.add_submodule(submod_serialization)?;
 
     m.add_class::<PyCircle>()?;
     m.add_class::<PyRectangle>()?;
@@ -214,15 +226,13 @@ fn extract_shape_ncollide(py: Python, shape: PyObject) -> PyResult<ShapeWithPosi
             shape: Box::new(Ball::new(shape.radius)),
             position: Isometry::new(Vector::new(shape.x, shape.y), 0.0),
         }),
-        ShapeEnum::Rectangle(shape) => {
-            Ok(ShapeWithPosition {
-                shape: Box::new(Cuboid::new(Vector::new(
-                    shape.width / 2.0,
-                    shape.height / 2.0,
-                ))),
-                position: Isometry::new(Vector::new(shape.x, shape.y), 0.0),
-            })
-        }
+        ShapeEnum::Rectangle(shape) => Ok(ShapeWithPosition {
+            shape: Box::new(Cuboid::new(Vector::new(
+                shape.width / 2.0,
+                shape.height / 2.0,
+            ))),
+            position: Isometry::new(Vector::new(shape.x, shape.y), 0.0),
+        }),
     }
 }
 

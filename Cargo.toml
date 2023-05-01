@@ -1,2 +1,2 @@
 [workspace]
-members = ["collisions", "common", "python", "quadtree"]
+members = ["collisions", "common", "python", "quadtree", "serialization"]

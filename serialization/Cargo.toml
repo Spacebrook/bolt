@@ -1,0 +1,11 @@
+﻿[package]
+name = "serialization"
+version = "0.1.0"
+authors = ["Steve Mostovoy <stevemostovoysm@gmail.com>"]
+edition = "2021"
+
+[lib]
+name = "serialization"
+
+[dev-dependencies]
+maplit = "1.0.2"
