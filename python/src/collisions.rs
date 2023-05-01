@@ -18,5 +18,8 @@ pub fn get_mtv(
         .collect::<PyResult<_>>()?;
 
     let result = libcollisions::get_mtv(&entity_shape, colliding_polys_rust);
-    Ok(result)
+    match result {
+        None => Ok(None),
+        Some((x, y)) => Ok(Some((x, -y)))
+    }
 }

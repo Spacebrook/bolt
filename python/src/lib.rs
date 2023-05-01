@@ -193,12 +193,7 @@ impl PyRng {
 
 fn extract_shape(py: Python, shape: PyObject) -> PyResult<ShapeEnum> {
     if let Ok(py_rectangle) = shape.extract::<PyRectangle>(py) {
-        Ok(ShapeEnum::Rectangle(Rectangle {
-            x: py_rectangle.x(),
-            y: py_rectangle.y(),
-            width: py_rectangle.width(),
-            height: py_rectangle.height(),
-        }))
+        Ok(ShapeEnum::Rectangle(py_rectangle.rectangle))
     } else if let Ok(py_circle) = shape.extract::<PyCircle>(py) {
         Ok(ShapeEnum::Circle(Circle::new(
             py_circle.x,

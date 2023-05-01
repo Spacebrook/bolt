@@ -174,7 +174,10 @@ impl QuadTreeWrapper {
         self.quadtree.all_node_bounding_boxes(&mut bounding_boxes);
         bounding_boxes
             .into_iter()
-            .map(|rect| (rect.x, rect.y, rect.width, rect.height))
+            .map(|rect| (
+                rect.x - rect.width / 2.0, rect.y - rect.height / 2.0,
+                rect.width, rect.height
+            ))
             .collect()
     }
 
@@ -192,13 +195,16 @@ impl QuadTreeWrapper {
                         radius: circle.radius,
                     },
                 )?
-                .into_py(py)
+                    .into_py(py)
             } else if let Some(rect) = shape.as_any().downcast_ref::<Rectangle>() {
                 Py::new(
                     py,
-                    PyRectangle::new(rect.x, rect.y, rect.width, rect.height),
+                    PyRectangle::new(
+                        rect.x - rect.width / 2.0,
+                        rect.y - rect.width / 2.0,
+                        rect.width, rect.height),
                 )?
-                .into_py(py)
+                    .into_py(py)
             } else {
                 return Err(PyTypeError::new_err("Unknown shape"));
             };
