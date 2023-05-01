@@ -4,7 +4,7 @@ use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use pyo3::pyclass;
 use pyo3::pymethods;
-use pyo3::types::PyDict;
+use pyo3::types::{PyDict, PyList, PyTuple};
 use std::collections::HashMap;
 
 #[pyclass(name = "DiffFieldSet", unsendable)]
@@ -28,18 +28,24 @@ impl DiffFieldSetWrapper {
         })
     }
 
-    pub fn start_update(&mut self) {
-        self.diff_field_set.start_update();
-    }
-
-    pub fn update_one(&mut self, py: Python, key: String, value: PyObject) -> PyResult<()> {
-        match get_rust_value(py, value) {
-            Ok(rust_value) => {
-                self.diff_field_set.update_one(key, rust_value);
-                Ok(())
+    // Add update method that takes a Python list of key-value pairs
+    pub fn update(&mut self, py: Python, updates: &PyList) -> PyResult<()> {
+        let mut rust_updates = Vec::with_capacity(updates.len());
+        for item in updates {
+            if let Ok(py_tuple) = item.extract::<&PyTuple>() {
+                if py_tuple.len() == 2 {
+                    let key = py_tuple.get_item(0)?.extract::<String>()?;
+                    let value = get_rust_value(py, py_tuple.get_item(1)?.to_object(py))?;
+                    rust_updates.push((key, value));
+                } else {
+                    return Err(PyTypeError::new_err("Each tuple must contain exactly 2 items"));
+                }
+            } else {
+                return Err(PyTypeError::new_err("List must contain tuples of (key, value) pairs"));
             }
-            Err(_) => Err(PyTypeError::new_err("Unsupported field value type")),
         }
+        self.diff_field_set.update(rust_updates);
+        Ok(())
     }
 
     pub fn has_changed(&self) -> bool {

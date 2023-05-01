@@ -13,10 +13,12 @@ fn test_diff_field_set() {
     );
 
     let mut diff_field_set = DiffFieldSet::new(None);
-    diff_field_set.start_update();
-    diff_field_set.update_one(String::from("x"), fields["x"].clone());
-    diff_field_set.update_one(String::from("y"), fields["y"].clone());
-    diff_field_set.update_one(String::from("field"), fields["field"].clone());
+    // Update with a list of key-value pairs using the update method
+    diff_field_set.update(vec![
+        (String::from("x"), fields["x"].clone()),
+        (String::from("y"), fields["y"].clone()),
+        (String::from("field"), fields["field"].clone()),
+    ]);
 
     assert!(diff_field_set.has_changed());
     assert_eq!(diff_field_set.get_diff(), &fields);
@@ -26,10 +28,12 @@ fn test_diff_field_set() {
         String::from("field"),
         FieldValue::String(String::from("new value")),
     );
-    diff_field_set.start_update();
-    diff_field_set.update_one(String::from("x"), fields["x"].clone());
-    diff_field_set.update_one(String::from("y"), fields["y"].clone());
-    diff_field_set.update_one(String::from("field"), fields["field"].clone());
+    // Update with a list of key-value pairs using the update method
+    diff_field_set.update(vec![
+        (String::from("x"), fields["x"].clone()),
+        (String::from("y"), fields["y"].clone()),
+        (String::from("field"), fields["field"].clone()),
+    ]);
 
     assert!(diff_field_set.has_changed());
     assert_eq!(
@@ -51,10 +55,12 @@ fn test_diff_field_set() {
     assert_eq!(diff_field_set.get_all(), &fields);
 
     // Check that updating with no diff will change get_diff.
-    diff_field_set.start_update();
-    diff_field_set.update_one(String::from("x"), fields["x"].clone());
-    diff_field_set.update_one(String::from("y"), fields["y"].clone());
-    diff_field_set.update_one(String::from("field"), fields["field"].clone());
+    // Update with a list of key-value pairs using the update method
+    diff_field_set.update(vec![
+        (String::from("x"), fields["x"].clone()),
+        (String::from("y"), fields["y"].clone()),
+        (String::from("field"), fields["field"].clone()),
+    ]);
 
     assert!(!diff_field_set.has_changed());
     assert_eq!(diff_field_set.get_diff(), &HashMap::new());

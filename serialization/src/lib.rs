@@ -28,27 +28,27 @@ impl DiffFieldSet {
         }
     }
 
-    pub fn start_update(&mut self) {
+    pub fn update(&mut self, updates: Vec<(String, FieldValue)>) {
         self.changed_fields.clear();
-    }
 
-    pub fn update_one(&mut self, key: String, value: FieldValue) {
-        self.fields.insert(key.clone(), value.clone());
+        for (key, value) in updates {
+            self.fields.insert(key.clone(), value.clone());
 
-        if !self.old_fields.contains_key(&key) || self.old_fields[&key] != value {
-            self.changed_fields.insert(key.clone(), value.clone());
-            self.old_fields.insert(key.clone(), value.clone());
-        }
-
-        if let Some(default_value) = self.defaults.get(&key) {
-            if default_value != &value {
-                self.fields_without_defaults
-                    .insert(key.clone(), value.clone());
-            } else {
-                self.fields_without_defaults.remove(&key);
+            if !self.old_fields.contains_key(&key) || self.old_fields[&key] != value {
+                self.changed_fields.insert(key.clone(), value.clone());
+                self.old_fields.insert(key.clone(), value.clone());
             }
-        } else {
-            self.fields_without_defaults.insert(key, value);
+
+            if let Some(default_value) = self.defaults.get(&key) {
+                if default_value != &value {
+                    self.fields_without_defaults
+                        .insert(key.clone(), value.clone());
+                } else {
+                    self.fields_without_defaults.remove(&key);
+                }
+            } else {
+                self.fields_without_defaults.insert(key, value);
+            }
         }
     }
 
