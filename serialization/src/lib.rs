@@ -6,6 +6,7 @@ pub enum FieldValue {
     Float(f32),
     Bool(bool),
     String(String),
+    None,
 }
 
 pub struct DiffFieldSet {

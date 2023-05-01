@@ -68,6 +68,7 @@ fn convert_to_py_dict(
             FieldValue::Float(val) => val.into_py(py),
             FieldValue::Bool(val) => val.into_py(py),
             FieldValue::String(val) => val.into_py(py),
+            FieldValue::None => py.None(),
         };
         py_dict.set_item(key, py_value)?;
     }
@@ -75,11 +76,24 @@ fn convert_to_py_dict(
 }
 
 fn get_rust_value(py: Python, value: PyObject) -> PyResult<FieldValue> {
+    if value.is_none(py) {
+        return Ok(FieldValue::None);
+    }
+
     value
         .extract::<i32>(py)
         .map(FieldValue::Int)
         .or_else(|_| value.extract::<f32>(py).map(FieldValue::Float))
         .or_else(|_| value.extract::<bool>(py).map(FieldValue::Bool))
         .or_else(|_| value.extract::<String>(py).map(FieldValue::String))
-        .map_err(|_| PyTypeError::new_err("Unsupported field value type"))
+        .map_err(|_| {
+            let type_name = value
+                .getattr(py, "__class__")
+                .unwrap()
+                .getattr(py, "__name__")
+                .unwrap()
+                .extract::<String>(py)
+                .unwrap_or_else(|_| "<unknown>".to_string());
+            PyTypeError::new_err(format!("Unsupported field value type: {}", type_name))
+        })
 }
