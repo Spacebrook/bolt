@@ -7,11 +7,11 @@ edition = "2021"
 pyo3 = { version = "0.18.3", features = ["extension-module"] }
 ncollide2d = "0.33.0"
 rand = "0.8.5"
+smallvec = "1.10.0"
 
 collisions = { path = "../collisions" }
 common = { path = "../common" }
 quadtree = { path = "../quadtree" }
 serialization = { path = "../serialization" }
-
 [lib]
 crate-type = ["cdylib"]

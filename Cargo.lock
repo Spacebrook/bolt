@@ -51,6 +51,7 @@ dependencies = [
  "quadtree",
  "rand",
  "serialization",
+ "smallvec",
 ]
 
 [[package]]
@@ -793,6 +794,7 @@ name = "serialization"
 version = "0.1.0"
 dependencies = [
  "maplit",
+ "smallvec",
 ]
 
 [[package]]

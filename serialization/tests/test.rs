@@ -1,5 +1,7 @@
 use maplit;
 use serialization::*;
+use smallvec::SmallVec;
+use std::borrow::Cow;
 use std::collections::HashMap;
 
 #[test]
@@ -14,11 +16,11 @@ fn test_diff_field_set() {
 
     let mut diff_field_set = DiffFieldSet::new(None);
     // Update with a list of key-value pairs using the update method
-    diff_field_set.update(vec![
-        (String::from("x"), fields["x"].clone()),
-        (String::from("y"), fields["y"].clone()),
-        (String::from("field"), fields["field"].clone()),
-    ]);
+    diff_field_set.update(SmallVec::from(vec![
+        (Cow::Borrowed("x"), fields["x"].clone()),
+        (Cow::Borrowed("y"), fields["y"].clone()),
+        (Cow::Borrowed("field"), fields["field"].clone()),
+    ]));
 
     assert!(diff_field_set.has_changed());
     assert_eq!(diff_field_set.get_diff(), &fields);
@@ -29,11 +31,11 @@ fn test_diff_field_set() {
         FieldValue::String(String::from("new value")),
     );
     // Update with a list of key-value pairs using the update method
-    diff_field_set.update(vec![
-        (String::from("x"), fields["x"].clone()),
-        (String::from("y"), fields["y"].clone()),
-        (String::from("field"), fields["field"].clone()),
-    ]);
+    diff_field_set.update(SmallVec::from(vec![
+        (Cow::Borrowed("x"), fields["x"].clone()),
+        (Cow::Borrowed("y"), fields["y"].clone()),
+        (Cow::Borrowed("field"), fields["field"].clone()),
+    ]));
 
     assert!(diff_field_set.has_changed());
     assert_eq!(
@@ -56,11 +58,11 @@ fn test_diff_field_set() {
 
     // Check that updating with no diff will change get_diff.
     // Update with a list of key-value pairs using the update method
-    diff_field_set.update(vec![
-        (String::from("x"), fields["x"].clone()),
-        (String::from("y"), fields["y"].clone()),
-        (String::from("field"), fields["field"].clone()),
-    ]);
+    diff_field_set.update(SmallVec::from(vec![
+        (Cow::Borrowed("x"), fields["x"].clone()),
+        (Cow::Borrowed("y"), fields["y"].clone()),
+        (Cow::Borrowed("field"), fields["field"].clone()),
+    ]));
 
     assert!(!diff_field_set.has_changed());
     assert_eq!(diff_field_set.get_diff(), &HashMap::new());

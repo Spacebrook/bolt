@@ -5,6 +5,8 @@ use pyo3::prelude::*;
 use pyo3::pyclass;
 use pyo3::pymethods;
 use pyo3::types::{PyDict, PyList, PyTuple};
+use smallvec::SmallVec;
+use std::borrow::Cow;
 use std::collections::HashMap;
 
 #[pyclass(name = "DiffFieldSet", unsendable)]
@@ -28,15 +30,14 @@ impl DiffFieldSetWrapper {
         })
     }
 
-    // Add update method that takes a Python list of key-value pairs
     pub fn update(&mut self, py: Python, updates: &PyList) -> PyResult<()> {
-        let mut rust_updates = Vec::with_capacity(updates.len());
+        let mut rust_updates = SmallVec::<[(Cow<str>, FieldValue); 16]>::new();
         for item in updates {
             if let Ok(py_tuple) = item.extract::<&PyTuple>() {
                 if py_tuple.len() == 2 {
                     let key = py_tuple.get_item(0)?.extract::<String>()?;
                     let value = get_rust_value(py, py_tuple.get_item(1)?.to_object(py))?;
-                    rust_updates.push((key, value));
+                    rust_updates.push((Cow::Owned(key), value));
                 } else {
                     return Err(PyTypeError::new_err("Each tuple must contain exactly 2 items"));
                 }

@@ -1,4 +1,6 @@
+use std::borrow::Cow;
 use std::collections::HashMap;
+use smallvec::SmallVec;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum FieldValue {
@@ -18,37 +20,45 @@ pub struct DiffFieldSet {
 }
 
 impl DiffFieldSet {
+    const CAPACITY: usize = 32;
+
     pub fn new(defaults: Option<HashMap<String, FieldValue>>) -> Self {
         Self {
             defaults: defaults.unwrap_or_default(),
-            fields: HashMap::new(),
-            fields_without_defaults: HashMap::new(),
-            changed_fields: HashMap::new(),
-            old_fields: HashMap::new(),
+            fields: HashMap::with_capacity(Self::CAPACITY),
+            fields_without_defaults: HashMap::with_capacity(Self::CAPACITY),
+            changed_fields: HashMap::with_capacity(Self::CAPACITY),
+            old_fields: HashMap::with_capacity(Self::CAPACITY),
         }
     }
 
-    pub fn update(&mut self, updates: Vec<(String, FieldValue)>) {
-        self.changed_fields.clear();
+    pub fn update(&mut self, updates: SmallVec<[(Cow<str>, FieldValue); 16]>) {
+        self.changed_fields.retain(|key, value| {
+            if let Some((_, update_value)) = updates.iter().find(|(k, _)| k.as_ref() == key) {
+                update_value != value
+            } else {
+                false
+            }
+        });
 
         for (key, value) in updates {
-            self.fields.insert(key.clone(), value.clone());
-
-            if !self.old_fields.contains_key(&key) || self.old_fields[&key] != value {
-                self.changed_fields.insert(key.clone(), value.clone());
-                self.old_fields.insert(key.clone(), value.clone());
+            let key_ref = key.as_ref();
+            let old_value = self.old_fields.get(key_ref);
+            if old_value != Some(&value) {
+                self.changed_fields.insert(key_ref.to_string(), value.clone());
+                self.old_fields.insert(key_ref.to_string(), value.clone());
             }
 
-            if let Some(default_value) = self.defaults.get(&key) {
-                if default_value != &value {
-                    self.fields_without_defaults
-                        .insert(key.clone(), value.clone());
-                } else {
-                    self.fields_without_defaults.remove(&key);
+            match self.defaults.get(key_ref) {
+                Some(default_value) if default_value == &value => {
+                    self.fields_without_defaults.remove(key_ref);
                 }
-            } else {
-                self.fields_without_defaults.insert(key, value);
+                _ => {
+                    self.fields_without_defaults.insert(key_ref.to_string(), value.clone());
+                }
             }
+
+            self.fields.insert(key.into_owned(), value);
         }
     }
 
