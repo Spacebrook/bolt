@@ -1,6 +1,4 @@
-use std::borrow::Cow;
-use std::collections::HashMap;
-use smallvec::SmallVec;
+use smallvec::{SmallVec, smallvec};
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum FieldValue {
@@ -11,54 +9,56 @@ pub enum FieldValue {
     None,
 }
 
+pub enum FieldType {
+    Int = 0,
+    Float = 1,
+    Bool = 2,
+    String = 3,
+}
+
+impl FieldType {
+    pub fn from_int(value: i32) -> Result<Self, String> {
+        match value {
+            0 => Ok(FieldType::Int),
+            1 => Ok(FieldType::Float),
+            2 => Ok(FieldType::Bool),
+            3 => Ok(FieldType::String),
+            _ => Err(format!("Invalid field type: {}", value)),
+        }
+    }
+}
+
 pub struct DiffFieldSet {
-    pub defaults: HashMap<String, FieldValue>,
-    pub fields: HashMap<String, FieldValue>,
-    pub fields_without_defaults: HashMap<String, FieldValue>,
-    pub changed_fields: HashMap<String, FieldValue>,
-    pub old_fields: HashMap<String, FieldValue>,
+    pub field_types: SmallVec<[FieldType; 16]>,
+    pub field_defaults: SmallVec<[FieldValue; 16]>,
+    pub fields: SmallVec<[FieldValue; 16]>,
+    pub changed_fields: SmallVec<[usize; 16]>,
+    pub fields_without_defaults: SmallVec<[usize; 16]>,
 }
 
 impl DiffFieldSet {
-    const CAPACITY: usize = 32;
-
-    pub fn new(defaults: Option<HashMap<String, FieldValue>>) -> Self {
+    pub fn new(field_types: SmallVec<[FieldType; 16]>, field_defaults: SmallVec<[FieldValue; 16]>) -> Self {
+        let len = field_types.len();
         Self {
-            defaults: defaults.unwrap_or_default(),
-            fields: HashMap::with_capacity(Self::CAPACITY),
-            fields_without_defaults: HashMap::with_capacity(Self::CAPACITY),
-            changed_fields: HashMap::with_capacity(Self::CAPACITY),
-            old_fields: HashMap::with_capacity(Self::CAPACITY),
+            field_types,
+            field_defaults,
+            fields: smallvec![FieldValue::None; len],
+            fields_without_defaults: SmallVec::with_capacity(len),
+            changed_fields: SmallVec::with_capacity(len),
         }
     }
 
-    pub fn update(&mut self, updates: SmallVec<[(Cow<str>, FieldValue); 16]>) {
-        self.changed_fields.retain(|key, value| {
-            if let Some((_, update_value)) = updates.iter().find(|(k, _)| k.as_ref() == key) {
-                update_value != value
-            } else {
-                false
+    pub fn update(&mut self, updates: SmallVec<[(usize, FieldValue); 16]>) {
+        self.changed_fields.clear();
+        self.fields_without_defaults.clear();
+        for (index, value) in updates.into_iter() {
+            if self.fields[index] != value {
+                self.fields[index] = value.clone();
+                self.changed_fields.push(index);
             }
-        });
-
-        for (key, value) in updates {
-            let key_ref = key.as_ref();
-            let old_value = self.old_fields.get(key_ref);
-            if old_value != Some(&value) {
-                self.changed_fields.insert(key_ref.to_string(), value.clone());
-                self.old_fields.insert(key_ref.to_string(), value.clone());
+            if self.field_defaults[index] != value {
+                self.fields_without_defaults.push(index);
             }
-
-            match self.defaults.get(key_ref) {
-                Some(default_value) if default_value == &value => {
-                    self.fields_without_defaults.remove(key_ref);
-                }
-                _ => {
-                    self.fields_without_defaults.insert(key_ref.to_string(), value.clone());
-                }
-            }
-
-            self.fields.insert(key.into_owned(), value);
         }
     }
 
@@ -66,11 +66,17 @@ impl DiffFieldSet {
         !self.changed_fields.is_empty()
     }
 
-    pub fn get_diff(&self) -> &HashMap<String, FieldValue> {
-        &self.changed_fields
+    pub fn get_diff(&self) -> SmallVec<[(usize, FieldValue); 16]> {
+        self.changed_fields
+            .iter()
+            .map(|&index| (index, self.fields[index].clone()))
+            .collect()
     }
 
-    pub fn get_all(&self) -> &HashMap<String, FieldValue> {
-        &self.fields_without_defaults
+    pub fn get_all(&self) -> SmallVec<[(usize, FieldValue); 16]> {
+        self.fields_without_defaults
+            .iter()
+            .map(|&index| (index, self.fields[index].clone()))
+            .collect()
     }
 }

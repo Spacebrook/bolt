@@ -4,10 +4,8 @@ use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use pyo3::pyclass;
 use pyo3::pymethods;
-use pyo3::types::{PyDict, PyList, PyTuple};
+use pyo3::types::{PyList, PyTuple};
 use smallvec::SmallVec;
-use std::borrow::Cow;
-use std::collections::HashMap;
 
 #[pyclass(name = "DiffFieldSet", unsendable)]
 pub struct DiffFieldSetWrapper {
@@ -17,32 +15,44 @@ pub struct DiffFieldSetWrapper {
 #[pymethods]
 impl DiffFieldSetWrapper {
     #[new]
-    pub fn new(py: Python, defaults: Option<HashMap<String, PyObject>>) -> PyResult<Self> {
-        let mut rust_defaults = HashMap::new();
-        if let Some(defaults) = defaults {
-            for (key, value) in defaults {
-                let rust_value = get_rust_value(py, value)?;
-                rust_defaults.insert(key, rust_value);
-            }
-        }
+    pub fn new(
+        py: Python,
+        field_types: Vec<i32>,
+        field_defaults: Vec<PyObject>,
+    ) -> PyResult<Self> {
+        // Convert Py field types to Rust field types
+        let rust_field_types = field_types
+            .into_iter()
+            .map(FieldType::from_int)
+            .collect::<Result<SmallVec<[FieldType; 16]>, String>>()
+            .map_err(|err| PyTypeError::new_err(err))?;
+
+        // Convert Py field defaults to Rust field values
+        let rust_field_defaults = rust_field_types
+            .iter()
+            .zip(field_defaults)
+            .map(|(field_type, value)| get_rust_value(py, field_type, value))
+            .collect::<PyResult<SmallVec<[FieldValue; 16]>>>()?;
+
         Ok(Self {
-            diff_field_set: DiffFieldSet::new(Some(rust_defaults)),
+            diff_field_set: DiffFieldSet::new(rust_field_types, rust_field_defaults),
         })
     }
 
     pub fn update(&mut self, py: Python, updates: &PyList) -> PyResult<()> {
-        let mut rust_updates = SmallVec::<[(Cow<str>, FieldValue); 16]>::new();
+        let mut rust_updates = SmallVec::<[(usize, FieldValue); 16]>::new();
         for item in updates {
             if let Ok(py_tuple) = item.extract::<&PyTuple>() {
                 if py_tuple.len() == 2 {
-                    let key = py_tuple.get_item(0)?.extract::<String>()?;
-                    let value = get_rust_value(py, py_tuple.get_item(1)?.to_object(py))?;
-                    rust_updates.push((Cow::Owned(key), value));
+                    let index = py_tuple.get_item(0)?.extract::<usize>()?;
+                    let field_type = &self.diff_field_set.field_types[index];
+                    let value = get_rust_value(py, field_type, py_tuple.get_item(1)?.to_object(py))?;
+                    rust_updates.push((index, value));
                 } else {
                     return Err(PyTypeError::new_err("Each tuple must contain exactly 2 items"));
                 }
             } else {
-                return Err(PyTypeError::new_err("List must contain tuples of (key, value) pairs"));
+                return Err(PyTypeError::new_err("List must contain tuples of (index, value) pairs"));
             }
         }
         self.diff_field_set.update(rust_updates);
@@ -55,21 +65,21 @@ impl DiffFieldSetWrapper {
 
     pub fn get_diff(&self, py: Python) -> PyResult<PyObject> {
         let diff = self.diff_field_set.get_diff();
-        convert_to_py_dict(py, diff)
+        convert_to_py_list(py, diff)
     }
 
     pub fn get_all(&self, py: Python) -> PyResult<PyObject> {
         let all_fields = self.diff_field_set.get_all();
-        convert_to_py_dict(py, all_fields)
+        convert_to_py_list(py, all_fields)
     }
 }
 
-fn convert_to_py_dict(
+fn convert_to_py_list(
     py: Python,
-    field_values: &HashMap<String, FieldValue>,
+    field_values: SmallVec<[(usize, FieldValue); 16]>,
 ) -> PyResult<PyObject> {
-    let py_dict = PyDict::new(py);
-    for (key, value) in field_values {
+    let py_list =  PyList::empty(py);
+    for (index, value) in field_values {
         let py_value = match value {
             FieldValue::Int(val) => val.into_py(py),
             FieldValue::Float(val) => val.into_py(py),
@@ -77,30 +87,32 @@ fn convert_to_py_dict(
             FieldValue::String(val) => val.into_py(py),
             FieldValue::None => py.None(),
         };
-        py_dict.set_item(key, py_value)?;
+        py_list.append((index, py_value))?;
     }
-    Ok(py_dict.to_object(py))
+    Ok(py_list.to_object(py))
 }
 
-fn get_rust_value(py: Python, value: PyObject) -> PyResult<FieldValue> {
+fn get_rust_value(py: Python, field_type: &FieldType, value: PyObject) -> PyResult<FieldValue> {
     if value.is_none(py) {
         return Ok(FieldValue::None);
     }
 
-    value
-        .extract::<i32>(py)
-        .map(FieldValue::Int)
-        .or_else(|_| value.extract::<f32>(py).map(FieldValue::Float))
-        .or_else(|_| value.extract::<bool>(py).map(FieldValue::Bool))
-        .or_else(|_| value.extract::<String>(py).map(FieldValue::String))
-        .map_err(|_| {
-            let type_name = value
-                .getattr(py, "__class__")
-                .unwrap()
-                .getattr(py, "__name__")
-                .unwrap()
-                .extract::<String>(py)
-                .unwrap_or_else(|_| "<unknown>".to_string());
-            PyTypeError::new_err(format!("Unsupported field value type: {}", type_name))
-        })
+    match field_type {
+        FieldType::Int => value
+            .extract::<i32>(py)
+            .map(FieldValue::Int)
+            .map_err(|_| PyTypeError::new_err("Expected an integer value")),
+        FieldType::Float => value
+            .extract::<f32>(py)
+            .map(FieldValue::Float)
+            .map_err(|_| PyTypeError::new_err("Expected a float value")),
+        FieldType::Bool => value
+            .extract::<bool>(py)
+            .map(FieldValue::Bool)
+            .map_err(|_| PyTypeError::new_err("Expected a boolean value")),
+        FieldType::String => value
+            .extract::<String>(py)
+            .map(FieldValue::String)
+            .map_err(|_| PyTypeError::new_err("Expected a string value")),
+    }
 }

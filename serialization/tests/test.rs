@@ -1,70 +1,93 @@
-use maplit;
 use serialization::*;
 use smallvec::SmallVec;
-use std::borrow::Cow;
-use std::collections::HashMap;
 
 #[test]
 fn test_diff_field_set() {
-    let mut fields = HashMap::new();
-    fields.insert(String::from("x"), FieldValue::Int(1));
-    fields.insert(String::from("y"), FieldValue::Int(2));
-    fields.insert(
-        String::from("field"),
-        FieldValue::String(String::from("value")),
-    );
+    // Define field types
+    let field_types = SmallVec::from(vec![FieldType::Int, FieldType::Int, FieldType::String]);
 
-    let mut diff_field_set = DiffFieldSet::new(None);
-    // Update with a list of key-value pairs using the update method
+    // Define default field values
+    let field_defaults = SmallVec::from(vec![
+        FieldValue::Int(1),
+        FieldValue::Int(2),
+        FieldValue::None,
+    ]);
+
+    let mut diff_field_set = DiffFieldSet::new(field_types, field_defaults);
+
+    // Update with a list of index-value pairs using the update method
     diff_field_set.update(SmallVec::from(vec![
-        (Cow::Borrowed("x"), fields["x"].clone()),
-        (Cow::Borrowed("y"), fields["y"].clone()),
-        (Cow::Borrowed("field"), fields["field"].clone()),
-    ]));
-
-    assert!(diff_field_set.has_changed());
-    assert_eq!(diff_field_set.get_diff(), &fields);
-    assert_eq!(diff_field_set.get_all(), &fields);
-
-    fields.insert(
-        String::from("field"),
-        FieldValue::String(String::from("new value")),
-    );
-    // Update with a list of key-value pairs using the update method
-    diff_field_set.update(SmallVec::from(vec![
-        (Cow::Borrowed("x"), fields["x"].clone()),
-        (Cow::Borrowed("y"), fields["y"].clone()),
-        (Cow::Borrowed("field"), fields["field"].clone()),
+        (0, FieldValue::Int(1)),
+        (1, FieldValue::Int(2)),
+        (2, FieldValue::String(String::from("value"))),
     ]));
 
     assert!(diff_field_set.has_changed());
     assert_eq!(
         diff_field_set.get_diff(),
-        &maplit::hashmap! {
-            String::from("field") => FieldValue::String(String::from("new value"))
-        }
+        SmallVec::<[(usize, FieldValue); 16]>::from(vec![
+            (0, FieldValue::Int(1)),
+            (1, FieldValue::Int(2)),
+            (2, FieldValue::String(String::from("value"))),
+        ])
     );
-    assert_eq!(diff_field_set.get_all(), &fields);
+    assert_eq!(
+        diff_field_set.get_all(),
+        SmallVec::<[(usize, FieldValue); 16]>::from(vec![
+            (2, FieldValue::String(String::from("value"))),
+        ])
+    );
+
+    // Update with a list of index-value pairs using the update method
+    diff_field_set.update(SmallVec::from(vec![
+        (0, FieldValue::Int(1)),
+        (1, FieldValue::Int(2)),
+        (2, FieldValue::String(String::from("new value"))),
+    ]));
+
+    assert!(diff_field_set.has_changed());
+    assert_eq!(
+        diff_field_set.get_diff(),
+        SmallVec::<[(usize, FieldValue); 16]>::from(vec![
+            (2, FieldValue::String(String::from("new value"))),
+        ])
+    );
+    assert_eq!(
+        diff_field_set.get_all(),
+        SmallVec::<[(usize, FieldValue); 16]>::from(vec![
+            (2, FieldValue::String(String::from("new value"))),
+        ])
+    );
 
     // These functions should be idempotent.
     assert!(diff_field_set.has_changed());
     assert_eq!(
         diff_field_set.get_diff(),
-        &maplit::hashmap! {
-            String::from("field") => FieldValue::String(String::from("new value"))
-        }
+        SmallVec::<[(usize, FieldValue); 16]>::from(vec![
+            (2, FieldValue::String(String::from("new value"))),
+        ])
     );
-    assert_eq!(diff_field_set.get_all(), &fields);
+    assert_eq!(
+        diff_field_set.get_all(),
+        SmallVec::<[(usize, FieldValue); 16]>::from(vec![
+            (2, FieldValue::String(String::from("new value"))),
+        ])
+    );
 
     // Check that updating with no diff will change get_diff.
-    // Update with a list of key-value pairs using the update method
+    // Update with a list of index-value pairs using the update method
     diff_field_set.update(SmallVec::from(vec![
-        (Cow::Borrowed("x"), fields["x"].clone()),
-        (Cow::Borrowed("y"), fields["y"].clone()),
-        (Cow::Borrowed("field"), fields["field"].clone()),
+        (0, FieldValue::Int(1)),
+        (1, FieldValue::Int(2)),
+        (2, FieldValue::String(String::from("new value"))),
     ]));
 
     assert!(!diff_field_set.has_changed());
-    assert_eq!(diff_field_set.get_diff(), &HashMap::new());
-    assert_eq!(diff_field_set.get_all(), &fields);
+    assert_eq!(diff_field_set.get_diff(), SmallVec::<[(usize, FieldValue); 16]>::new());
+    assert_eq!(
+        diff_field_set.get_all(),
+        SmallVec::<[(usize, FieldValue); 16]>::from(vec![
+            (2, FieldValue::String(String::from("new value"))),
+        ])
+    );
 }
