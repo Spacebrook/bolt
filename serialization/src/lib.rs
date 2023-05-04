@@ -48,10 +48,10 @@ impl DiffFieldSet {
         }
     }
 
-    pub fn update(&mut self, updates: SmallVec<[(usize, FieldValue); 16]>) {
+    pub fn update(&mut self, updates: SmallVec<[FieldValue; 16]>) {
         self.changed_fields.clear();
         self.fields_without_defaults.clear();
-        for (index, value) in updates.into_iter() {
+        for (index, value) in updates.into_iter().enumerate() {
             if self.fields[index] != value {
                 self.fields[index] = value.clone();
                 self.changed_fields.push(index);

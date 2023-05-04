@@ -4,7 +4,7 @@ use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use pyo3::pyclass;
 use pyo3::pymethods;
-use pyo3::types::{PyList, PyTuple};
+use pyo3::types::PyList;
 use smallvec::SmallVec;
 
 #[pyclass(name = "DiffFieldSet", unsendable)]
@@ -40,20 +40,11 @@ impl DiffFieldSetWrapper {
     }
 
     pub fn update(&mut self, py: Python, updates: &PyList) -> PyResult<()> {
-        let mut rust_updates = SmallVec::<[(usize, FieldValue); 16]>::new();
-        for item in updates {
-            if let Ok(py_tuple) = item.extract::<&PyTuple>() {
-                if py_tuple.len() == 2 {
-                    let index = py_tuple.get_item(0)?.extract::<usize>()?;
-                    let field_type = &self.diff_field_set.field_types[index];
-                    let value = get_rust_value(py, field_type, py_tuple.get_item(1)?.to_object(py))?;
-                    rust_updates.push((index, value));
-                } else {
-                    return Err(PyTypeError::new_err("Each tuple must contain exactly 2 items"));
-                }
-            } else {
-                return Err(PyTypeError::new_err("List must contain tuples of (index, value) pairs"));
-            }
+        let mut rust_updates = SmallVec::<[FieldValue; 16]>::new();
+        for (index, item) in updates.iter().enumerate() {
+            let field_type = &self.diff_field_set.field_types[index];
+            let value = get_rust_value(py, field_type, item.to_object(py))?;
+            rust_updates.push(value);
         }
         self.diff_field_set.update(rust_updates);
         Ok(())

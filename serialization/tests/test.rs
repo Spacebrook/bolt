@@ -17,9 +17,9 @@ fn test_diff_field_set() {
 
     // Update with a list of index-value pairs using the update method
     diff_field_set.update(SmallVec::from(vec![
-        (0, FieldValue::Int(1)),
-        (1, FieldValue::Int(2)),
-        (2, FieldValue::String(String::from("value"))),
+        FieldValue::Int(1),
+        FieldValue::Int(2),
+        FieldValue::String(String::from("value")),
     ]));
 
     assert!(diff_field_set.has_changed());
@@ -40,9 +40,9 @@ fn test_diff_field_set() {
 
     // Update with a list of index-value pairs using the update method
     diff_field_set.update(SmallVec::from(vec![
-        (0, FieldValue::Int(1)),
-        (1, FieldValue::Int(2)),
-        (2, FieldValue::String(String::from("new value"))),
+        FieldValue::Int(1),
+        FieldValue::Int(2),
+        FieldValue::String(String::from("new value")),
     ]));
 
     assert!(diff_field_set.has_changed());
@@ -77,9 +77,9 @@ fn test_diff_field_set() {
     // Check that updating with no diff will change get_diff.
     // Update with a list of index-value pairs using the update method
     diff_field_set.update(SmallVec::from(vec![
-        (0, FieldValue::Int(1)),
-        (1, FieldValue::Int(2)),
-        (2, FieldValue::String(String::from("new value"))),
+        FieldValue::Int(1),
+        FieldValue::Int(2),
+        FieldValue::String(String::from("new value")),
     ]));
 
     assert!(!diff_field_set.has_changed());
