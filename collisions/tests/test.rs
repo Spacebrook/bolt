@@ -96,3 +96,16 @@ fn test_circle_halfway_inside_rectangle_and_a_bit_less() {
     };
     assert_eq!(get_mtv(&entity, vec![colliding_poly]), Some((0.0, -14.0)));
 }
+
+#[test]
+fn test_diagonal_penetration() {
+    let entity = ShapeWithPosition {
+        shape: Box::new(Ball::new(15.0)),
+        position: Isometry::new(Vector::new(500.0, 1.0), 0.0),
+    };
+    let colliding_poly = ShapeWithPosition {
+        shape: Box::new(Cuboid::new(Vector::new(1000.0, 1000.0))),
+        position: Isometry::new(Vector::new(1000.0, -1000.0), 0.0),
+    };
+    assert_eq!(get_mtv(&entity, vec![colliding_poly]), Some((0.0, -14.0)));
+}

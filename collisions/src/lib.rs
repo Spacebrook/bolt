@@ -1,6 +1,5 @@
 use ncollide2d::math::{Isometry, Vector};
-use ncollide2d::na::RealField;
-use ncollide2d::query::{self, ClosestPoints, Contact};
+use ncollide2d::query::{self, ClosestPoints};
 use ncollide2d::shape::{Ball, Cuboid, Shape};
 
 pub struct ShapeWithPosition {
@@ -30,11 +29,6 @@ pub fn get_mtv(
         );
 
         match closest_points {
-            ClosestPoints::WithinMargin(point1, point2) => {
-                let penetration_depth = (point2 - point1).norm();
-                let normal = (point1.coords - point2.coords).normalize();
-                mtv += normal * penetration_depth;
-            }
             ClosestPoints::Intersecting => {
                 if let (Some(entity_half_extents), Some(colliding_poly_half_extents)) = (
                     get_half_extents(entity.shape.as_ref()),
@@ -43,7 +37,14 @@ pub fn get_mtv(
                     let distance = entity.position.translation.vector
                         - colliding_poly.position.translation.vector;
                     let total_half_extents = entity_half_extents + colliding_poly_half_extents;
-                    mtv += distance - (total_half_extents.component_mul(&distance.normalize()));
+                    let penetration = total_half_extents - distance.abs();
+
+                    // Choose the axis with the smallest penetration depth
+                    if penetration.x < penetration.y {
+                        mtv.x += -penetration.x * distance.x.signum();
+                    } else {
+                        mtv.y += -penetration.y * distance.y.signum();
+                    }
                 }
             }
             _ => (),
