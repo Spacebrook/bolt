@@ -15,11 +15,7 @@ pub struct DiffFieldSetWrapper {
 #[pymethods]
 impl DiffFieldSetWrapper {
     #[new]
-    pub fn new(
-        py: Python,
-        field_types: Vec<i32>,
-        field_defaults: Vec<PyObject>,
-    ) -> PyResult<Self> {
+    pub fn new(py: Python, field_types: Vec<i32>, field_defaults: Vec<PyObject>) -> PyResult<Self> {
         // Convert Py field types to Rust field types
         let rust_field_types = field_types
             .into_iter()
@@ -70,7 +66,7 @@ fn convert_to_py_list(
     py: Python,
     field_values: SmallVec<[(usize, FieldValue); 16]>,
 ) -> PyResult<PyObject> {
-    let py_list =  PyList::empty(py);
+    let py_list = PyList::empty(py);
     for (index, value) in field_values {
         let py_value = match value {
             FieldValue::Int(val) => val.into_py(py),
@@ -84,16 +80,20 @@ fn convert_to_py_list(
     Ok(py_list.to_object(py))
 }
 
-fn get_rust_value(py: Python, field_type: &FieldType, value: PyObject, index: usize) -> PyResult<FieldValue> {
+fn get_rust_value(
+    py: Python,
+    field_type: &FieldType,
+    value: PyObject,
+    index: usize,
+) -> PyResult<FieldValue> {
     if value.is_none(py) {
         return Ok(FieldValue::None);
     }
 
     match field_type {
-        FieldType::Int => value
-            .extract::<i32>(py)
-            .map(FieldValue::Int)
-            .map_err(|_| PyTypeError::new_err(format!("Expected an integer value at index {index}"))),
+        FieldType::Int => value.extract::<i32>(py).map(FieldValue::Int).map_err(|_| {
+            PyTypeError::new_err(format!("Expected an integer value at index {index}"))
+        }),
         FieldType::Float => value
             .extract::<f32>(py)
             .map(FieldValue::Float)
@@ -101,7 +101,9 @@ fn get_rust_value(py: Python, field_type: &FieldType, value: PyObject, index: us
         FieldType::Bool => value
             .extract::<bool>(py)
             .map(FieldValue::Bool)
-            .map_err(|_| PyTypeError::new_err(format!("Expected a boolean value at index {index}"))),
+            .map_err(|_| {
+                PyTypeError::new_err(format!("Expected a boolean value at index {index}"))
+            }),
         FieldType::String => value
             .extract::<String>(py)
             .map(FieldValue::String)

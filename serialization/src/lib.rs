@@ -1,4 +1,4 @@
-use smallvec::{SmallVec, smallvec};
+use smallvec::{smallvec, SmallVec};
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum FieldValue {
@@ -37,7 +37,10 @@ pub struct DiffFieldSet {
 }
 
 impl DiffFieldSet {
-    pub fn new(field_types: SmallVec<[FieldType; 16]>, field_defaults: SmallVec<[FieldValue; 16]>) -> Self {
+    pub fn new(
+        field_types: SmallVec<[FieldType; 16]>,
+        field_defaults: SmallVec<[FieldValue; 16]>,
+    ) -> Self {
         let len = field_types.len();
         Self {
             field_types,

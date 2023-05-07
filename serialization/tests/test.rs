@@ -33,9 +33,10 @@ fn test_diff_field_set() {
     );
     assert_eq!(
         diff_field_set.get_all(),
-        SmallVec::<[(usize, FieldValue); 16]>::from(vec![
-            (2, FieldValue::String(String::from("value"))),
-        ])
+        SmallVec::<[(usize, FieldValue); 16]>::from(vec![(
+            2,
+            FieldValue::String(String::from("value"))
+        ),])
     );
 
     // Update with a list of index-value pairs using the update method
@@ -48,30 +49,34 @@ fn test_diff_field_set() {
     assert!(diff_field_set.has_changed());
     assert_eq!(
         diff_field_set.get_diff(),
-        SmallVec::<[(usize, FieldValue); 16]>::from(vec![
-            (2, FieldValue::String(String::from("new value"))),
-        ])
+        SmallVec::<[(usize, FieldValue); 16]>::from(vec![(
+            2,
+            FieldValue::String(String::from("new value"))
+        ),])
     );
     assert_eq!(
         diff_field_set.get_all(),
-        SmallVec::<[(usize, FieldValue); 16]>::from(vec![
-            (2, FieldValue::String(String::from("new value"))),
-        ])
+        SmallVec::<[(usize, FieldValue); 16]>::from(vec![(
+            2,
+            FieldValue::String(String::from("new value"))
+        ),])
     );
 
     // These functions should be idempotent.
     assert!(diff_field_set.has_changed());
     assert_eq!(
         diff_field_set.get_diff(),
-        SmallVec::<[(usize, FieldValue); 16]>::from(vec![
-            (2, FieldValue::String(String::from("new value"))),
-        ])
+        SmallVec::<[(usize, FieldValue); 16]>::from(vec![(
+            2,
+            FieldValue::String(String::from("new value"))
+        ),])
     );
     assert_eq!(
         diff_field_set.get_all(),
-        SmallVec::<[(usize, FieldValue); 16]>::from(vec![
-            (2, FieldValue::String(String::from("new value"))),
-        ])
+        SmallVec::<[(usize, FieldValue); 16]>::from(vec![(
+            2,
+            FieldValue::String(String::from("new value"))
+        ),])
     );
 
     // Check that updating with no diff will change get_diff.
@@ -83,11 +88,15 @@ fn test_diff_field_set() {
     ]));
 
     assert!(!diff_field_set.has_changed());
-    assert_eq!(diff_field_set.get_diff(), SmallVec::<[(usize, FieldValue); 16]>::new());
+    assert_eq!(
+        diff_field_set.get_diff(),
+        SmallVec::<[(usize, FieldValue); 16]>::new()
+    );
     assert_eq!(
         diff_field_set.get_all(),
-        SmallVec::<[(usize, FieldValue); 16]>::from(vec![
-            (2, FieldValue::String(String::from("new value"))),
-        ])
+        SmallVec::<[(usize, FieldValue); 16]>::from(vec![(
+            2,
+            FieldValue::String(String::from("new value"))
+        ),])
     );
 }
