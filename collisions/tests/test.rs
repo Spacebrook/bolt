@@ -57,3 +57,42 @@ fn test_multiple_collisions() {
         Some((1.0, 0.95000005))
     );
 }
+
+#[test]
+fn test_circle_halfway_inside_rectangle() {
+    let entity = ShapeWithPosition {
+        shape: Box::new(Ball::new(15.0)),
+        position: Isometry::new(Vector::new(0.0, 0.0), 0.0),
+    };
+    let colliding_poly = ShapeWithPosition {
+        shape: Box::new(Cuboid::new(Vector::new(1000.0, 1000.0))),
+        position: Isometry::new(Vector::new(0.0, -1000.0), 0.0),
+    };
+    assert_eq!(get_mtv(&entity, vec![colliding_poly]), Some((0.0, -15.0)));
+}
+
+#[test]
+fn test_circle_halfway_inside_rectangle_and_a_bit_more() {
+    let entity = ShapeWithPosition {
+        shape: Box::new(Ball::new(15.0)),
+        position: Isometry::new(Vector::new(0.0, -1.0), 0.0),
+    };
+    let colliding_poly = ShapeWithPosition {
+        shape: Box::new(Cuboid::new(Vector::new(1000.0, 1000.0))),
+        position: Isometry::new(Vector::new(0.0, -1000.0), 0.0),
+    };
+    assert_eq!(get_mtv(&entity, vec![colliding_poly]), Some((0.0, -16.0)));
+}
+
+#[test]
+fn test_circle_halfway_inside_rectangle_and_a_bit_less() {
+    let entity = ShapeWithPosition {
+        shape: Box::new(Ball::new(15.0)),
+        position: Isometry::new(Vector::new(0.0, 1.0), 0.0),
+    };
+    let colliding_poly = ShapeWithPosition {
+        shape: Box::new(Cuboid::new(Vector::new(1000.0, 1000.0))),
+        position: Isometry::new(Vector::new(0.0, -1000.0), 0.0),
+    };
+    assert_eq!(get_mtv(&entity, vec![colliding_poly]), Some((0.0, -14.0)));
+}
