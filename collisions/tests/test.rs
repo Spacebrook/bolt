@@ -109,3 +109,20 @@ fn test_diagonal_penetration() {
     };
     assert_eq!(get_mtv(&entity, vec![colliding_poly]), Some((0.0, -14.0)));
 }
+
+#[test]
+fn test_overlapping_rectangles() {
+    let entity = ShapeWithPosition {
+        shape: Box::new(Ball::new(15.0)),
+        position: Isometry::new(Vector::new(249397.66076660156, 31855.16436767578), 0.0),
+    };
+    let colliding_poly1 = ShapeWithPosition {
+        shape: Box::new(Cuboid::new(Vector::new(96.0 / 2.0, 480.0 / 2.0))),
+        position: Isometry::new(Vector::new(249356.0 + 96.0 / 2.0, 31856.0 + 480.0 / 2.0), 0.0),
+    };
+    let colliding_poly2 = ShapeWithPosition {
+        shape: Box::new(Cuboid::new(Vector::new(384.0 / 2.0, 96.0 / 2.0))),
+        position: Isometry::new(Vector::new(249388.0 + 384.0 / 2.0, 31856.0 + 96.0 / 2.0), 0.0),
+    };
+    assert_eq!(get_mtv(&entity, vec![colliding_poly1, colliding_poly2]), Some((0.0, 14.1640625)));
+}
