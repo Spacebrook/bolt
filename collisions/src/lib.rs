@@ -1,25 +1,24 @@
-use nalgebra::{Vector2, Isometry2};
-use parry2d::shape::{SharedShape};
+use nalgebra::{Isometry2, Vector2};
+use parry2d::shape::SharedShape;
 
 pub struct ShapeWithPosition {
     pub shape: SharedShape,
     pub position: Isometry2<f32>,
 }
 
-pub fn get_mtv(
-    circle: &ShapeWithPosition,
-    rectangles: &[ShapeWithPosition],
-) -> Option<(f32, f32)> {
-    // Ensure the circle is actually a circle
-    let circle_radius = circle.shape.as_ball()?.radius;
+pub fn get_mtv(entity: &ShapeWithPosition, others: &[ShapeWithPosition]) -> Option<(f32, f32)> {
+    if let (Some(circle), true) = (
+        entity.shape.as_ball(),
+        others.iter().all(|s| s.shape.as_cuboid().is_some()),
+    ) {
+        // Existing circle-rectangle collision logic
+        let circle_radius = circle.radius;
+        let circle_center = entity.position.translation.vector;
 
-    let circle_center = circle.position.translation.vector;
+        let mut max_mtv = Vector2::new(0.0, 0.0);
 
-    rectangles.iter()
-        .filter_map(|rect| {
-            // Ensure the rectangle is actually a rectangle
-            let cuboid = rect.shape.as_cuboid()?;
-
+        for rect in others {
+            let cuboid = rect.shape.as_cuboid().unwrap();
             let rect_center = rect.position.translation.vector;
             let rect_half_extents = cuboid.half_extents;
             let rect_rotation = rect.position.rotation;
@@ -32,8 +31,12 @@ pub fn get_mtv(
 
             // Find the closest point on the rectangle to the circle center
             let closest = Vector2::new(
-                local_circle_pos.x.clamp(-rect_half_extents.x, rect_half_extents.x),
-                local_circle_pos.y.clamp(-rect_half_extents.y, rect_half_extents.y),
+                local_circle_pos
+                    .x
+                    .clamp(-rect_half_extents.x, rect_half_extents.x),
+                local_circle_pos
+                    .y
+                    .clamp(-rect_half_extents.y, rect_half_extents.y),
             );
 
             // Calculate the vector from the closest point to the circle center
@@ -70,22 +73,46 @@ pub fn get_mtv(
 
                 // Rotate the normal back to world space
                 let world_normal = rect_rotation * normal;
-                Some((world_normal.x * -penetration, world_normal.y * -penetration))
-            } else {
-                None // No collision
+                let mtv = world_normal * penetration;
+
+                // Update max MTV based on the largest magnitude
+                if mtv.magnitude_squared() > max_mtv.magnitude_squared() {
+                    max_mtv = mtv;
+                }
             }
-        })
-        .min_by(|a, b| {
-            let a_mag = (a.0 * a.0 + a.1 * a.1).sqrt();
-            let b_mag = (b.0 * b.0 + b.1 * b.1).sqrt();
-            a_mag.partial_cmp(&b_mag).unwrap_or(std::cmp::Ordering::Equal)
-        })
-        .and_then(|(x, y)| {
-            let magnitude = (x * x + y * y).sqrt();
-            if magnitude < 1e-6 {
-                None
-            } else {
-                Some((x, y))
-            }
-        })
+        }
+
+        let magnitude = max_mtv.magnitude();
+
+        if magnitude < 1e-6 {
+            None
+        } else {
+            Some((-max_mtv.x, -max_mtv.y))
+        }
+    } else {
+        // General case for any shape combination
+        others
+            .iter()
+            .filter_map(|other| {
+                parry2d::query::contact(
+                    &entity.position,
+                    entity.shape.as_ref(),
+                    &other.position,
+                    other.shape.as_ref(),
+                    0.001,
+                )
+                .ok()
+                .flatten()
+            })
+            .max_by(|a, b| {
+                a.dist
+                    .abs()
+                    .partial_cmp(&b.dist.abs())
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
+            .map(|contact| {
+                let mtv = contact.normal1.into_inner() * contact.dist.abs();
+                (mtv.x, mtv.y)
+            })
+    }
 }

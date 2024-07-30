@@ -1,7 +1,7 @@
 use ::collisions::ShapeWithPosition;
 use common::shapes::{Circle, Rectangle, ShapeEnum};
 use parry2d::math::{Isometry, Vector};
-use parry2d::shape::{SharedShape, Ball, Cuboid};
+use parry2d::shape::{Ball, Cuboid, SharedShape};
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use pyo3::pymethods;

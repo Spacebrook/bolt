@@ -127,11 +127,40 @@ fn test_overlapping_rectangles() {
     };
     let colliding_poly1 = ShapeWithPosition {
         shape: SharedShape::new(Cuboid::new(Vector::new(96.0 / 2.0, 480.0 / 2.0))),
-        position: Isometry::new(Vector::new(249356.0 + 96.0 / 2.0, 31856.0 + 480.0 / 2.0), 0.0),
+        position: Isometry::new(
+            Vector::new(249356.0 + 96.0 / 2.0, 31856.0 + 480.0 / 2.0),
+            0.0,
+        ),
     };
     let colliding_poly2 = ShapeWithPosition {
         shape: SharedShape::new(Cuboid::new(Vector::new(384.0 / 2.0, 96.0 / 2.0))),
-        position: Isometry::new(Vector::new(249388.0 + 384.0 / 2.0, 31856.0 + 96.0 / 2.0), 0.0),
+        position: Isometry::new(
+            Vector::new(249388.0 + 384.0 / 2.0, 31856.0 + 96.0 / 2.0),
+            0.0,
+        ),
     };
-    assert_eq!(get_mtv(&entity, &[colliding_poly1, colliding_poly2]), Some((0.0, 14.1640625)));
+    assert_eq!(
+        get_mtv(&entity, &[colliding_poly1, colliding_poly2]),
+        Some((0.0, 14.1640625))
+    );
+}
+
+#[test]
+fn test_collision_with_two_rectangles_one_touching() {
+    let entity = ShapeWithPosition {
+        shape: SharedShape::new(Ball::new(10.0)),
+        position: Isometry::new(Vector::new(0.0, 0.0), 0.0),
+    };
+    let touching_rect = ShapeWithPosition {
+        shape: SharedShape::new(Cuboid::new(Vector::new(5.0, 5.0))),
+        position: Isometry::new(Vector::new(15.0, 0.0), 0.0),
+    };
+    let significantly_overlapping_rect = ShapeWithPosition {
+        shape: SharedShape::new(Cuboid::new(Vector::new(5.0, 5.0))),
+        position: Isometry::new(Vector::new(0.0, 10.0), 0.0),
+    };
+
+    let result = get_mtv(&entity, &[touching_rect, significantly_overlapping_rect]);
+
+    assert_eq!(result, Some((-0.0, 5.0)));
 }
