@@ -1,7 +1,7 @@
 use ::collisions::ShapeWithPosition;
 use common::shapes::{Circle, Rectangle, ShapeEnum};
-use ncollide2d::math::{Isometry, Vector};
-use ncollide2d::shape::{Ball, Cuboid};
+use parry2d::math::{Isometry, Vector};
+use parry2d::shape::{SharedShape, Ball, Cuboid};
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use pyo3::pymethods;
@@ -223,15 +223,15 @@ fn extract_shape_ncollide(py: Python, shape: PyObject) -> PyResult<ShapeWithPosi
     let shape = extract_shape(py, shape)?;
     match shape {
         ShapeEnum::Circle(shape) => Ok(ShapeWithPosition {
-            shape: Box::new(Ball::new(shape.radius)),
-            position: Isometry::new(Vector::new(shape.x, shape.y), 0.0),
+            shape: SharedShape::new(Ball::new(shape.radius)),
+            position: Isometry::translation(shape.x, shape.y),
         }),
         ShapeEnum::Rectangle(shape) => Ok(ShapeWithPosition {
-            shape: Box::new(Cuboid::new(Vector::new(
+            shape: SharedShape::new(Cuboid::new(Vector::new(
                 shape.width / 2.0,
                 shape.height / 2.0,
             ))),
-            position: Isometry::new(Vector::new(shape.x, shape.y), 0.0),
+            position: Isometry::translation(shape.x, shape.y),
         }),
     }
 }

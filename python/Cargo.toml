@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 pyo3 = { version = "0.18.3", features = ["extension-module"] }
-ncollide2d = "0.33.0"
+parry2d = "0.17.0"
 rand = "0.8.5"
 smallvec = "1.10.0"
 

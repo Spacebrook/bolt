@@ -1,2 +1,3 @@
 [workspace]
 members = ["collisions", "common", "python", "quadtree", "serialization"]
+resolver = "2"

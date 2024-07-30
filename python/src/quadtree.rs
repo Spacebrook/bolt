@@ -3,8 +3,6 @@ use common::shapes::{Circle, Rectangle, Shape, ShapeEnum};
 
 use crate::{extract_entity_types, extract_shape, PyCircle, PyRectangle};
 use pyo3::exceptions::PyTypeError;
-#[cfg(feature = "pyo3")]
-use pyo3::prelude::*;
 use pyo3::pyclass;
 use pyo3::pymethods;
 use pyo3::types::PyList;

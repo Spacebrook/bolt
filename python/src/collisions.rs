@@ -17,6 +17,6 @@ pub fn get_mtv(
         .map(|item| Ok(extract_shape_ncollide(py, item.into())?))
         .collect::<PyResult<_>>()?;
 
-    let result = libcollisions::get_mtv(&entity_shape, colliding_polys_rust);
+    let result = libcollisions::get_mtv(&entity_shape, &colliding_polys_rust);
     Ok(result)
 }
