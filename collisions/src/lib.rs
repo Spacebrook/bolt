@@ -15,7 +15,7 @@ pub fn get_mtv(entity: &ShapeWithPosition, others: &[ShapeWithPosition]) -> Opti
         let circle_radius = circle.radius;
         let circle_center = entity.position.translation.vector;
 
-        let mut max_mtv = Vector2::new(0.0, 0.0);
+        let mut max_mtv: Vector2<f32> = Vector2::new(0.0, 0.0);
 
         for rect in others {
             let cuboid = rect.shape.as_cuboid().unwrap();
@@ -75,9 +75,11 @@ pub fn get_mtv(entity: &ShapeWithPosition, others: &[ShapeWithPosition]) -> Opti
                 let world_normal = rect_rotation * normal;
                 let mtv = world_normal * penetration;
 
-                // Update max MTV based on the largest magnitude
-                if mtv.magnitude_squared() > max_mtv.magnitude_squared() {
-                    max_mtv = mtv;
+                if mtv.x.abs() > max_mtv.x.abs() {
+                    max_mtv.x = mtv.x;
+                }
+                if mtv.y.abs() > max_mtv.y.abs() {
+                    max_mtv.y = mtv.y;
                 }
             }
         }
@@ -91,7 +93,7 @@ pub fn get_mtv(entity: &ShapeWithPosition, others: &[ShapeWithPosition]) -> Opti
         }
     } else {
         // General case for any shape combination
-        others
+        let max_mtv: Vector2<f32> = others
             .iter()
             .filter_map(|other| {
                 parry2d::query::contact(
@@ -104,15 +106,23 @@ pub fn get_mtv(entity: &ShapeWithPosition, others: &[ShapeWithPosition]) -> Opti
                 .ok()
                 .flatten()
             })
-            .max_by(|a, b| {
-                a.dist
-                    .abs()
-                    .partial_cmp(&b.dist.abs())
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            })
-            .map(|contact| {
+            .fold(Vector2::new(0.0, 0.0), |mut max_mtv, contact| {
                 let mtv = contact.normal1.into_inner() * contact.dist.abs();
-                (mtv.x, mtv.y)
-            })
+                if mtv.x.abs() > max_mtv.x.abs() {
+                    max_mtv.x = mtv.x;
+                }
+                if mtv.y.abs() > max_mtv.y.abs() {
+                    max_mtv.y = mtv.y;
+                }
+                max_mtv
+            });
+
+        let magnitude = max_mtv.magnitude();
+
+        if magnitude < 1e-6 {
+            None
+        } else {
+            Some((-max_mtv.x, -max_mtv.y))
+        }
     }
 }
