@@ -122,7 +122,7 @@ pub fn get_mtv(entity: &ShapeWithPosition, others: &[ShapeWithPosition]) -> Opti
         if magnitude < 1e-6 {
             None
         } else {
-            Some((-max_mtv.x, -max_mtv.y))
+            Some((max_mtv.x, max_mtv.y))
         }
     }
 }
