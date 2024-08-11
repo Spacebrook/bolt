@@ -1,4 +1,4 @@
-from typing import List, Tuple, Optional, Union, Any
+from typing import List, Tuple, Optional, Any, Sequence
 from typing_extensions import Protocol
 
 class ShapeProtocol(Protocol):
@@ -63,7 +63,7 @@ class QuadTree:
 
 class collisions:
     @staticmethod
-    def get_mtv(entity: ShapeProtocol, colliding_polys: List[ShapeProtocol]) -> Optional[Tuple[float, float]]: ...
+    def get_mtv(entity: ShapeProtocol, colliding_polys: Sequence[ShapeProtocol]) -> Optional[Tuple[float, float]]: ...
 
 class quadtree:
     Config = Config
