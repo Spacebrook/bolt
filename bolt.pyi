@@ -1,4 +1,4 @@
-from typing import List, Tuple, Optional, Any, Sequence
+from typing import List, Tuple, Optional, Any, Sequence, TypeAlias
 from typing_extensions import Protocol
 
 class ShapeProtocol(Protocol):
@@ -66,8 +66,8 @@ class collisions:
     def get_mtv(entity: ShapeProtocol, colliding_polys: Sequence[ShapeProtocol]) -> Optional[Tuple[float, float]]: ...
 
 class quadtree:
-    Config = Config
-    QuadTree = QuadTree
+    Config: TypeAlias = Config
+    QuadTree: TypeAlias = QuadTree
 
 class serialization:
     class DiffFieldSet:
