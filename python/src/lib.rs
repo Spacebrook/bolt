@@ -6,7 +6,6 @@ use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use pyo3::pymethods;
 use pyo3::types::PyList;
-use pyo3::{pyclass, wrap_pyfunction};
 use pyo3::{PyObject, PyResult, Python};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
@@ -44,13 +43,9 @@ fn bolt(py: Python, m: &PyModule) -> PyResult<()> {
     pycollisions(py, &submod_collisions)?;
     m.add_submodule(submod_collisions)?;
 
-    let submod_quadtree = PyModule::new(py, "quadtree")?;
-    pyquadtree(py, &submod_quadtree)?;
-    m.add_submodule(submod_quadtree)?;
-
-    let submod_serialization = PyModule::new(py, "serialization")?;
-    pyserialization(py, &submod_serialization)?;
-    m.add_submodule(submod_serialization)?;
+    m.add_class::<QuadTreeWrapper>()?;
+    m.add_class::<PyConfig>()?;
+    m.add_class::<DiffFieldSetWrapper>()?;
 
     m.add_class::<PyCircle>()?;
     m.add_class::<PyRectangle>()?;
