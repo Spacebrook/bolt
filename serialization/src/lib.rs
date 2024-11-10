@@ -1,12 +1,25 @@
 use smallvec::{smallvec, SmallVec};
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq)]
 pub enum FieldValue {
     Int(i32),
     Float(f32),
     Bool(bool),
     String(String),
     None,
+}
+
+impl Clone for FieldValue {
+    fn clone(&self) -> Self {
+        match self {
+            // Copy the value except for with Strings
+            FieldValue::Int(value) => FieldValue::Int(*value),
+            FieldValue::Float(value) => FieldValue::Float(*value),
+            FieldValue::Bool(value) => FieldValue::Bool(*value),
+            FieldValue::String(value) => FieldValue::String(value.clone()),
+            FieldValue::None => FieldValue::None,
+        }
+    }
 }
 
 pub enum FieldType {
