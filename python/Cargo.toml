@@ -4,10 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-pyo3 = { version = "0.18.3", features = ["extension-module"] }
-parry2d = "0.17.0"
-rand = "0.8.5"
-smallvec = "1.10.0"
+pyo3 = { version = "0.19", features = ["extension-module"] }
+parry2d = "0.17"
+rand = "0.8"
+smallvec = "1.10"
 
 collisions = { path = "../collisions" }
 common = { path = "../common" }

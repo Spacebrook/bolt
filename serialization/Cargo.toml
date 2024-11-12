@@ -9,3 +9,8 @@ name = "serialization"
 
 [dependencies]
 smallvec = "1.10.0"
+
+[build-dependencies]
+walkdir = "2.5"
+rustpython-parser = "0.4"
+pyo3 = { version = "0.19", features = ["extension-module"] }
