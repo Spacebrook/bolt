@@ -9,6 +9,7 @@ name = "quadtree"
 
 [dependencies]
 common = { path = "../common" }
+fxhash = "0.2"
 
 [dev-dependencies]
 rand = "0.8.5"

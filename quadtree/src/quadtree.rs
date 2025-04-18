@@ -4,7 +4,7 @@ use common::shapes::{Rectangle, Shape, ShapeEnum};
 
 use std::cell::Ref;
 use std::cell::RefCell;
-use std::collections::HashMap;
+use fxhash::FxHashMap;
 use std::ops::Deref;
 use std::rc::Rc;
 use std::rc::Weak;
@@ -16,7 +16,7 @@ struct Entity {
 }
 
 struct QuadNode {
-    entities: HashMap<u32, Entity>,
+    entities: FxHashMap<u32, Entity>,
     bounding_box: Rectangle,
     nw: Option<Rc<RefCell<QuadNode>>>,
     ne: Option<Rc<RefCell<QuadNode>>>,
@@ -46,7 +46,7 @@ impl Resettable for QuadNode {
 impl QuadNode {
     pub fn new() -> Self {
         Self {
-            entities: HashMap::new(),
+            entities: FxHashMap::default(),
             bounding_box: Rectangle::default(),
             nw: None,
             ne: None,
@@ -161,7 +161,7 @@ impl Default for QuadNode {
 
 pub struct QuadTree {
     root: Rc<RefCell<QuadNode>>,
-    owner_map: HashMap<u32, Weak<RefCell<QuadNode>>>,
+    owner_map: FxHashMap<u32, Weak<RefCell<QuadNode>>>,
     quad_node_pool: ObjectPool<QuadNode>,
 
     config: Config,
@@ -174,7 +174,7 @@ impl QuadTree {
         root.borrow_mut().initialize(bounding_box, None, 0);
         root.borrow_mut().set_self_rc(Rc::downgrade(&root));
 
-        let owner_map = HashMap::new();
+        let owner_map = FxHashMap::default();
         QuadTree {
             quad_node_pool,
             root,
