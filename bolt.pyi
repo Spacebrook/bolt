@@ -10,6 +10,13 @@ class Circle(ShapeProtocol):
     radius: float
     def __init__(self, x: float, y: float, radius: float) -> None: ...
 
+class Square(ShapeProtocol):
+    x: float
+    y: float
+    radius: float
+    angle: float
+    def __init__(self, x: float, y: float, radius: float, angle: float) -> None: ...
+
 class Rectangle(ShapeProtocol):
     def __init__(self, x: float, y: float, width: float, height: float) -> None: ...
     @property

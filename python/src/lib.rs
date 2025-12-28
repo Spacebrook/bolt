@@ -49,6 +49,7 @@ fn bolt(py: Python, m: &PyModule) -> PyResult<()> {
 
     m.add_class::<PyCircle>()?;
     m.add_class::<PyRectangle>()?;
+    m.add_class::<PySquare>()?;
     m.add_class::<PyRng>()?;
 
     Ok(())
@@ -70,6 +71,32 @@ impl PyCircle {
     #[new]
     pub fn new(x: f32, y: f32, radius: f32) -> Self {
         PyCircle { x, y, radius }
+    }
+}
+
+#[derive(Clone, Debug)]
+#[pyclass(name = "Square")]
+pub struct PySquare {
+    #[pyo3(get, set)]
+    pub x: f32,
+    #[pyo3(get, set)]
+    pub y: f32,
+    #[pyo3(get, set)]
+    pub radius: f32,
+    #[pyo3(get, set)]
+    pub angle: f32,
+}
+
+#[pymethods]
+impl PySquare {
+    #[new]
+    pub fn new(x: f32, y: f32, radius: f32, angle: f32) -> Self {
+        PySquare {
+            x,
+            y,
+            radius,
+            angle,
+        }
     }
 }
 
@@ -215,6 +242,16 @@ fn extract_shape(py: Python, shape: PyObject) -> PyResult<ShapeEnum> {
 }
 
 fn extract_shape_ncollide(py: Python, shape: PyObject) -> PyResult<ShapeWithPosition> {
+    if let Ok(py_square) = shape.extract::<PySquare>(py) {
+        return Ok(ShapeWithPosition {
+            shape: SharedShape::new(Cuboid::new(Vector::new(
+                py_square.radius,
+                py_square.radius,
+            ))),
+            position: Isometry::new(Vector::new(py_square.x, py_square.y), py_square.angle),
+        });
+    }
+
     let shape = extract_shape(py, shape)?;
     match shape {
         ShapeEnum::Circle(shape) => Ok(ShapeWithPosition {
