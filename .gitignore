@@ -1,2 +1,3 @@
 /target
 **/*.rs.bk
+netcode/schema/net_schema.json

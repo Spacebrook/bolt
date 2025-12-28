@@ -11,10 +11,12 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 
 mod collisions;
+mod netcode;
 mod quadtree;
 mod serialization;
 
 use crate::collisions::get_mtv;
+use crate::netcode::NetCodec;
 use crate::quadtree::{PyConfig, QuadTreeWrapper};
 use crate::serialization::DiffFieldSetWrapper;
 
@@ -46,6 +48,7 @@ fn bolt(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<QuadTreeWrapper>()?;
     m.add_class::<PyConfig>()?;
     m.add_class::<DiffFieldSetWrapper>()?;
+    m.add_class::<NetCodec>()?;
 
     m.add_class::<PyCircle>()?;
     m.add_class::<PyRectangle>()?;

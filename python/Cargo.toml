@@ -13,5 +13,6 @@ collisions = { path = "../collisions" }
 common = { path = "../common" }
 quadtree = { path = "../quadtree" }
 serialization = { path = "../serialization" }
+netcode = { path = "../netcode" }
 [lib]
 crate-type = ["cdylib"]
