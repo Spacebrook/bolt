@@ -34,11 +34,14 @@ pub struct MessageSchema {
 #[derive(Debug, Clone)]
 pub struct NetSchema {
     pub messages: HashMap<String, MessageSchema>,
+    pub profiles: HashMap<String, ProfileSchema>,
 }
 
 #[derive(Debug, Deserialize)]
 struct RawSchema {
     messages: HashMap<String, RawMessageSchema>,
+    #[serde(default)]
+    profiles: HashMap<String, RawProfileSchema>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -56,6 +59,19 @@ struct RawFieldSchema {
     label: String,
     #[serde(default)]
     type_name: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RawProfileSchema {
+    message: String,
+    fields: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ProfileSchema {
+    pub name: String,
+    pub message: String,
+    pub fields: Vec<String>,
 }
 
 fn parse_kind(field_type: &str) -> FieldKind {
@@ -98,13 +114,27 @@ fn build_message(raw: RawMessageSchema) -> MessageSchema {
 
 fn load_schema() -> NetSchema {
     let raw: RawSchema =
-        serde_json::from_str(include_str!("../schema/net_schema.json"))
+        serde_json::from_str(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/schema/gen/net_schema.json"
+        )))
             .expect("Invalid net_schema.json");
     let mut messages = HashMap::new();
     for (name, message) in raw.messages {
         messages.insert(name, build_message(message));
     }
-    NetSchema { messages }
+    let mut profiles = HashMap::new();
+    for (name, profile) in raw.profiles {
+        profiles.insert(
+            name.clone(),
+            ProfileSchema {
+                name,
+                message: profile.message,
+                fields: profile.fields,
+            },
+        );
+    }
+    NetSchema { messages, profiles }
 }
 
 pub static NET_SCHEMA: Lazy<NetSchema> = Lazy::new(load_schema);
