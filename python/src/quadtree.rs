@@ -43,8 +43,8 @@ impl QuadTreeWrapper {
     #[new]
     pub fn new(bounding_box: PyRectangle) -> Self {
         let bounding_rect = Rectangle {
-            x: bounding_box.x(),
-            y: bounding_box.y(),
+            x: bounding_box.x() + bounding_box.width() / 2.0,
+            y: bounding_box.y() + bounding_box.height() / 2.0,
             width: bounding_box.width(),
             height: bounding_box.height(),
         };
@@ -56,8 +56,8 @@ impl QuadTreeWrapper {
     #[staticmethod]
     pub fn new_with_config(bounding_box: PyRectangle, config: PyConfig) -> Self {
         let bounding_rect = Rectangle {
-            x: bounding_box.x(),
-            y: bounding_box.y(),
+            x: bounding_box.x() + bounding_box.width() / 2.0,
+            y: bounding_box.y() + bounding_box.height() / 2.0,
             width: bounding_box.width(),
             height: bounding_box.height(),
         };
@@ -215,5 +215,22 @@ impl QuadTreeWrapper {
             py_shapes.push(py_shape);
         }
         Ok(py_shapes)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{PyRectangle, QuadTreeWrapper};
+
+    #[test]
+    fn quadtree_wrapper_preserves_top_left_bounds() {
+        let qt = QuadTreeWrapper::new(PyRectangle::new(10.0, 20.0, 100.0, 200.0));
+        let bounding_boxes = qt.all_node_bounding_boxes();
+        assert_eq!(bounding_boxes.len(), 1);
+        let (x, y, width, height) = bounding_boxes[0];
+        assert!((x - 10.0).abs() < 1e-6);
+        assert!((y - 20.0).abs() < 1e-6);
+        assert!((width - 100.0).abs() < 1e-6);
+        assert!((height - 200.0).abs() < 1e-6);
     }
 }
