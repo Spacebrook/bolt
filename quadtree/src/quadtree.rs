@@ -1,6 +1,6 @@
-use crate::collision_detection;
 use common::shapes::{Rectangle, Shape, ShapeEnum};
 use fxhash::{FxHashMap, FxHashSet};
+use smallvec::SmallVec;
 use std::cell::RefCell;
 
 const FLAG_LEFT: u8 = 0b0001;
@@ -66,6 +66,8 @@ impl HalfExtent {
     }
 }
 
+type NodeStack = SmallVec<[(u32, HalfExtent); 64]>;
+
 fn point_to_extent_distance_sq(x: f32, y: f32, extent: RectExtent) -> f32 {
     let dx = if x < extent.min_x {
         extent.min_x - x
@@ -84,6 +86,100 @@ fn point_to_extent_distance_sq(x: f32, y: f32, extent: RectExtent) -> f32 {
     };
 
     dx * dx + dy * dy
+}
+
+#[derive(Clone, Copy)]
+struct CircleData {
+    x: f32,
+    y: f32,
+    radius: f32,
+    radius_sq: f32,
+}
+
+impl CircleData {
+    fn new(x: f32, y: f32, radius: f32) -> Self {
+        Self {
+            x,
+            y,
+            radius,
+            radius_sq: radius * radius,
+        }
+    }
+
+    fn zero() -> Self {
+        Self {
+            x: 0.0,
+            y: 0.0,
+            radius: 0.0,
+            radius_sq: 0.0,
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum QueryKind {
+    Rect { rect: Rectangle },
+    Circle {
+        x: f32,
+        y: f32,
+        radius: f32,
+        radius_sq: f32,
+    },
+}
+
+#[derive(Clone, Copy)]
+struct Query {
+    extent: RectExtent,
+    kind: QueryKind,
+}
+
+impl Query {
+    fn from_shape(shape: &ShapeEnum) -> Self {
+        match shape {
+            ShapeEnum::Rectangle(rect) => Self {
+                extent: RectExtent::from_rect(rect),
+                kind: QueryKind::Rect { rect: *rect },
+            },
+            ShapeEnum::Circle(circle) => {
+                let rect = circle.bounding_box();
+                Self {
+                    extent: RectExtent::from_rect(&rect),
+                    kind: QueryKind::Circle {
+                        x: circle.x,
+                        y: circle.y,
+                        radius: circle.radius,
+                        radius_sq: circle.radius * circle.radius,
+                    },
+                }
+            }
+        }
+    }
+}
+
+fn circle_circle_raw(ax: f32, ay: f32, ar: f32, bx: f32, by: f32, br: f32) -> bool {
+    let dx = ax - bx;
+    let dy = ay - by;
+    let radius_sum = ar + br;
+    dx * dx + dy * dy < radius_sum * radius_sum
+}
+
+fn circle_rect_raw(cx: f32, cy: f32, radius: f32, radius_sq: f32, rect: &Rectangle) -> bool {
+    let dx = (cx - rect.x).abs();
+    let dy = (cy - rect.y).abs();
+    let half_rect_width = rect.width * 0.5;
+    let half_rect_height = rect.height * 0.5;
+
+    if dx > half_rect_width + radius || dy > half_rect_height + radius {
+        return false;
+    }
+
+    if dx <= half_rect_width || dy <= half_rect_height {
+        return true;
+    }
+
+    let corner_dx = dx - half_rect_width;
+    let corner_dy = dy - half_rect_height;
+    corner_dx * corner_dx + corner_dy * corner_dy <= radius_sq
 }
 
 #[derive(Clone, Copy)]
@@ -178,10 +274,6 @@ impl Node {
 
     fn child(&self, index: usize) -> u32 {
         self.slots[index]
-    }
-
-    fn set_child(&mut self, index: usize, value: u32) {
-        self.slots[index] = value;
     }
 }
 
@@ -380,6 +472,10 @@ struct QuadTreeInner {
     free_node_entity: u32,
     entities: Vec<Entity>,
     entity_shapes: Vec<ShapeEnum>,
+    circle_x: Vec<f32>,
+    circle_y: Vec<f32>,
+    circle_radius: Vec<f32>,
+    circle_radius_sq: Vec<f32>,
     free_entity: u32,
     insertions: Vec<u32>,
     removals: Vec<u32>,
@@ -398,11 +494,13 @@ struct QuadTreeInner {
     dense_owner: Vec<u32>,
     pair_dedupe: PairDedupe,
     changed_entities: Vec<u32>,
-    insert_stack: Vec<(u32, HalfExtent)>,
-    remove_stack: Vec<(u32, HalfExtent)>,
-    query_stack: Vec<(u32, HalfExtent)>,
-    update_stack: Vec<(u32, HalfExtent)>,
+    insert_stack: NodeStack,
+    remove_stack: NodeStack,
+    query_stack: NodeStack,
+    update_stack: NodeStack,
     circle_count: u32,
+    alive_count: u32,
+    rebalance_pending: bool,
 }
 
 impl QuadTreeInner {
@@ -444,6 +542,14 @@ impl QuadTreeInner {
         entities[0].alive = false;
         let mut entity_shapes = Vec::new();
         entity_shapes.push(ShapeEnum::Rectangle(Rectangle::default()));
+        let mut circle_x = Vec::new();
+        circle_x.push(0.0);
+        let mut circle_y = Vec::new();
+        circle_y.push(0.0);
+        let mut circle_radius = Vec::new();
+        circle_radius.push(0.0);
+        let mut circle_radius_sq = Vec::new();
+        circle_radius_sq.push(0.0);
 
         Self {
             root_half,
@@ -455,6 +561,10 @@ impl QuadTreeInner {
             free_node_entity: 0,
             entities,
             entity_shapes,
+            circle_x,
+            circle_y,
+            circle_radius,
+            circle_radius_sq,
             free_entity: 0,
             insertions: Vec::new(),
             removals: Vec::new(),
@@ -473,15 +583,23 @@ impl QuadTreeInner {
             dense_owner: Vec::new(),
             pair_dedupe: PairDedupe::new(),
             changed_entities: Vec::new(),
-            insert_stack: Vec::with_capacity((max_depth as usize).saturating_mul(3).saturating_add(1)),
-            remove_stack: Vec::with_capacity((max_depth as usize).saturating_mul(3).saturating_add(1)),
-            query_stack: Vec::with_capacity((max_depth as usize).saturating_mul(3).saturating_add(1)),
-            update_stack: Vec::with_capacity(
+            insert_stack: NodeStack::with_capacity(
+                (max_depth as usize).saturating_mul(3).saturating_add(1),
+            ),
+            remove_stack: NodeStack::with_capacity(
+                (max_depth as usize).saturating_mul(3).saturating_add(1),
+            ),
+            query_stack: NodeStack::with_capacity(
+                (max_depth as usize).saturating_mul(3).saturating_add(1),
+            ),
+            update_stack: NodeStack::with_capacity(
                 (max_depth as usize)
                     .saturating_mul(3)
                     .saturating_add(1),
             ),
             circle_count: 0,
+            alive_count: 0,
+            rebalance_pending: false,
         }
     }
 
@@ -554,7 +672,7 @@ impl QuadTreeInner {
     }
 
     fn alloc_entity(&mut self, value: u32, shape: ShapeEnum, entity_type: Option<u32>) -> u32 {
-        let (shape_kind, bbox, extent) = Self::shape_metadata(&shape);
+        let (shape_kind, bbox, extent, circle_data) = Self::shape_metadata(&shape);
         let idx = if self.free_entity != 0 {
             let idx = self.free_entity;
             let next = self.entities[idx as usize].next_free;
@@ -566,9 +684,15 @@ impl QuadTreeInner {
             self.entities
                 .push(Entity::new(value, shape_kind, bbox, extent, entity_type));
             self.entity_shapes.push(shape);
+            self.circle_x.push(0.0);
+            self.circle_y.push(0.0);
+            self.circle_radius.push(0.0);
+            self.circle_radius_sq.push(0.0);
             (self.entities.len() - 1) as u32
         };
 
+        self.set_circle_data(idx as usize, circle_data);
+        self.alive_count = self.alive_count.saturating_add(1);
         if shape_kind == SHAPE_CIRCLE {
             self.circle_count = self.circle_count.saturating_add(1);
         }
@@ -585,14 +709,26 @@ impl QuadTreeInner {
         self.entities[entity_idx as usize].extent
     }
 
-    fn shape_metadata(shape: &ShapeEnum) -> (u8, Rectangle, RectExtent) {
+    fn set_circle_data(&mut self, idx: usize, data: Option<CircleData>) {
+        let data = data.unwrap_or_else(CircleData::zero);
+        self.circle_x[idx] = data.x;
+        self.circle_y[idx] = data.y;
+        self.circle_radius[idx] = data.radius;
+        self.circle_radius_sq[idx] = data.radius_sq;
+    }
+
+    fn shape_metadata(shape: &ShapeEnum) -> (u8, Rectangle, RectExtent, Option<CircleData>) {
         let bbox = shape.bounding_box();
         let extent = RectExtent::from_rect(&bbox);
-        let kind = match shape {
-            ShapeEnum::Rectangle(_) => SHAPE_RECT,
-            ShapeEnum::Circle(_) => SHAPE_CIRCLE,
-        };
-        (kind, bbox, extent)
+        match shape {
+            ShapeEnum::Rectangle(_) => (SHAPE_RECT, bbox, extent, None),
+            ShapeEnum::Circle(circle) => (
+                SHAPE_CIRCLE,
+                bbox,
+                extent,
+                Some(CircleData::new(circle.x, circle.y, circle.radius)),
+            ),
+        }
     }
 
     pub fn insert(&mut self, value: u32, shape: ShapeEnum, entity_type: Option<u32>) {
@@ -604,6 +740,7 @@ impl QuadTreeInner {
         self.owner_insert(value, entity_idx);
         self.insertions.push(entity_idx);
         self.normalization = Normalization::Hard;
+        self.rebalance_pending = true;
     }
 
     pub fn delete(&mut self, value: u32) {
@@ -611,11 +748,9 @@ impl QuadTreeInner {
             Some(idx) => idx,
             None => return,
         };
-        if self.entities[entity_idx as usize].shape_kind == SHAPE_CIRCLE {
-            self.circle_count = self.circle_count.saturating_sub(1);
-        }
         self.removals.push(entity_idx);
         self.normalization = Normalization::Hard;
+        self.rebalance_pending = true;
     }
 
     pub fn relocate_batch(&mut self, relocation_requests: Vec<RelocationRequest>) {
@@ -633,16 +768,18 @@ impl QuadTreeInner {
             }
         };
 
-        let (shape_kind, bbox, extent) = Self::shape_metadata(&shape);
-        let entity = &mut self.entities[entity_idx as usize];
-        if entity.shape_kind != shape_kind {
-            if entity.shape_kind == SHAPE_CIRCLE {
+        let (shape_kind, bbox, extent, circle_data) = Self::shape_metadata(&shape);
+        let prev_kind = self.entities[entity_idx as usize].shape_kind;
+        if prev_kind != shape_kind {
+            if prev_kind == SHAPE_CIRCLE {
                 self.circle_count = self.circle_count.saturating_sub(1);
             } else if shape_kind == SHAPE_CIRCLE {
                 self.circle_count = self.circle_count.saturating_add(1);
             }
         }
         self.entity_shapes[entity_idx as usize] = shape;
+        self.set_circle_data(entity_idx as usize, circle_data);
+        let entity = &mut self.entities[entity_idx as usize];
         entity.shape_kind = shape_kind;
         entity.entity_type = entity_type;
         entity.bbox = bbox;
@@ -652,6 +789,10 @@ impl QuadTreeInner {
             self.changed_entities.push(entity_idx);
         }
         self.update_pending = true;
+    }
+
+    pub fn update(&mut self) {
+        self.normalize_hard();
     }
 
     fn normalize_hard(&mut self) {
@@ -737,7 +878,10 @@ impl QuadTreeInner {
             }
         }
 
-        self.rebalance();
+        if self.rebalance_pending {
+            self.rebalance();
+            self.rebalance_pending = false;
+        }
         self.compact_storage();
     }
 
@@ -986,8 +1130,15 @@ impl QuadTreeInner {
 
         self.remove_stack = stack;
 
-        self.entities[entity_idx as usize].alive = false;
-        self.entities[entity_idx as usize].next_free = self.free_entity;
+        let entity = &mut self.entities[entity_idx as usize];
+        if entity.alive {
+            self.alive_count = self.alive_count.saturating_sub(1);
+            if entity.shape_kind == SHAPE_CIRCLE {
+                self.circle_count = self.circle_count.saturating_sub(1);
+            }
+        }
+        entity.alive = false;
+        entity.next_free = self.free_entity;
         self.free_entity = entity_idx;
     }
 
@@ -996,19 +1147,10 @@ impl QuadTreeInner {
     }
 
     fn compact_storage(&mut self) {
-        struct ReorderInfo {
-            node_idx: u32,
-            half: HalfExtent,
-            parent_new_idx: u32,
-            child_slot: usize,
-        }
-
-        let old_nodes = std::mem::take(&mut self.nodes);
         let old_node_entities = std::mem::take(&mut self.node_entities);
         let old_node_entities_next = std::mem::take(&mut self.node_entities_next);
         let old_node_entities_flags = std::mem::take(&mut self.node_entities_flags);
 
-        let mut new_nodes = Vec::with_capacity(old_nodes.len().max(1));
         let mut new_node_entities = Vec::with_capacity(old_node_entities.len().max(1));
         let mut new_node_entities_next = Vec::with_capacity(old_node_entities_next.len().max(1));
         let mut new_node_entities_flags = Vec::with_capacity(old_node_entities_flags.len().max(1));
@@ -1017,61 +1159,34 @@ impl QuadTreeInner {
         new_node_entities_next.push(0);
         new_node_entities_flags.push(0);
 
-        let mut stack = Vec::with_capacity((self.max_depth as usize).saturating_mul(4).max(1));
-        stack.push(ReorderInfo {
-            node_idx: 0,
-            half: self.root_half,
-            parent_new_idx: 0,
-            child_slot: 0,
-        });
+        let mut stack: SmallVec<[u32; 64]> = SmallVec::new();
+        stack.push(0);
 
-        while let Some(info) = stack.pop() {
-            let old_node = &old_nodes[info.node_idx as usize];
-            let new_idx = new_nodes.len() as u32;
-
-            let new_node = if old_node.is_leaf() {
-                let mut node = Node::new_leaf(old_node.position_flags());
-                node.set_count(old_node.count());
-                node
-            } else {
-                Node::new_leaf(0)
-            };
-
-            new_nodes.push(new_node);
-
-            if new_idx != 0 {
-                new_nodes[info.parent_new_idx as usize].set_child(info.child_slot, new_idx);
-            }
-
-            if !old_node.is_leaf() {
+        while let Some(node_idx) = stack.pop() {
+            let node = &mut self.nodes[node_idx as usize];
+            if !node.is_leaf() {
                 for i in 0..4 {
-                    let child_idx = old_node.child(i);
-                    if child_idx != 0 {
-                        let child_half = Self::child_half_extent(info.half, i);
-                        stack.push(ReorderInfo {
-                            node_idx: child_idx,
-                            half: child_half,
-                            parent_new_idx: new_idx,
-                            child_slot: i,
-                        });
+                    let child = node.child(i);
+                    if child != 0 {
+                        stack.push(child);
                     }
                 }
                 continue;
             }
 
-            if old_node.head() == 0 {
+            let head = node.head();
+            if head == 0 {
                 continue;
             }
 
-            new_nodes[new_idx as usize].set_head(new_node_entities.len() as u32);
-            let mut node_entity_idx = old_node.head();
+            node.set_head(new_node_entities.len() as u32);
+            let mut node_entity_idx = head;
             loop {
                 let old_entity_idx = old_node_entities[node_entity_idx as usize].index();
                 let is_last = old_node_entities_next[node_entity_idx as usize] == 0;
                 let new_node_entity_idx = new_node_entities.len() as u32;
                 new_node_entities.push(NodeEntity::new(old_entity_idx, is_last));
-                new_node_entities_flags
-                    .push(old_node_entities_flags[node_entity_idx as usize]);
+                new_node_entities_flags.push(old_node_entities_flags[node_entity_idx as usize]);
                 new_node_entities_next.push(if is_last {
                     0
                 } else {
@@ -1085,11 +1200,9 @@ impl QuadTreeInner {
             }
         }
 
-        self.nodes = new_nodes;
         self.node_entities = new_node_entities;
         self.node_entities_next = new_node_entities_next;
         self.node_entities_flags = new_node_entities_flags;
-        self.free_node = 0;
         self.free_node_entity = 0;
     }
 
@@ -1329,7 +1442,7 @@ impl QuadTreeInner {
         node_idx: u32,
         half: HalfExtent,
         extent: RectExtent,
-        stack: &mut Vec<(u32, HalfExtent)>,
+        stack: &mut NodeStack,
     ) {
         let node = &nodes[node_idx as usize];
         let half_w = half.w * 0.5;
@@ -1402,7 +1515,7 @@ impl QuadTreeInner {
             .into_iter()
             .map(|shape| {
                 let mut collisions = Vec::new();
-                self.collisions(shape, &mut collisions);
+                self.collisions_with(shape, |value| collisions.push(value));
                 collisions
             })
             .collect()
@@ -1418,7 +1531,9 @@ impl QuadTreeInner {
             .into_iter()
             .map(|shape| {
                 let mut collisions = Vec::new();
-                self.collisions_from(&shape, filter.as_ref(), &mut collisions);
+                self.collisions_from_with(&shape, filter.as_ref(), &mut |value| {
+                    collisions.push(value);
+                });
                 collisions
             })
             .collect()
@@ -1438,51 +1553,99 @@ impl QuadTreeInner {
         self.collisions_from(&shape, filter.as_ref(), collisions);
     }
 
+    pub fn collisions_with<F>(&mut self, shape: ShapeEnum, mut f: F)
+    where
+        F: FnMut(u32),
+    {
+        self.collisions_from_with(&shape, None, &mut f);
+    }
+
+    pub fn collisions_with_filter<F>(
+        &mut self,
+        shape: ShapeEnum,
+        filter_entity_types: Option<Vec<u32>>,
+        mut f: F,
+    ) where
+        F: FnMut(u32),
+    {
+        let filter = filter_entity_types.map(EntityTypeFilter::from_vec);
+        self.collisions_from_with(&shape, filter.as_ref(), &mut f);
+    }
+
     fn collisions_from(
         &mut self,
         query_shape: &ShapeEnum,
         filter_entity_types: Option<&EntityTypeFilter>,
         collisions: &mut Vec<u32>,
     ) {
-        self.normalize_hard();
-        self.collisions_inner(query_shape, filter_entity_types, collisions);
+        self.collisions_from_with(query_shape, filter_entity_types, &mut |value| {
+            collisions.push(value);
+        });
     }
 
-    fn collisions_inner(
+    fn collisions_from_with<F>(
         &mut self,
         query_shape: &ShapeEnum,
         filter_entity_types: Option<&EntityTypeFilter>,
-        collisions: &mut Vec<u32>,
-    ) {
-        let query_bbox = query_shape.bounding_box();
-        let query_extent = RectExtent::from_rect(&query_bbox);
+        f: &mut F,
+    ) where
+        F: FnMut(u32),
+    {
+        self.normalize_hard();
+        let query = Query::from_shape(query_shape);
+        self.collisions_inner_with(query, filter_entity_types, f);
+    }
+
+    fn collisions_inner_with<F>(
+        &mut self,
+        query: Query,
+        filter_entity_types: Option<&EntityTypeFilter>,
+        f: &mut F,
+    ) where
+        F: FnMut(u32),
+    {
+        let query_extent = query.extent;
+        let query_kind = query.kind;
         let tick = self.next_query_tick();
 
-        if self.circle_count == 0
-            && filter_entity_types.is_none()
-            && matches!(query_shape, ShapeEnum::Rectangle(_))
-        {
-            self.collisions_rect_fast(query_extent, tick, collisions);
-            return;
+        let all_rectangles = self.circle_count == 0;
+        let all_circles = self.circle_count != 0 && self.circle_count == self.alive_count;
+
+        if filter_entity_types.is_none() {
+            if all_rectangles && matches!(query_kind, QueryKind::Rect { .. }) {
+                self.collisions_rect_fast_with(query_extent, tick, f);
+                return;
+            }
+
+            if all_circles {
+                self.collisions_circle_fast_with(query, tick, f);
+                return;
+            }
         }
 
         let mut stack = std::mem::take(&mut self.query_stack);
         stack.clear();
         stack.push((0u32, self.root_half));
 
-        let all_rectangles = self.circle_count == 0;
+        let nodes = &self.nodes;
+        let node_entities = &self.node_entities;
+        let entities = &mut self.entities;
+        let circle_x = &self.circle_x;
+        let circle_y = &self.circle_y;
+        let circle_radius = &self.circle_radius;
+        let circle_radius_sq = &self.circle_radius_sq;
 
         while let Some((node_idx, half)) = stack.pop() {
-            let node = &self.nodes[node_idx as usize];
+            let node = &nodes[node_idx as usize];
             if !node.is_leaf() {
-                if let ShapeEnum::Circle(circle) = query_shape {
+                if let QueryKind::Circle { x, y, radius_sq, .. } = query_kind {
                     let node_extent = half.to_rect_extent();
-                    let distance = point_to_extent_distance_sq(circle.x, circle.y, node_extent);
-                    if distance > circle.radius * circle.radius {
+                    let distance = point_to_extent_distance_sq(x, y, node_extent);
+                    if distance > radius_sq {
                         continue;
                     }
                 }
-                Self::descend(&self.nodes, node_idx, half, query_extent, &mut stack);
+                Self::descend(nodes, node_idx, half, query_extent, &mut stack);
                 continue;
             }
 
@@ -1491,10 +1654,11 @@ impl QuadTreeInner {
                 continue;
             }
             loop {
-                let entity_idx = self.node_entities[current as usize].index();
-                let entity = &mut self.entities[entity_idx as usize];
+                let node_entity = node_entities[current as usize];
+                let entity_idx = node_entity.index();
+                let entity = &mut entities[entity_idx as usize];
                 if entity.query_tick == tick {
-                    if self.node_entities[current as usize].is_last() {
+                    if node_entity.is_last() {
                         break;
                     }
                     current += 1;
@@ -1506,7 +1670,7 @@ impl QuadTreeInner {
                     match entity.entity_type {
                         Some(entity_type) if filter.contains(entity_type) => {}
                         _ => {
-                            if self.node_entities[current as usize].is_last() {
+                            if node_entity.is_last() {
                                 break;
                             }
                             current += 1;
@@ -1515,40 +1679,48 @@ impl QuadTreeInner {
                     }
                 }
 
-                let hit = match query_shape {
-                    ShapeEnum::Rectangle(rect) => {
-                        if all_rectangles {
-                            entity.extent.intersects_strict(&query_extent)
-                        } else if entity.shape_kind == SHAPE_RECT {
+                let hit = match query_kind {
+                    QueryKind::Rect { rect } => {
+                        if all_rectangles || entity.shape_kind == SHAPE_RECT {
                             entity.extent.intersects_strict(&query_extent)
                         } else {
-                            match &self.entity_shapes[entity_idx as usize] {
-                                ShapeEnum::Circle(circle) => {
-                                    collision_detection::circle_rectangle(circle, rect)
-                                }
-                                ShapeEnum::Rectangle(_) => false,
-                            }
+                            let idx = entity_idx as usize;
+                            circle_rect_raw(
+                                circle_x[idx],
+                                circle_y[idx],
+                                circle_radius[idx],
+                                circle_radius_sq[idx],
+                                &rect,
+                            )
                         }
                     }
-                    ShapeEnum::Circle(circle) => {
+                    QueryKind::Circle {
+                        x,
+                        y,
+                        radius,
+                        radius_sq,
+                    } => {
                         if entity.shape_kind == SHAPE_RECT {
-                            collision_detection::circle_rectangle(circle, &entity.bbox)
+                            circle_rect_raw(x, y, radius, radius_sq, &entity.bbox)
                         } else {
-                            match &self.entity_shapes[entity_idx as usize] {
-                                ShapeEnum::Circle(other_circle) => {
-                                    collision_detection::circle_circle(circle, other_circle)
-                                }
-                                ShapeEnum::Rectangle(_) => false,
-                            }
+                            let idx = entity_idx as usize;
+                            circle_circle_raw(
+                                x,
+                                y,
+                                radius,
+                                circle_x[idx],
+                                circle_y[idx],
+                                circle_radius[idx],
+                            )
                         }
                     }
                 };
 
                 if hit {
-                    collisions.push(entity.value);
+                    f(entity.value);
                 }
 
-                if self.node_entities[current as usize].is_last() {
+                if node_entity.is_last() {
                     break;
                 }
                 current += 1;
@@ -1558,12 +1730,14 @@ impl QuadTreeInner {
         self.query_stack = stack;
     }
 
-    fn collisions_rect_fast(
+    fn collisions_rect_fast_with<F>(
         &mut self,
         query_extent: RectExtent,
         tick: u32,
-        collisions: &mut Vec<u32>,
-    ) {
+        f: &mut F,
+    ) where
+        F: FnMut(u32),
+    {
         let nodes_ptr = self.nodes.as_ptr();
         let node_entities_ptr = self.node_entities.as_ptr();
         let entities_ptr = self.entities.as_mut_ptr();
@@ -1592,7 +1766,90 @@ impl QuadTreeInner {
                 if entity.query_tick != tick {
                     entity.query_tick = tick;
                     if entity.extent.intersects_strict(&query_extent) {
-                        collisions.push(entity.value);
+                        f(entity.value);
+                    }
+                }
+
+                if node_entity.is_last() {
+                    break;
+                }
+                current += 1;
+            }
+        }
+
+        self.query_stack = stack;
+    }
+
+    fn collisions_circle_fast_with<F>(&mut self, query: Query, tick: u32, f: &mut F)
+    where
+        F: FnMut(u32),
+    {
+        let query_extent = query.extent;
+        let query_kind = query.kind;
+
+        let mut stack = std::mem::take(&mut self.query_stack);
+        stack.clear();
+        stack.push((0u32, self.root_half));
+
+        let nodes = &self.nodes;
+        let node_entities = &self.node_entities;
+        let entities = &mut self.entities;
+        let circle_x = &self.circle_x;
+        let circle_y = &self.circle_y;
+        let circle_radius = &self.circle_radius;
+        let circle_radius_sq = &self.circle_radius_sq;
+
+        while let Some((node_idx, half)) = stack.pop() {
+            let node = &nodes[node_idx as usize];
+            if !node.is_leaf() {
+                if let QueryKind::Circle { x, y, radius_sq, .. } = query_kind {
+                    let node_extent = half.to_rect_extent();
+                    let distance = point_to_extent_distance_sq(x, y, node_extent);
+                    if distance > radius_sq {
+                        continue;
+                    }
+                }
+                Self::descend(nodes, node_idx, half, query_extent, &mut stack);
+                continue;
+            }
+
+            let mut current = node.head();
+            if current == 0 {
+                continue;
+            }
+
+            loop {
+                let node_entity = node_entities[current as usize];
+                let entity_idx = node_entity.index() as usize;
+                let entity = &mut entities[entity_idx];
+
+                if entity.query_tick != tick {
+                    entity.query_tick = tick;
+                    let hit = match query_kind {
+                        QueryKind::Rect { rect } => circle_rect_raw(
+                            circle_x[entity_idx],
+                            circle_y[entity_idx],
+                            circle_radius[entity_idx],
+                            circle_radius_sq[entity_idx],
+                            &rect,
+                        ),
+                        QueryKind::Circle {
+                            x,
+                            y,
+                            radius,
+                            radius_sq: _,
+                        } => circle_circle_raw(
+                            x,
+                            y,
+                            radius,
+                            circle_x[entity_idx],
+                            circle_y[entity_idx],
+                            circle_radius[entity_idx],
+                        ),
+                    };
+
+                    if hit {
+                        f(entity.value);
                     }
                 }
 
@@ -1634,6 +1891,7 @@ impl QuadTreeInner {
         self.pair_dedupe.clear();
 
         let all_rectangles = self.circle_count == 0;
+        let all_circles = self.circle_count != 0 && self.circle_count == self.alive_count;
         if self.node_entities.len() <= 1 {
             return;
         }
@@ -1641,35 +1899,69 @@ impl QuadTreeInner {
             self.for_each_collision_pair_rect_fast(f);
             return;
         }
+        if all_circles {
+            self.for_each_collision_pair_circle_fast(f);
+            return;
+        }
 
-        let node_entities_len = self.node_entities.len();
+        let node_entities = &self.node_entities;
+        let entities = &self.entities;
+        let circle_x = &self.circle_x;
+        let circle_y = &self.circle_y;
+        let circle_radius = &self.circle_radius;
+        let circle_radius_sq = &self.circle_radius_sq;
+        let node_entities_len = node_entities.len();
+        let pair_dedupe = &mut self.pair_dedupe;
         let mut idx = 1usize;
 
         while idx < node_entities_len {
-            let node_entity = self.node_entities[idx];
+            let node_entity = node_entities[idx];
             if node_entity.is_last() {
                 idx += 1;
                 continue;
             }
 
             let a_idx = node_entity.index();
-            let a = &self.entities[a_idx as usize];
+            let a_idx_usize = a_idx as usize;
+            let a = &entities[a_idx_usize];
             let a_extent = a.extent;
+            let a_is_circle = a.shape_kind == SHAPE_CIRCLE;
 
             let mut other_idx = idx + 1;
             loop {
-                let other_node_entity = self.node_entities[other_idx];
+                let other_node_entity = node_entities[other_idx];
                 let b_idx = other_node_entity.index();
-                let b = &self.entities[b_idx as usize];
+                let b_idx_usize = b_idx as usize;
+                let b = &entities[b_idx_usize];
+                let b_is_circle = b.shape_kind == SHAPE_CIRCLE;
 
-                let hit = if all_rectangles
-                    || (a.shape_kind == SHAPE_RECT && b.shape_kind == SHAPE_RECT)
-                {
+                let hit = if !a_is_circle && !b_is_circle {
                     a_extent.intersects_strict(&b.extent)
+                } else if a_is_circle && b_is_circle {
+                    circle_circle_raw(
+                        circle_x[a_idx_usize],
+                        circle_y[a_idx_usize],
+                        circle_radius[a_idx_usize],
+                        circle_x[b_idx_usize],
+                        circle_y[b_idx_usize],
+                        circle_radius[b_idx_usize],
+                    )
+                } else if a_is_circle {
+                    circle_rect_raw(
+                        circle_x[a_idx_usize],
+                        circle_y[a_idx_usize],
+                        circle_radius[a_idx_usize],
+                        circle_radius_sq[a_idx_usize],
+                        &b.bbox,
+                    )
                 } else {
-                    let shape_a = &self.entity_shapes[a_idx as usize];
-                    let shape_b = &self.entity_shapes[b_idx as usize];
-                    collision_detection::shape_shape(shape_a, shape_b)
+                    circle_rect_raw(
+                        circle_x[b_idx_usize],
+                        circle_y[b_idx_usize],
+                        circle_radius[b_idx_usize],
+                        circle_radius_sq[b_idx_usize],
+                        &a.bbox,
+                    )
                 };
                 if hit {
                     let needs_dedupe = a.in_nodes_minus_one > 0 || b.in_nodes_minus_one > 0;
@@ -1680,7 +1972,7 @@ impl QuadTreeInner {
                             (b_idx, a_idx)
                         };
                         let key = (u64::from(min) << 32) | u64::from(max);
-                        if !self.pair_dedupe.insert(key) {
+                        if !pair_dedupe.insert(key) {
                             if other_node_entity.is_last() {
                                 break;
                             }
@@ -1738,6 +2030,76 @@ impl QuadTreeInner {
                         };
                         let key = (u64::from(min) << 32) | u64::from(max);
                         if !self.pair_dedupe.insert(key) {
+                            if other_node_entity.is_last() {
+                                break;
+                            }
+                            other_idx += 1;
+                            continue;
+                        }
+                    }
+
+                    f(a.value, b.value);
+                }
+
+                if other_node_entity.is_last() {
+                    break;
+                }
+                other_idx += 1;
+            }
+
+            idx += 1;
+        }
+    }
+
+    fn for_each_collision_pair_circle_fast<F>(&mut self, f: &mut F)
+    where
+        F: FnMut(u32, u32),
+    {
+        let node_entities = &self.node_entities;
+        let entities = &self.entities;
+        let circle_x = &self.circle_x;
+        let circle_y = &self.circle_y;
+        let circle_radius = &self.circle_radius;
+        let node_entities_len = node_entities.len();
+        let pair_dedupe = &mut self.pair_dedupe;
+
+        let mut idx = 1usize;
+        while idx < node_entities_len {
+            let node_entity = node_entities[idx];
+            if node_entity.is_last() {
+                idx += 1;
+                continue;
+            }
+
+            let a_idx = node_entity.index();
+            let a_idx_usize = a_idx as usize;
+            let a = &entities[a_idx_usize];
+
+            let mut other_idx = idx + 1;
+            loop {
+                let other_node_entity = node_entities[other_idx];
+                let b_idx = other_node_entity.index();
+                let b_idx_usize = b_idx as usize;
+                let b = &entities[b_idx_usize];
+
+                let hit = circle_circle_raw(
+                    circle_x[a_idx_usize],
+                    circle_y[a_idx_usize],
+                    circle_radius[a_idx_usize],
+                    circle_x[b_idx_usize],
+                    circle_y[b_idx_usize],
+                    circle_radius[b_idx_usize],
+                );
+                if hit {
+                    let needs_dedupe = a.in_nodes_minus_one > 0 || b.in_nodes_minus_one > 0;
+                    if needs_dedupe {
+                        let (min, max) = if a_idx < b_idx {
+                            (a_idx, b_idx)
+                        } else {
+                            (b_idx, a_idx)
+                        };
+                        let key = (u64::from(min) << 32) | u64::from(max);
+                        if !pair_dedupe.insert(key) {
                             if other_node_entity.is_last() {
                                 break;
                             }
@@ -1825,6 +2187,10 @@ impl QuadTree {
         self.inner.get_mut().relocate(value, shape, entity_type);
     }
 
+    pub fn update(&self) {
+        self.inner.borrow_mut().update();
+    }
+
     pub fn collisions_batch(&self, shapes: Vec<ShapeEnum>) -> Vec<Vec<u32>> {
         self.inner.borrow_mut().collisions_batch(shapes)
     }
@@ -1852,6 +2218,26 @@ impl QuadTree {
         self.inner
             .borrow_mut()
             .collisions_filter(shape, filter_entity_types, collisions);
+    }
+
+    pub fn collisions_with<F>(&self, shape: ShapeEnum, f: F)
+    where
+        F: FnMut(u32),
+    {
+        self.inner.borrow_mut().collisions_with(shape, f);
+    }
+
+    pub fn collisions_with_filter<F>(
+        &self,
+        shape: ShapeEnum,
+        filter_entity_types: Option<Vec<u32>>,
+        f: F,
+    ) where
+        F: FnMut(u32),
+    {
+        self.inner
+            .borrow_mut()
+            .collisions_with_filter(shape, filter_entity_types, f);
     }
 
     pub fn for_each_collision_pair<F>(&self, f: F)

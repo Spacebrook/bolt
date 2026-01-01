@@ -242,11 +242,18 @@ fn main() {
         .ok()
         .and_then(|value| value.parse::<usize>().ok())
         .unwrap_or(MEASURE_TICKS);
+    let query_push = env::var("BOLT_BENCH_QUERY_PUSH")
+        .ok()
+        .map_or(false, |value| value != "0");
 
     println!("Simulation settings:");
     println!("Initial count:    {}", ITER);
     println!("Arena size:       {:.01} x {:.01}", ARENA_WIDTH, ARENA_HEIGHT);
     println!("Initial radius:   From {:.01} to {:.01}", RADIUS_MIN, RADIUS_MAX);
+    println!(
+        "Query results:    {}",
+        if query_push { "collect" } else { "ignore" }
+    );
     println!("Seed: {}", 36207250);
     println!("Measure ticks:    {}", ticks);
 
@@ -308,6 +315,7 @@ fn main() {
     let mut collide_total = Duration::ZERO;
     let mut update_total = Duration::ZERO;
     let mut relocate_total = Duration::ZERO;
+    let mut normalize_total = Duration::ZERO;
     let mut query_total = Duration::ZERO;
     let mut collisions = Vec::new();
 
@@ -333,12 +341,23 @@ fn main() {
         relocate_total += start.elapsed();
 
         let start = Instant::now();
+        quadtree.update();
+        normalize_total += start.elapsed();
+
+        let start = Instant::now();
         for i in 0..QUERIES_NUM {
-            collisions.clear();
-            quadtree.collisions(
-                ShapeEnum::Rectangle(entities[i].query_rectangle()),
-                &mut collisions,
-            );
+            if query_push {
+                collisions.clear();
+                quadtree.collisions(
+                    ShapeEnum::Rectangle(entities[i].query_rectangle()),
+                    &mut collisions,
+                );
+            } else {
+                quadtree.collisions_with(
+                    ShapeEnum::Rectangle(entities[i].query_rectangle()),
+                    |_| {},
+                );
+            }
         }
         query_total += start.elapsed();
     }
@@ -347,13 +366,15 @@ fn main() {
     let collide_ms = duration_ms(collide_total) / ticks_f;
     let update_ms = duration_ms(update_total) / ticks_f;
     let relocate_ms = duration_ms(relocate_total) / ticks_f;
+    let normalize_ms = duration_ms(normalize_total) / ticks_f;
     let query_ms = duration_ms(query_total) / ticks_f;
-    let total_ms = collide_ms + update_ms + relocate_ms;
+    let total_ms = collide_ms + update_ms + relocate_ms + normalize_ms;
 
     println!();
     println!("Collide: {:.02}ms", collide_ms);
     println!("Update: {:.02}ms", update_ms);
     println!("Relocate: {:.02}ms", relocate_ms);
+    println!("Normalize: {:.02}ms", normalize_ms);
     println!("Tick total: {:.02}ms", total_ms);
     println!("1k Queries: {:.02}ms", query_ms);
 }

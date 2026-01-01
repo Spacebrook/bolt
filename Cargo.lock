@@ -703,6 +703,7 @@ dependencies = [
  "criterion",
  "fxhash",
  "rand",
+ "smallvec",
 ]
 
 [[package]]
