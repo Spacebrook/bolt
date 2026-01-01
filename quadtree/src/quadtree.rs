@@ -494,6 +494,68 @@ impl QuadTree {
         }
     }
 
+    pub fn for_each_collision_pair<F>(&self, mut f: F)
+    where
+        F: FnMut(u32, u32),
+    {
+        let mut ancestors = Vec::new();
+        self.for_each_collision_pair_from(self.root, &mut ancestors, &mut f);
+    }
+
+    fn for_each_collision_pair_from<F>(
+        &self,
+        node: usize,
+        ancestors: &mut Vec<(usize, usize)>,
+        f: &mut F,
+    ) where
+        F: FnMut(u32, u32),
+    {
+        let (entities_len, children, subdivided) = {
+            let node_ref = &self.nodes[node];
+            for &(ancestor_node, ancestor_index) in ancestors.iter() {
+                let ancestor_entity = &self.nodes[ancestor_node].entities[ancestor_index];
+                for local_entity in node_ref.entities.iter() {
+                    if collision_detection::shape_shape(
+                        &ancestor_entity.entity.shape,
+                        &local_entity.entity.shape,
+                    ) {
+                        f(ancestor_entity.value, local_entity.value);
+                    }
+                }
+            }
+
+            for i in 0..node_ref.entities.len() {
+                let entity_a = &node_ref.entities[i];
+                for j in (i + 1)..node_ref.entities.len() {
+                    let entity_b = &node_ref.entities[j];
+                    if collision_detection::shape_shape(
+                        &entity_a.entity.shape,
+                        &entity_b.entity.shape,
+                    ) {
+                        f(entity_a.value, entity_b.value);
+                    }
+                }
+            }
+
+            (node_ref.entities.len(), node_ref.children, node_ref.subdivided)
+        };
+
+        let ancestor_len = ancestors.len();
+        for i in 0..entities_len {
+            ancestors.push((node, i));
+        }
+
+        if subdivided {
+            for child in children.as_array() {
+                if let Some(child_idx) = child {
+                    self.for_each_collision_pair_from(child_idx, ancestors, f);
+                }
+            }
+        }
+
+        ancestors.truncate(ancestor_len);
+    }
+
     pub fn relocate_batch(&mut self, relocation_requests: Vec<RelocationRequest>) {
         for request in relocation_requests {
             self.relocate(request.value, request.shape, request.entity_type);
