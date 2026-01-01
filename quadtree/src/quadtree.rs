@@ -9,6 +9,18 @@ struct Entity {
     entity_type: Option<u32>,
 }
 
+#[derive(Clone)]
+struct NodeEntity {
+    value: u32,
+    entity: Entity,
+}
+
+#[derive(Clone, Copy)]
+struct EntityLocation {
+    node: usize,
+    index: usize,
+}
+
 #[derive(Clone, Copy)]
 struct NodeChildren {
     nw: Option<usize>,
@@ -33,23 +45,25 @@ impl NodeChildren {
 }
 
 struct QuadNode {
-    entities: FxHashMap<u32, Entity>,
+    entities: Vec<NodeEntity>,
     bounding_box: Rectangle,
     children: NodeChildren,
     parent: Option<usize>,
     subdivided: bool,
     depth: usize,
+    subtree_count: usize,
 }
 
 impl QuadNode {
-    pub fn new() -> Self {
+    pub fn new(node_capacity: usize) -> Self {
         Self {
-            entities: FxHashMap::default(),
+            entities: Vec::with_capacity(node_capacity),
             bounding_box: Rectangle::default(),
             children: NodeChildren::none(),
             parent: None,
             subdivided: false,
             depth: 0,
+            subtree_count: 0,
         }
     }
 
@@ -60,6 +74,7 @@ impl QuadNode {
         self.entities.clear();
         self.children = NodeChildren::none();
         self.subdivided = false;
+        self.subtree_count = 0;
     }
 
     pub fn initialize(&mut self, bounding_box: Rectangle, parent: Option<usize>, depth: usize) {
@@ -69,12 +84,13 @@ impl QuadNode {
         self.entities.clear();
         self.children = NodeChildren::none();
         self.subdivided = false;
+        self.subtree_count = 0;
     }
 }
 
 pub struct QuadTree {
     root: usize,
-    owner_map: FxHashMap<u32, usize>,
+    owner_map: FxHashMap<u32, EntityLocation>,
     nodes: Vec<QuadNode>,
     free_list: Vec<usize>,
     config: Config,
@@ -162,7 +178,7 @@ impl QuadTree {
             self.nodes[index].reset();
             index
         } else {
-            self.nodes.push(QuadNode::new());
+            self.nodes.push(QuadNode::new(self.config.node_capacity));
             self.nodes.len() - 1
         }
     }
@@ -175,6 +191,9 @@ impl QuadTree {
 
     // Insert a shape with a given value into the quadtree
     pub fn insert(&mut self, value: u32, shape: ShapeEnum, entity_type: Option<u32>) {
+        if let Some(location) = self.owner_map.remove(&value) {
+            self.remove_entity_at(location.node, location.index);
+        }
         self.insert_into(self.root, value, shape, entity_type);
     }
 
@@ -241,21 +260,56 @@ impl QuadTree {
     }
 
     fn add(&mut self, node: usize, value: u32, shape: ShapeEnum, entity_type: Option<u32>) {
-        self.nodes[node]
-            .entities
-            .insert(value, Entity { shape, entity_type });
-        self.owner_map.insert(value, node);
+        let node_ref = &mut self.nodes[node];
+        let index = node_ref.entities.len();
+        node_ref.entities.push(NodeEntity {
+            value,
+            entity: Entity { shape, entity_type },
+        });
+        self.owner_map.insert(
+            value,
+            EntityLocation {
+                node,
+                index,
+            },
+        );
+        self.bump_counts(node, 1);
     }
 
-    pub fn delete(&mut self, value: u32) {
-        if let Some(node) = self.owner_map.remove(&value) {
-            self.delete_from(node, value);
-            self.clean_upwards(node);
+    fn bump_counts(&mut self, mut node: usize, delta: isize) {
+        loop {
+            let count = &mut self.nodes[node].subtree_count;
+            if delta >= 0 {
+                *count += delta as usize;
+            } else {
+                *count -= (-delta) as usize;
+            }
+            if let Some(parent) = self.nodes[node].parent {
+                node = parent;
+            } else {
+                break;
+            }
         }
     }
 
-    fn delete_from(&mut self, node: usize, value: u32) {
-        self.nodes[node].entities.remove(&value);
+    pub fn delete(&mut self, value: u32) {
+        if let Some(location) = self.owner_map.remove(&value) {
+            self.remove_entity_at(location.node, location.index);
+            self.clean_upwards(location.node);
+        }
+    }
+
+    fn remove_entity_at(&mut self, node: usize, index: usize) {
+        let node_ref = &mut self.nodes[node];
+        let _ = node_ref.entities.swap_remove(index);
+        if index < node_ref.entities.len() {
+            let swapped_value = node_ref.entities[index].value;
+            if let Some(location) = self.owner_map.get_mut(&swapped_value) {
+                location.node = node;
+                location.index = index;
+            }
+        }
+        self.bump_counts(node, -1);
     }
 
     // Subdivide a node into quadrants
@@ -330,12 +384,18 @@ impl QuadTree {
                 se: Some(se),
             };
             node_ref.subdivided = true;
-            node_ref.entities.drain().collect::<Vec<(u32, Entity)>>()
+            let mut items = Vec::new();
+            items.append(&mut node_ref.entities);
+            items
         };
 
-        for (value, entity) in old_items {
-            self.owner_map.remove(&value);
-            self.insert_into(node, value, entity.shape, entity.entity_type);
+        for item in &old_items {
+            self.owner_map.remove(&item.value);
+            self.bump_counts(node, -1);
+        }
+
+        for item in old_items {
+            self.insert_into(node, item.value, item.entity.shape, item.entity.entity_type);
         }
     }
 
@@ -400,8 +460,10 @@ impl QuadTree {
 
         while let Some(current) = stack.pop() {
             let node_ref = &self.nodes[current];
-            for (&value, entity) in node_ref.entities.iter() {
-                if let Some(filter) = &filter_entity_types {
+            for entry in node_ref.entities.iter() {
+                let value = entry.value;
+                let entity = &entry.entity;
+                if let Some(filter) = filter_entity_types {
                     if let Some(entity_type) = entity.entity_type {
                         if !filter.contains(entity_type) {
                             continue;
@@ -439,19 +501,23 @@ impl QuadTree {
     }
 
     pub fn relocate(&mut self, value: u32, shape: ShapeEnum, entity_type: Option<u32>) {
-        if let Some(node) = self.owner_map.get(&value).copied() {
+        if let Some(location) = self.owner_map.get(&value).copied() {
+            let node = location.node;
             let bounding_box = shape.bounding_box();
             if collision_detection::rectangle_contains_rectangle(
                 &self.nodes[node].bounding_box,
                 &bounding_box,
             ) {
-                self.nodes[node]
-                    .entities
-                    .insert(value, Entity { shape, entity_type });
+                if let Some(entry) = self.nodes[node].entities.get_mut(location.index) {
+                    entry.entity = Entity { shape, entity_type };
+                } else {
+                    self.add(node, value, shape, entity_type);
+                }
                 return;
             }
 
-            self.delete_from(node, value);
+            self.owner_map.remove(&value);
+            self.remove_entity_at(node, location.index);
             self.relocate_in(node, value, shape, entity_type);
         } else {
             self.insert(value, shape, entity_type);
@@ -489,37 +555,22 @@ impl QuadTree {
     }
 
     fn count_all_items_limit(&self, node: usize, limit: usize) -> usize {
-        let mut count = 0usize;
-        let mut stack = Vec::with_capacity(16);
-        stack.push(node);
-
-        while let Some(current) = stack.pop() {
-            let node_ref = &self.nodes[current];
-            count += node_ref.entities.len();
-            if count > limit {
-                return count;
-            }
-
-            if node_ref.subdivided {
-                for child in node_ref.children.as_array() {
-                    if let Some(child_idx) = child {
-                        stack.push(child_idx);
-                    }
-                }
-            }
+        let count = self.nodes[node].subtree_count;
+        if count > limit {
+            limit + 1
+        } else {
+            count
         }
-
-        count
     }
 
-    fn drain_subtree_items(&mut self, node: usize, items: &mut Vec<(u32, Entity)>) {
+    fn drain_subtree_items(&mut self, node: usize, items: &mut Vec<NodeEntity>) {
         let mut stack = Vec::with_capacity(16);
         stack.push(node);
 
         while let Some(current) = stack.pop() {
             let children = {
                 let node_ref = &mut self.nodes[current];
-                items.extend(node_ref.entities.drain());
+                items.append(&mut node_ref.entities);
                 if node_ref.subdivided {
                     node_ref.children.as_array()
                 } else {
@@ -563,11 +614,21 @@ impl QuadTree {
 
         if !child_items.is_empty() {
             let node_ref = &mut self.nodes[node];
-            for (value, entity) in child_items {
-                self.owner_map.insert(value, node);
-                node_ref.entities.insert(value, entity);
+            for item in child_items {
+                let value = item.value;
+                let entity = item.entity;
+                let index = node_ref.entities.len();
+                node_ref.entities.push(NodeEntity { value, entity });
+                self.owner_map.insert(
+                    value,
+                    EntityLocation {
+                        node,
+                        index,
+                    },
+                );
             }
         }
+        self.nodes[node].subtree_count = self.nodes[node].entities.len();
     }
 
     fn clean_upwards(&mut self, mut node: usize) {
@@ -605,8 +666,8 @@ impl QuadTree {
 
         while let Some(node) = stack.pop() {
             let node_ref = &self.nodes[node];
-            for entity in node_ref.entities.values() {
-                shapes.push(entity.shape.clone());
+            for entry in node_ref.entities.iter() {
+                shapes.push(entry.entity.shape.clone());
             }
 
             if node_ref.subdivided {
