@@ -3,7 +3,6 @@ use common::shapes::{Rectangle, ShapeEnum};
 use quadtree_crate::{shapes::Rect as QtRect, vec2, Quadtree as QtGeneric, Vec2};
 use quadtree_f32::{Item, ItemId, Point as F32Point, QuadTree as QtF32, Rect as RectF32};
 use quadtree_rs::{area::AreaBuilder, point::Point as RsPoint, Quadtree as QtRs};
-use rand::prelude::*;
 use spatialtree::{QuadTree as SpatialQuadTree, QuadVec};
 use std::env;
 use std::hint::black_box;
@@ -171,12 +170,12 @@ struct BenchResult {
     notes: &'static str,
 }
 
-fn randf(rng: &mut impl Rng) -> f32 {
-    rng.r#gen::<f32>()
+fn randf() -> f32 {
+    unsafe { libc::rand() as f32 / libc::RAND_MAX as f32 }
 }
 
-fn gen_radius(rng: &mut impl Rng) -> f32 {
-    let mut r = randf(rng) * RADIUS_ODDS;
+fn gen_radius() -> f32 {
+    let mut r = randf() * RADIUS_ODDS;
     if r == 0.0 {
         return RADIUS_MAX;
     }
@@ -304,15 +303,17 @@ fn duration_ms(duration: Duration) -> f64 {
 }
 
 fn generate_entities(seed: u64, bounds: Bounds, count: usize) -> Vec<Entity> {
-    let mut rng = StdRng::seed_from_u64(seed);
+    unsafe {
+        libc::srand(seed as u32);
+    }
     let mut entities = Vec::with_capacity(count);
 
     for i in 0..count {
         let mut dim = [0.0_f32; 2];
         let idx = (i & 1) as usize;
 
-        let w = gen_radius(&mut rng);
-        let temp = gen_radius(&mut rng);
+        let w = gen_radius();
+        let temp = gen_radius();
         let mut h = w + (temp * 0.5);
         if h > RADIUS_MAX {
             h = RADIUS_MAX;
@@ -330,16 +331,16 @@ fn generate_entities(seed: u64, bounds: Bounds, count: usize) -> Vec<Entity> {
         let qtw = ARENA_WIDTH - w;
         let qth = ARENA_HEIGHT - h;
 
-        let min_x = bounds.min_x + qtw * randf(&mut rng);
-        let min_y = bounds.min_y + qth * randf(&mut rng);
+        let min_x = bounds.min_x + qtw * randf();
+        let min_y = bounds.min_y + qth * randf();
 
         entities.push(Entity {
             min_x,
             max_x: min_x + w,
             min_y,
             max_y: min_y + h,
-            vx: (1.0 - 2.0 * randf(&mut rng)) * INITIAL_VELOCITY,
-            vy: (1.0 - 2.0 * randf(&mut rng)) * INITIAL_VELOCITY,
+            vx: (1.0 - 2.0 * randf()) * INITIAL_VELOCITY,
+            vy: (1.0 - 2.0 * randf()) * INITIAL_VELOCITY,
         });
     }
 
@@ -352,6 +353,7 @@ fn bench_bolt(entities_seed: &[Entity], bounds: Bounds, ticks: usize) -> BenchRe
         pool_size: 4000,
         node_capacity: 13,
         max_depth,
+        min_size: MIN_SIZE,
     };
 
     let mut entities = entities_seed.to_vec();

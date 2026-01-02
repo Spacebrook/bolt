@@ -215,6 +215,7 @@ fn cleanup_merge_benchmark(c: &mut Criterion) {
         pool_size: 8000,
         node_capacity: 4,
         max_depth: 8,
+        min_size: 1.0,
     };
 
     c.bench_function("quadtree_cleanup_merge", |b| {

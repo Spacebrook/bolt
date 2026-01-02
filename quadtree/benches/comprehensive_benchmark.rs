@@ -236,6 +236,7 @@ fn main() {
         pool_size: 4000,
         node_capacity: 13,
         max_depth,
+        min_size: MIN_SIZE,
     };
 
     let ticks = env::var("BOLT_BENCH_TICKS")
