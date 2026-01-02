@@ -878,11 +878,428 @@ impl QuadTreeInner {
             }
         }
 
-        if self.rebalance_pending {
-            self.rebalance();
-            self.rebalance_pending = false;
+        let do_rebalance = self.rebalance_pending;
+        self.rebalance_pending = false;
+        self.rebuild_storage(do_rebalance);
+    }
+
+    fn rebuild_storage(&mut self, do_rebalance: bool) {
+        if self.nodes.is_empty() {
+            return;
         }
-        self.compact_storage();
+
+        let old_nodes = std::mem::take(&mut self.nodes);
+        let old_node_entities = std::mem::take(&mut self.node_entities);
+        let old_node_entities_next = std::mem::take(&mut self.node_entities_next);
+        let old_node_entities_flags = std::mem::take(&mut self.node_entities_flags);
+
+        let mut new_nodes = Vec::with_capacity(old_nodes.len().max(1));
+        let mut new_node_entities = Vec::with_capacity(old_node_entities.len().max(1));
+        let mut new_node_entities_next = Vec::with_capacity(old_node_entities_next.len().max(1));
+        let mut new_node_entities_flags = Vec::with_capacity(old_node_entities_flags.len().max(1));
+
+        new_node_entities.push(NodeEntity::new(0, false));
+        new_node_entities_next.push(0);
+        new_node_entities_flags.push(0);
+
+        let root_idx = self.rebuild_node(
+            0,
+            0,
+            self.root_half,
+            do_rebalance,
+            &old_nodes,
+            &old_node_entities,
+            &old_node_entities_next,
+            &old_node_entities_flags,
+            &mut new_nodes,
+            &mut new_node_entities,
+            &mut new_node_entities_next,
+            &mut new_node_entities_flags,
+        );
+        debug_assert_eq!(root_idx, 0);
+
+        self.nodes = new_nodes;
+        self.node_entities = new_node_entities;
+        self.node_entities_next = new_node_entities_next;
+        self.node_entities_flags = new_node_entities_flags;
+        self.free_node = 0;
+        self.free_node_entity = 0;
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn rebuild_node(
+        &mut self,
+        old_idx: u32,
+        depth: u32,
+        half: HalfExtent,
+        do_rebalance: bool,
+        old_nodes: &[Node],
+        old_node_entities: &[NodeEntity],
+        old_node_entities_next: &[u32],
+        old_node_entities_flags: &[u8],
+        new_nodes: &mut Vec<Node>,
+        new_node_entities: &mut Vec<NodeEntity>,
+        new_node_entities_next: &mut Vec<u32>,
+        new_node_entities_flags: &mut Vec<u8>,
+    ) -> u32 {
+        let old_node = &old_nodes[old_idx as usize];
+        if old_node.is_leaf() {
+            let count = old_node.count();
+            let can_split = do_rebalance
+                && count >= self.split_threshold
+                && depth < self.max_depth
+                && half.w >= self.min_size
+                && half.h >= self.min_size;
+            if can_split {
+                let entries = self.collect_leaf_entries(
+                    old_node,
+                    old_node_entities,
+                    old_node_entities_next,
+                    old_node_entities_flags,
+                );
+                return self.rebuild_from_entries(
+                    entries,
+                    depth,
+                    half,
+                    old_node.position_flags(),
+                    new_nodes,
+                    new_node_entities,
+                    new_node_entities_next,
+                    new_node_entities_flags,
+                );
+            }
+
+            return self.rebuild_leaf(
+                old_node,
+                old_node_entities,
+                old_node_entities_next,
+                old_node_entities_flags,
+                new_nodes,
+                new_node_entities,
+                new_node_entities_next,
+                new_node_entities_flags,
+            );
+        }
+
+        let children = [
+            old_node.child(0),
+            old_node.child(1),
+            old_node.child(2),
+            old_node.child(3),
+        ];
+        debug_assert!(children.iter().all(|&child| child != 0));
+
+        if do_rebalance {
+            let mut total = 0u32;
+            let mut can_merge = true;
+            for &child_idx in &children {
+                let child = &old_nodes[child_idx as usize];
+                if !child.is_leaf() {
+                    can_merge = false;
+                    break;
+                }
+                total += child.count();
+            }
+
+            if can_merge && total <= self.merge_threshold {
+                return self.rebuild_merge_node(
+                    children,
+                    total,
+                    half,
+                    old_nodes,
+                    old_node_entities,
+                    old_node_entities_next,
+                    new_nodes,
+                    new_node_entities,
+                    new_node_entities_next,
+                    new_node_entities_flags,
+                );
+            }
+        }
+
+        let new_idx = new_nodes.len() as u32;
+        new_nodes.push(Node { slots: [0; 4] });
+
+        let mut new_children = [0u32; 4];
+        for i in (0..4).rev() {
+            let child_idx = children[i];
+            let child_half = Self::child_half_extent(half, i);
+            new_children[i] = self.rebuild_node(
+                child_idx,
+                depth + 1,
+                child_half,
+                do_rebalance,
+                old_nodes,
+                old_node_entities,
+                old_node_entities_next,
+                old_node_entities_flags,
+                new_nodes,
+                new_node_entities,
+                new_node_entities_next,
+                new_node_entities_flags,
+            );
+        }
+
+        new_nodes[new_idx as usize].set_children(new_children);
+        new_idx
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn rebuild_leaf(
+        &self,
+        old_node: &Node,
+        old_node_entities: &[NodeEntity],
+        old_node_entities_next: &[u32],
+        old_node_entities_flags: &[u8],
+        new_nodes: &mut Vec<Node>,
+        new_node_entities: &mut Vec<NodeEntity>,
+        new_node_entities_next: &mut Vec<u32>,
+        new_node_entities_flags: &mut Vec<u8>,
+    ) -> u32 {
+        let position_flags = old_node.position_flags();
+        let mut new_node = Node::new_leaf(position_flags);
+        let head = old_node.head();
+        if head != 0 {
+            let new_head = new_node_entities.len() as u32;
+            let mut current = head;
+            let mut count = 0u32;
+            loop {
+                let entity_idx = old_node_entities[current as usize].index();
+                let is_last = old_node_entities_next[current as usize] == 0;
+                let new_node_entity_idx = new_node_entities.len() as u32;
+                new_node_entities.push(NodeEntity::new(entity_idx, is_last));
+                new_node_entities_flags.push(old_node_entities_flags[current as usize]);
+                new_node_entities_next.push(if is_last {
+                    0
+                } else {
+                    new_node_entity_idx + 1
+                });
+                count += 1;
+                if is_last {
+                    break;
+                }
+                current = old_node_entities_next[current as usize];
+            }
+            new_node.set_head(new_head);
+            new_node.set_count(count);
+        }
+
+        let new_idx = new_nodes.len() as u32;
+        new_nodes.push(new_node);
+        new_idx
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn collect_leaf_entries(
+        &self,
+        old_node: &Node,
+        old_node_entities: &[NodeEntity],
+        old_node_entities_next: &[u32],
+        old_node_entities_flags: &[u8],
+    ) -> Vec<(u32, u8)> {
+        let mut entries = Vec::with_capacity(old_node.count() as usize);
+        let mut current = old_node.head();
+        while current != 0 {
+            let entity_idx = old_node_entities[current as usize].index();
+            let flags = old_node_entities_flags[current as usize];
+            entries.push((entity_idx, flags));
+            current = old_node_entities_next[current as usize];
+        }
+        entries
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn rebuild_from_entries(
+        &mut self,
+        entries: Vec<(u32, u8)>,
+        depth: u32,
+        half: HalfExtent,
+        position_flags: u8,
+        new_nodes: &mut Vec<Node>,
+        new_node_entities: &mut Vec<NodeEntity>,
+        new_node_entities_next: &mut Vec<u32>,
+        new_node_entities_flags: &mut Vec<u8>,
+    ) -> u32 {
+        if entries.is_empty() {
+            let new_idx = new_nodes.len() as u32;
+            new_nodes.push(Node::new_leaf(position_flags));
+            return new_idx;
+        }
+
+        let can_split = entries.len() as u32 >= self.split_threshold
+            && depth < self.max_depth
+            && half.w >= self.min_size
+            && half.h >= self.min_size;
+        if !can_split {
+            let mut node = Node::new_leaf(position_flags);
+            let head = new_node_entities.len() as u32;
+            for (offset, (entity_idx, flags)) in entries.iter().enumerate() {
+                let is_last = offset + 1 == entries.len();
+                let new_node_entity_idx = new_node_entities.len() as u32;
+                new_node_entities.push(NodeEntity::new(*entity_idx, is_last));
+                new_node_entities_flags.push(*flags);
+                new_node_entities_next.push(if is_last {
+                    0
+                } else {
+                    new_node_entity_idx + 1
+                });
+            }
+            node.set_head(head);
+            node.set_count(entries.len() as u32);
+            let new_idx = new_nodes.len() as u32;
+            new_nodes.push(node);
+            return new_idx;
+        }
+
+        let masks = [0b0011, 0b1001, 0b0110, 0b1100];
+        let mut child_flags = [0u8; 4];
+        for i in 0..4 {
+            child_flags[i] = position_flags & masks[i];
+        }
+
+        let mut child_lists: [Vec<(u32, u8)>; 4] =
+            [Vec::new(), Vec::new(), Vec::new(), Vec::new()];
+
+        for (entity_idx, flags) in entries {
+            let extent = self.entities[entity_idx as usize].extent;
+            let mut targets = [0u32; 4];
+            let mut targets_len = 0usize;
+
+            if extent.min_x <= half.x {
+                if extent.min_y <= half.y {
+                    targets[targets_len] = 0;
+                    targets_len += 1;
+                }
+                if extent.max_y >= half.y {
+                    targets[targets_len] = 1;
+                    targets_len += 1;
+                }
+            }
+            if extent.max_x >= half.x {
+                if extent.min_y <= half.y {
+                    targets[targets_len] = 2;
+                    targets_len += 1;
+                }
+                if extent.max_y >= half.y {
+                    targets[targets_len] = 3;
+                    targets_len += 1;
+                }
+            }
+
+            if targets_len == 0 {
+                targets[0] = 0;
+                targets_len = 1;
+            }
+
+            if targets_len > 1 {
+                let entity = &mut self.entities[entity_idx as usize];
+                entity.in_nodes_minus_one += targets_len as u32 - 1;
+            }
+
+            for target in targets.iter().take(targets_len) {
+                child_lists[*target as usize].push((entity_idx, flags));
+            }
+        }
+
+        let new_idx = new_nodes.len() as u32;
+        new_nodes.push(Node { slots: [0; 4] });
+
+        let mut child_indices = [0u32; 4];
+        for i in (0..4).rev() {
+            let list = std::mem::take(&mut child_lists[i]);
+            let child_half = Self::child_half_extent(half, i);
+            child_indices[i] = self.rebuild_from_entries(
+                list,
+                depth + 1,
+                child_half,
+                child_flags[i],
+                new_nodes,
+                new_node_entities,
+                new_node_entities_next,
+                new_node_entities_flags,
+            );
+        }
+
+        new_nodes[new_idx as usize].set_children(child_indices);
+        new_idx
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn rebuild_merge_node(
+        &mut self,
+        children: [u32; 4],
+        total: u32,
+        half: HalfExtent,
+        old_nodes: &[Node],
+        old_node_entities: &[NodeEntity],
+        old_node_entities_next: &[u32],
+        new_nodes: &mut Vec<Node>,
+        new_node_entities: &mut Vec<NodeEntity>,
+        new_node_entities_next: &mut Vec<u32>,
+        new_node_entities_flags: &mut Vec<u8>,
+    ) -> u32 {
+        let mut position_flags = 0u8;
+        let node_extent = half.to_rect_extent();
+        self.merge_ht.fill(0);
+
+        let mut merged: Vec<(u32, u8)> = Vec::with_capacity(total as usize);
+
+        for &child_idx in &children {
+            let child = &old_nodes[child_idx as usize];
+            position_flags |= child.position_flags();
+
+            let mut current = child.head();
+            while current != 0 {
+                let entity_idx = old_node_entities[current as usize].index();
+                let mut hash = (entity_idx as usize * 2654435761) & (self.merge_ht.len() - 1);
+
+                loop {
+                    let entry = self.merge_ht[hash];
+                    if entry == 0 {
+                        self.merge_ht[hash] = entity_idx;
+                        let extent = self.entities[entity_idx as usize].extent;
+                        let flags =
+                            Self::compute_node_entity_flags(node_extent, position_flags, extent);
+                        merged.push((entity_idx, flags));
+                        break;
+                    }
+
+                    if entry == entity_idx {
+                        let entity = &mut self.entities[entity_idx as usize];
+                        if entity.in_nodes_minus_one > 0 {
+                            entity.in_nodes_minus_one -= 1;
+                        }
+                        break;
+                    }
+
+                    hash = (hash + 1) & (self.merge_ht.len() - 1);
+                }
+
+                current = old_node_entities_next[current as usize];
+            }
+        }
+
+        let mut new_node = Node::new_leaf(position_flags);
+        if !merged.is_empty() {
+            let head = new_node_entities.len() as u32;
+            for (offset, (entity_idx, flags)) in merged.iter().enumerate() {
+                let is_last = offset + 1 == merged.len();
+                let new_node_entity_idx = new_node_entities.len() as u32;
+                new_node_entities.push(NodeEntity::new(*entity_idx, is_last));
+                new_node_entities_flags.push(*flags);
+                new_node_entities_next.push(if is_last {
+                    0
+                } else {
+                    new_node_entity_idx + 1
+                });
+            }
+            new_node.set_head(head);
+            new_node.set_count(merged.len() as u32);
+        }
+
+        let new_idx = new_nodes.len() as u32;
+        new_nodes.push(new_node);
+        new_idx
     }
 
     fn update_entities(&mut self) {
