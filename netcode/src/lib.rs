@@ -113,12 +113,15 @@ fn build_message(raw: RawMessageSchema) -> MessageSchema {
 }
 
 fn load_schema() -> NetSchema {
-    let raw: RawSchema =
-        serde_json::from_str(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/schema/gen/net_schema.json"
-        )))
-            .expect("Invalid net_schema.json");
+    let schema_path = concat!(env!("CARGO_MANIFEST_DIR"), "/schema/gen/net_schema.json");
+    let raw_json = std::fs::read_to_string(schema_path).unwrap_or_default();
+    if raw_json.trim().is_empty() {
+        return NetSchema {
+            messages: HashMap::new(),
+            profiles: HashMap::new(),
+        };
+    }
+    let raw: RawSchema = serde_json::from_str(&raw_json).expect("Invalid net_schema.json");
     let mut messages = HashMap::new();
     for (name, message) in raw.messages {
         messages.insert(name, build_message(message));

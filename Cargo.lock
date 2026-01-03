@@ -63,11 +63,11 @@ name = "benchmarks"
 version = "0.1.0"
 dependencies = [
  "common",
- "libc",
  "quadtree 0.2.0",
  "quadtree 0.5.0",
  "quadtree-f32",
  "quadtree_rs",
+ "rand 0.8.5",
  "spatialtree",
 ]
 
