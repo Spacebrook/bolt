@@ -36,7 +36,9 @@ impl DiffFieldSetWrapper {
             .iter()
             .zip(field_defaults)
             .enumerate()
-            .map(|(index, (field_type, value))| get_rust_value(py, field_type, value, index, None))
+            .map(|(index, (field_type, value))| {
+                get_rust_value(field_type, value.bind(py), index, None)
+            })
             .collect::<PyResult<SmallVec<[FieldValue; 16]>>>()?;
 
         Ok(Self {
@@ -87,7 +89,7 @@ impl DiffFieldSetWrapper {
             .enumerate()
             .map(|(index, (field_type, value))| {
                 let name = field_names.get(index).map(String::as_str);
-                get_rust_value(py, field_type, value, index, name)
+                get_rust_value(field_type, value.bind(py), index, name)
             })
             .collect::<PyResult<SmallVec<[FieldValue; 16]>>>()?;
 
@@ -175,7 +177,7 @@ impl DiffFieldSetWrapper {
             .enumerate()
             .map(|(index, (field_type, value))| {
                 let name = field_names.get(index).map(String::as_str);
-                get_rust_value(py, field_type, value, index, name)
+                get_rust_value(field_type, value.bind(py), index, name)
             })
             .collect::<PyResult<SmallVec<[FieldValue; 16]>>>()?;
 
@@ -190,12 +192,12 @@ impl DiffFieldSetWrapper {
         NET_SCHEMA.profiles.contains_key(profile_name)
     }
 
-    pub fn update(&mut self, py: Python, updates: &Bound<'_, PyList>) -> PyResult<()> {
+    pub fn update(&mut self, updates: &Bound<'_, PyList>) -> PyResult<()> {
         let mut rust_updates = SmallVec::<[FieldValue; 16]>::new();
         for (index, item) in updates.iter().enumerate() {
             let field_type = &self.diff_field_set.field_types[index];
             let field_name = self.field_names.get(index).map(String::as_str);
-            let value = get_rust_value(py, field_type, item.unbind(), index, field_name)?;
+            let value = get_rust_value(field_type, &item, index, field_name)?;
             rust_updates.push(value);
         }
         self.diff_field_set.update(rust_updates);
@@ -281,52 +283,59 @@ fn field_kind_to_type(kind: FieldKind) -> Option<FieldType> {
 }
 
 fn get_rust_value(
-    py: Python,
     field_type: &FieldType,
-    value: Py<PyAny>,
+    value: &Bound<'_, PyAny>,
     index: usize,
     field_name: Option<&str>,
 ) -> PyResult<FieldValue> {
-    if value.is_none(py) {
+    if value.is_none() {
         return Ok(FieldValue::None);
     }
 
     let label = field_name
         .map(|name| format!("{name} (index {index})"))
         .unwrap_or_else(|| format!("index {index}"));
-    let value_ref = value.bind(py);
-    let value_type = value_ref.get_type().name()?.to_string();
-    let value_repr = value_ref.repr()?.extract::<String>()?;
 
     match field_type {
-        FieldType::Int => value.extract::<i32>(py).map(FieldValue::Int).map_err(|_| {
-            PyTypeError::new_err(format!(
-                "Expected an integer value for {label}, got {value_type} value {value_repr}"
-            ))
-        }),
-        FieldType::Float => value
-            .extract::<f32>(py)
-            .map(FieldValue::Float)
-            .map_err(|_| {
-                PyTypeError::new_err(format!(
+        FieldType::Int => match value.extract::<i32>() {
+            Ok(val) => Ok(FieldValue::Int(val)),
+            Err(_) => {
+                let value_type = value.get_type().name()?.to_string_lossy().into_owned();
+                let value_repr = value.repr()?.to_string_lossy().into_owned();
+                Err(PyTypeError::new_err(format!(
+                    "Expected an integer value for {label}, got {value_type} value {value_repr}"
+                )))
+            }
+        },
+        FieldType::Float => match value.extract::<f32>() {
+            Ok(val) => Ok(FieldValue::Float(val)),
+            Err(_) => {
+                let value_type = value.get_type().name()?.to_string_lossy().into_owned();
+                let value_repr = value.repr()?.to_string_lossy().into_owned();
+                Err(PyTypeError::new_err(format!(
                     "Expected a float value for {label}, got {value_type} value {value_repr}"
-                ))
-            }),
-        FieldType::Bool => value
-            .extract::<bool>(py)
-            .map(FieldValue::Bool)
-            .map_err(|_| {
-                PyTypeError::new_err(format!(
+                )))
+            }
+        },
+        FieldType::Bool => match value.extract::<bool>() {
+            Ok(val) => Ok(FieldValue::Bool(val)),
+            Err(_) => {
+                let value_type = value.get_type().name()?.to_string_lossy().into_owned();
+                let value_repr = value.repr()?.to_string_lossy().into_owned();
+                Err(PyTypeError::new_err(format!(
                     "Expected a boolean value for {label}, got {value_type} value {value_repr}"
-                ))
-            }),
-        FieldType::String => value
-            .extract::<String>(py)
-            .map(FieldValue::String)
-            .map_err(|_| {
-                PyTypeError::new_err(format!(
+                )))
+            }
+        },
+        FieldType::String => match value.extract::<String>() {
+            Ok(val) => Ok(FieldValue::String(val)),
+            Err(_) => {
+                let value_type = value.get_type().name()?.to_string_lossy().into_owned();
+                let value_repr = value.repr()?.to_string_lossy().into_owned();
+                Err(PyTypeError::new_err(format!(
                     "Expected a string value for {label}, got {value_type} value {value_repr}"
-                ))
-            }),
+                )))
+            }
+        },
     }
 }
