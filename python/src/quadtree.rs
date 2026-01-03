@@ -5,13 +5,8 @@ use crate::{extract_entity_types, extract_shape, PyCircle, PyRectangle};
 use pyo3::exceptions::PyTypeError;
 use pyo3::pyclass;
 use pyo3::pymethods;
-use pyo3::types::PyList;
-use pyo3::types::PyTuple;
-use pyo3::IntoPy;
-use pyo3::Py;
-use pyo3::PyObject;
-use pyo3::PyResult;
-use pyo3::Python;
+use pyo3::types::{PyAny, PyAnyMethods, PyList, PyListMethods, PyTuple, PyTupleMethods};
+use pyo3::{Bound, Py, PyResult, Python};
 
 #[derive(Clone)]
 #[pyclass(name = "Config")]
@@ -71,11 +66,12 @@ impl QuadTreeWrapper {
         }
     }
 
+    #[pyo3(signature = (value, shape, entity_type=None))]
     pub fn insert(
         &mut self,
         py: Python,
         value: u32,
-        shape: PyObject,
+        shape: Py<PyAny>,
         entity_type: Option<u32>,
     ) -> PyResult<()> {
         let shape = extract_shape(py, shape)?;
@@ -87,15 +83,16 @@ impl QuadTreeWrapper {
         self.quadtree.delete(value);
     }
 
-    pub fn collisions(&self, py: Python, shape: PyObject) -> PyResult<Vec<u32>> {
+    pub fn collisions(&self, py: Python, shape: Py<PyAny>) -> PyResult<Vec<u32>> {
         return self.collisions_filter(py, shape, None);
     }
 
+    #[pyo3(signature = (shape, entity_types=None))]
     pub fn collisions_filter(
         &self,
         py: Python,
-        shape: PyObject,
-        entity_types: Option<&PyList>,
+        shape: Py<PyAny>,
+        entity_types: Option<&Bound<'_, PyList>>,
     ) -> PyResult<Vec<u32>> {
         let shape = extract_shape(py, shape)?;
 
@@ -107,19 +104,20 @@ impl QuadTreeWrapper {
         Ok(collisions)
     }
 
-    pub fn collisions_batch(&self, py: Python, shapes: &PyList) -> PyResult<Vec<Vec<u32>>> {
+    pub fn collisions_batch(&self, py: Python, shapes: &Bound<'_, PyList>) -> PyResult<Vec<Vec<u32>>> {
         self.collisions_batch_filter(py, shapes, None)
     }
 
+    #[pyo3(signature = (shapes, entity_types=None))]
     pub fn collisions_batch_filter(
         &self,
         py: Python,
-        shapes: &PyList,
-        entity_types: Option<&PyList>,
+        shapes: &Bound<'_, PyList>,
+        entity_types: Option<&Bound<'_, PyList>>,
     ) -> PyResult<Vec<Vec<u32>>> {
         let shapes: Vec<ShapeEnum> = shapes
             .iter()
-            .map(|shape| extract_shape(py, shape.into()))
+            .map(|shape| extract_shape(py, shape.unbind()))
             .collect::<Result<_, _>>()?;
 
         let entity_types = extract_entity_types(entity_types)?;
@@ -127,11 +125,12 @@ impl QuadTreeWrapper {
         Ok(self.quadtree.collisions_batch_filter(shapes, entity_types))
     }
 
+    #[pyo3(signature = (value, shape, entity_type=None))]
     pub fn relocate(
         &mut self,
         py: Python,
         value: u32,
-        shape: PyObject,
+        shape: Py<PyAny>,
         entity_type: Option<u32>,
     ) -> PyResult<()> {
         let shape = extract_shape(py, shape)?;
@@ -142,25 +141,25 @@ impl QuadTreeWrapper {
     pub fn relocate_batch(
         &mut self,
         py: Python,
-        relocation_requests: Vec<&PyTuple>,
+        relocation_requests: Vec<Bound<'_, PyTuple>>,
     ) -> PyResult<()> {
         // Convert the Python tuples into Rust RelocationRequest objects
         let requests: Vec<RelocationRequest> = relocation_requests
             .into_iter()
             .map(|tuple| {
-                let value = tuple.get_item(0).unwrap().extract::<u32>().unwrap();
-                let shape = extract_shape(py, tuple.get_item(1).unwrap().into()).unwrap();
-                let entity_type: Option<u32> = match tuple.get_item(2).unwrap() {
-                    obj if obj.is_none() => None, // Check if it's a Python None
-                    obj => Some(obj.extract::<u32>().unwrap()),
+                let value = tuple.get_item(0)?.extract::<u32>()?;
+                let shape = extract_shape(py, tuple.get_item(1)?.unbind())?;
+                let entity_type: Option<u32> = match tuple.get_item(2)? {
+                    obj if obj.is_none() => None,
+                    obj => Some(obj.extract::<u32>()?),
                 };
-                RelocationRequest {
+                Ok(RelocationRequest {
                     value,
                     shape,
                     entity_type,
-                }
+                })
             })
-            .collect();
+            .collect::<PyResult<_>>()?;
 
         self.quadtree.relocate_batch(requests);
 
@@ -183,7 +182,7 @@ impl QuadTreeWrapper {
             .collect()
     }
 
-    pub fn all_shapes(&self, py: Python) -> PyResult<Vec<PyObject>> {
+    pub fn all_shapes(&self, py: Python) -> PyResult<Vec<Py<PyAny>>> {
         let mut shapes = Vec::new();
         self.quadtree.all_shapes(&mut shapes);
         let mut py_shapes = Vec::new();
@@ -197,7 +196,7 @@ impl QuadTreeWrapper {
                         radius: circle.radius,
                     },
                 )?
-                .into_py(py)
+                .into()
             } else if let Some(rect) = shape.as_any().downcast_ref::<Rectangle>() {
                 Py::new(
                     py,
@@ -208,7 +207,7 @@ impl QuadTreeWrapper {
                         rect.height,
                     ),
                 )?
-                .into_py(py)
+                .into()
             } else {
                 return Err(PyTypeError::new_err("Unknown shape"));
             };

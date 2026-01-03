@@ -6,6 +6,7 @@ use pyo3::prelude::*;
 use pyo3::pyclass;
 use pyo3::pymethods;
 use pyo3::types::{PyAny, PyDict, PyList};
+use pyo3::IntoPyObjectExt;
 use smallvec::SmallVec;
 use std::collections::HashMap;
 
@@ -18,7 +19,11 @@ pub struct DiffFieldSetWrapper {
 #[pymethods]
 impl DiffFieldSetWrapper {
     #[new]
-    pub fn new(py: Python, field_types: Vec<i32>, field_defaults: Vec<PyObject>) -> PyResult<Self> {
+    pub fn new(
+        py: Python,
+        field_types: Vec<i32>,
+        field_defaults: Vec<Py<PyAny>>,
+    ) -> PyResult<Self> {
         // Convert Py field types to Rust field types
         let rust_field_types = field_types
             .into_iter()
@@ -45,7 +50,7 @@ impl DiffFieldSetWrapper {
         py: Python,
         message_name: &str,
         field_names: Vec<String>,
-        field_defaults: Vec<PyObject>,
+        field_defaults: Vec<Py<PyAny>>,
     ) -> PyResult<Self> {
         if field_names.len() != field_defaults.len() {
             return Err(PyTypeError::new_err(format!(
@@ -96,7 +101,7 @@ impl DiffFieldSetWrapper {
     pub fn from_profile(
         py: Python,
         profile_name: &str,
-        field_defaults: Option<&PyAny>,
+        field_defaults: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
         let profile = NET_SCHEMA.profiles.get(profile_name).ok_or_else(|| {
             PyTypeError::new_err(format!("Unknown profile schema: {profile_name}"))
@@ -133,9 +138,9 @@ impl DiffFieldSetWrapper {
             .map(|(index, name): (usize, &String)| (name.clone(), index))
             .collect();
 
-        let mut defaults: Vec<PyObject> = vec![py.None(); field_names.len()];
+        let mut defaults: Vec<Py<PyAny>> = (0..field_names.len()).map(|_| py.None()).collect();
         if let Some(values) = field_defaults {
-            if let Ok(list) = values.downcast::<PyList>() {
+            if let Ok(list) = values.cast::<PyList>() {
                 if list.len() != field_names.len() {
                     return Err(PyTypeError::new_err(format!(
                         "Field defaults length mismatch for {profile_name}: expected {}, got {}",
@@ -145,9 +150,9 @@ impl DiffFieldSetWrapper {
                 }
                 defaults = list
                     .iter()
-                    .map(|value| value.to_object(py))
+                    .map(|value| value.unbind())
                     .collect();
-            } else if let Ok(dict) = values.downcast::<PyDict>() {
+            } else if let Ok(dict) = values.cast::<PyDict>() {
                 for (key, value) in dict.iter() {
                     let name = key.extract::<String>()?;
                     let index = field_name_to_index.get(&name).ok_or_else(|| {
@@ -155,7 +160,7 @@ impl DiffFieldSetWrapper {
                             "Unknown default field '{name}' for profile {profile_name}"
                         ))
                     })?;
-                    defaults[*index] = value.to_object(py);
+                    defaults[*index] = value.unbind();
                 }
             } else {
                 return Err(PyTypeError::new_err(
@@ -185,12 +190,12 @@ impl DiffFieldSetWrapper {
         NET_SCHEMA.profiles.contains_key(profile_name)
     }
 
-    pub fn update(&mut self, py: Python, updates: &PyList) -> PyResult<()> {
+    pub fn update(&mut self, py: Python, updates: &Bound<'_, PyList>) -> PyResult<()> {
         let mut rust_updates = SmallVec::<[FieldValue; 16]>::new();
         for (index, item) in updates.iter().enumerate() {
             let field_type = &self.diff_field_set.field_types[index];
             let field_name = self.field_names.get(index).map(String::as_str);
-            let value = get_rust_value(py, field_type, item.to_object(py), index, field_name)?;
+            let value = get_rust_value(py, field_type, item.unbind(), index, field_name)?;
             rust_updates.push(value);
         }
         self.diff_field_set.update(rust_updates);
@@ -201,21 +206,21 @@ impl DiffFieldSetWrapper {
         self.diff_field_set.has_changed()
     }
 
-    pub fn get_diff(&self, py: Python) -> PyResult<PyObject> {
+    pub fn get_diff(&self, py: Python) -> PyResult<Py<PyAny>> {
         let diff = self.diff_field_set.get_diff();
         convert_to_py_list(py, diff)
     }
 
-    pub fn get_all(&self, py: Python) -> PyResult<PyObject> {
+    pub fn get_all(&self, py: Python) -> PyResult<Py<PyAny>> {
         let all_fields = self.diff_field_set.get_all();
         convert_to_py_list(py, all_fields)
     }
 
-    pub fn get_diff_named(&self, py: Python) -> PyResult<PyObject> {
+    pub fn get_diff_named(&self, py: Python) -> PyResult<Py<PyAny>> {
         convert_to_py_dict(py, &self.field_names, self.diff_field_set.get_diff())
     }
 
-    pub fn get_all_named(&self, py: Python) -> PyResult<PyObject> {
+    pub fn get_all_named(&self, py: Python) -> PyResult<Py<PyAny>> {
         convert_to_py_dict(py, &self.field_names, self.diff_field_set.get_all())
     }
 }
@@ -223,26 +228,26 @@ impl DiffFieldSetWrapper {
 fn convert_to_py_list(
     py: Python,
     field_values: SmallVec<[(usize, FieldValue); 16]>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let py_list = PyList::empty(py);
     for (index, value) in field_values {
         let py_value = match value {
-            FieldValue::Int(val) => val.into_py(py),
-            FieldValue::Float(val) => val.into_py(py),
-            FieldValue::Bool(val) => val.into_py(py),
-            FieldValue::String(val) => val.into_py(py),
+            FieldValue::Int(val) => val.into_py_any(py)?,
+            FieldValue::Float(val) => val.into_py_any(py)?,
+            FieldValue::Bool(val) => val.into_py_any(py)?,
+            FieldValue::String(val) => val.into_py_any(py)?,
             FieldValue::None => py.None(),
         };
         py_list.append((index, py_value))?;
     }
-    Ok(py_list.to_object(py))
+    Ok(py_list.unbind().into_any())
 }
 
 fn convert_to_py_dict(
     py: Python,
     names: &[String],
     field_values: SmallVec<[(usize, FieldValue); 16]>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     if names.is_empty() {
         return Err(PyTypeError::new_err(
             "Field names not configured for DiffFieldSet",
@@ -254,15 +259,15 @@ fn convert_to_py_dict(
             PyTypeError::new_err(format!("Field index out of range: {index}"))
         })?;
         let py_value = match value {
-            FieldValue::Int(val) => val.into_py(py),
-            FieldValue::Float(val) => val.into_py(py),
-            FieldValue::Bool(val) => val.into_py(py),
-            FieldValue::String(val) => val.into_py(py),
+            FieldValue::Int(val) => val.into_py_any(py)?,
+            FieldValue::Float(val) => val.into_py_any(py)?,
+            FieldValue::Bool(val) => val.into_py_any(py)?,
+            FieldValue::String(val) => val.into_py_any(py)?,
             FieldValue::None => py.None(),
         };
         dict.set_item(name.as_str(), py_value)?;
     }
-    Ok(dict.to_object(py))
+    Ok(dict.unbind().into_any())
 }
 
 fn field_kind_to_type(kind: FieldKind) -> Option<FieldType> {
@@ -278,7 +283,7 @@ fn field_kind_to_type(kind: FieldKind) -> Option<FieldType> {
 fn get_rust_value(
     py: Python,
     field_type: &FieldType,
-    value: PyObject,
+    value: Py<PyAny>,
     index: usize,
     field_name: Option<&str>,
 ) -> PyResult<FieldValue> {
@@ -289,7 +294,7 @@ fn get_rust_value(
     let label = field_name
         .map(|name| format!("{name} (index {index})"))
         .unwrap_or_else(|| format!("index {index}"));
-    let value_ref = value.as_ref(py);
+    let value_ref = value.bind(py);
     let value_type = value_ref.get_type().name()?.to_string();
     let value_repr = value_ref.repr()?.extract::<String>()?;
 

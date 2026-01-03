@@ -1,7 +1,8 @@
 use netcode::{FieldKind, MessageSchema, NET_SCHEMA};
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyDict, PyList};
+use pyo3::types::{PyBytes, PyBytesMethods, PyDict, PyDictMethods, PyList, PyListMethods};
+use pyo3::{Bound, IntoPyObjectExt};
 
 const FRAME_VERSION: u8 = 1;
 
@@ -15,7 +16,7 @@ impl NetCodec {
         NetCodec
     }
 
-    pub fn encode_frame(&self, py: Python, payload: &PyDict) -> PyResult<Py<PyBytes>> {
+    pub fn encode_frame(&self, py: Python, payload: &Bound<'_, PyDict>) -> PyResult<Py<PyBytes>> {
         let mut buffer = Vec::with_capacity(2048);
 
         let sequence = get_u32(payload, "sequence")?.unwrap_or(0);
@@ -145,17 +146,17 @@ impl NetCodec {
         encode_entity_list(py, entity_schema, entities, &mut buffer)?;
         encode_entity_list(py, entity_schema, global_entities, &mut buffer)?;
 
-        Ok(PyBytes::new(py, &buffer).into_py(py))
+        Ok(PyBytes::new(py, &buffer).unbind())
     }
 
-    pub fn encode_message(&self, py: Python, name: &str, payload: &PyDict) -> PyResult<Py<PyBytes>> {
+    pub fn encode_message(&self, py: Python, name: &str, payload: &Bound<'_, PyDict>) -> PyResult<Py<PyBytes>> {
         let schema = get_schema(name)?;
         let mut buffer = Vec::with_capacity(256);
         encode_message(py, schema, payload, &mut buffer)?;
-        Ok(PyBytes::new(py, &buffer).into_py(py))
+        Ok(PyBytes::new(py, &buffer).unbind())
     }
 
-    pub fn decode_message(&self, py: Python, name: &str, bytes: &PyBytes) -> PyResult<Py<PyDict>> {
+    pub fn decode_message(&self, py: Python, name: &str, bytes: &Bound<'_, PyBytes>) -> PyResult<Py<PyDict>> {
         let schema = get_schema(name)?;
         let mut cursor = Cursor::new(bytes.as_bytes());
         let dict = decode_message(py, schema, &mut cursor)?;
@@ -163,10 +164,10 @@ impl NetCodec {
     }
 }
 
-fn encode_entity_list(
-    py: Python,
-    schema: &MessageSchema,
-    list: Option<&PyList>,
+fn encode_entity_list<'py>(
+    py: Python<'py>,
+    schema: &'py MessageSchema,
+    list: Option<Bound<'py, PyList>>,
     buffer: &mut Vec<u8>,
 ) -> PyResult<()> {
     let entities = match list {
@@ -179,19 +180,19 @@ fn encode_entity_list(
 
     write_u32(buffer, entities.len() as u32);
     for item in entities.iter() {
-        let dict = item.downcast::<PyDict>()?;
+        let dict = item.cast::<PyDict>()?;
         encode_message(py, schema, dict, buffer)?;
     }
     Ok(())
 }
 
-fn encode_message(
-    py: Python,
-    schema: &MessageSchema,
-    dict: &PyDict,
+fn encode_message<'py>(
+    py: Python<'py>,
+    schema: &'py MessageSchema,
+    dict: &Bound<'py, PyDict>,
     buffer: &mut Vec<u8>,
 ) -> PyResult<()> {
-    let mut entries: Vec<(u16, &netcode::FieldSchema, PyObject)> = Vec::new();
+    let mut entries: Vec<(u16, &netcode::FieldSchema, Bound<'py, PyAny>)> = Vec::new();
 
     for (key, value) in dict.iter() {
         if value.is_none() {
@@ -199,12 +200,12 @@ fn encode_message(
         }
         let key_str: String = key.extract()?;
         if key_str == "hero" {
-            let hero = value.downcast::<PyDict>()?;
+            let hero = value.cast::<PyDict>()?;
             append_hero_fields(schema, hero, &mut entries)?;
             continue;
         }
         if let Some(field) = schema.fields_by_name.get(&key_str) {
-            entries.push((field.number, field, value.into_py(py)));
+            entries.push((field.number, field, value));
         }
     }
 
@@ -218,10 +219,10 @@ fn encode_message(
     Ok(())
 }
 
-fn append_hero_fields<'a>(
-    schema: &'a MessageSchema,
-    hero: &PyDict,
-    entries: &mut Vec<(u16, &'a netcode::FieldSchema, PyObject)>,
+fn append_hero_fields<'py>(
+    schema: &'py MessageSchema,
+    hero: &Bound<'py, PyDict>,
+    entries: &mut Vec<(u16, &'py netcode::FieldSchema, Bound<'py, PyAny>)>,
 ) -> PyResult<()> {
     for (key, value) in hero.iter() {
         if value.is_none() {
@@ -229,34 +230,34 @@ fn append_hero_fields<'a>(
         }
         let key_str: String = key.extract()?;
         if let Some(field) = schema.fields_by_name.get(&key_str) {
-            entries.push((field.number, field, value.into()));
+            entries.push((field.number, field, value));
         }
     }
     Ok(())
 }
 
-fn encode_field_value(
-    py: Python,
+fn encode_field_value<'py>(
+    py: Python<'py>,
     field: &netcode::FieldSchema,
-    value: &PyObject,
+    value: &Bound<'py, PyAny>,
     buffer: &mut Vec<u8>,
 ) -> PyResult<()> {
     if field.is_repeated {
-        let list = value.as_ref(py).downcast::<PyList>()?;
+        let list = value.cast::<PyList>()?;
         write_u16(buffer, list.len() as u16);
         for item in list.iter() {
-            encode_single_value(py, field, item, buffer)?;
+            encode_single_value(py, field, &item, buffer)?;
         }
         return Ok(());
     }
 
-    encode_single_value(py, field, value.as_ref(py), buffer)
+    encode_single_value(py, field, value, buffer)
 }
 
-fn encode_single_value(
-    py: Python,
+fn encode_single_value<'py>(
+    py: Python<'py>,
     field: &netcode::FieldSchema,
-    value: &PyAny,
+    value: &Bound<'py, PyAny>,
     buffer: &mut Vec<u8>,
 ) -> PyResult<()> {
     match field.kind {
@@ -281,11 +282,11 @@ fn encode_single_value(
             write_bytes(buffer, value.as_bytes());
         }
         FieldKind::Bytes => {
-            let bytes: &PyBytes = value.extract()?;
+            let bytes = value.cast::<PyBytes>()?;
             write_bytes(buffer, bytes.as_bytes());
         }
         FieldKind::Message => {
-            let dict = value.downcast::<PyDict>()?;
+            let dict = value.cast::<PyDict>()?;
             let message_schema = match field.type_name.as_deref() {
                 Some(name) => get_schema(name)?,
                 other => {
@@ -301,19 +302,17 @@ fn encode_single_value(
     Ok(())
 }
 
-fn extract_i32(value: &PyAny, name: &str) -> PyResult<i32> {
+fn extract_i32(value: &Bound<'_, PyAny>, name: &str) -> PyResult<i32> {
     if let Ok(v) = value.extract::<i32>() {
         return Ok(v);
     }
     if let Ok(v) = value.extract::<f32>() {
         return Ok(v as i32);
     }
-    Err(PyTypeError::new_err(format!(
-        "Expected int32 for {name}"
-    )))
+    Err(PyTypeError::new_err(format!("Expected int32 for {name}")))
 }
 
-fn extract_u32(value: &PyAny, name: &str) -> PyResult<u32> {
+fn extract_u32(value: &Bound<'_, PyAny>, name: &str) -> PyResult<u32> {
     if let Ok(v) = value.extract::<u32>() {
         return Ok(v);
     }
@@ -325,37 +324,32 @@ fn extract_u32(value: &PyAny, name: &str) -> PyResult<u32> {
         }
         return Ok(v as u32);
     }
-    Err(PyTypeError::new_err(format!(
-        "Expected uint32 for {name}"
-    )))
+    Err(PyTypeError::new_err(format!("Expected uint32 for {name}")))
 }
 
-fn extract_f32(value: &PyAny, name: &str) -> PyResult<f32> {
+fn extract_f32(value: &Bound<'_, PyAny>, name: &str) -> PyResult<f32> {
     if let Ok(v) = value.extract::<f32>() {
         return Ok(v);
     }
     if let Ok(v) = value.extract::<i32>() {
         return Ok(v as f32);
     }
-    Err(PyTypeError::new_err(format!(
-        "Expected float for {name}"
-    )))
+    Err(PyTypeError::new_err(format!("Expected float for {name}")))
 }
 
-fn extract_bool(value: &PyAny, name: &str) -> PyResult<bool> {
+fn extract_bool(value: &Bound<'_, PyAny>, name: &str) -> PyResult<bool> {
     if let Ok(v) = value.extract::<bool>() {
         return Ok(v);
     }
     let type_name = value
         .get_type()
         .name()
-        .unwrap_or("unknown")
-        .to_string();
+        .map(|value| value.to_string_lossy().into_owned())
+        .unwrap_or_else(|_| "unknown".to_string());
     let repr = value
         .repr()
-        .ok()
-        .and_then(|value| value.extract::<String>().ok())
-        .unwrap_or_else(|| "<unrepr>".to_string());
+        .map(|value| value.to_string_lossy().into_owned())
+        .unwrap_or_else(|_| "<unrepr>".to_string());
     Err(PyTypeError::new_err(format!(
         "Expected bool for {name}, got {type_name} value {repr}"
     )))
@@ -383,31 +377,31 @@ fn write_bytes(buffer: &mut Vec<u8>, bytes: &[u8]) {
     buffer.extend_from_slice(bytes);
 }
 
-fn get_u32(payload: &PyDict, key: &str) -> PyResult<Option<u32>> {
-    match payload.get_item(key) {
+fn get_u32(payload: &Bound<'_, PyDict>, key: &str) -> PyResult<Option<u32>> {
+    match payload.get_item(key)? {
         Some(value) if !value.is_none() => value.extract::<u32>().map(Some),
         _ => Ok(None),
     }
 }
 
-fn get_f32(payload: &PyDict, key: &str) -> PyResult<Option<f32>> {
-    match payload.get_item(key) {
+fn get_f32(payload: &Bound<'_, PyDict>, key: &str) -> PyResult<Option<f32>> {
+    match payload.get_item(key)? {
         Some(value) if !value.is_none() => value.extract::<f32>().map(Some),
         _ => Ok(None),
     }
 }
 
-fn get_bool(payload: &PyDict, key: &str) -> PyResult<bool> {
-    match payload.get_item(key) {
+fn get_bool(payload: &Bound<'_, PyDict>, key: &str) -> PyResult<bool> {
+    match payload.get_item(key)? {
         Some(value) if !value.is_none() => value.extract::<bool>(),
         _ => Ok(false),
     }
 }
 
-fn get_bytes(payload: &PyDict, key: &str) -> PyResult<Option<Vec<u8>>> {
-    match payload.get_item(key) {
+fn get_bytes(payload: &Bound<'_, PyDict>, key: &str) -> PyResult<Option<Vec<u8>>> {
+    match payload.get_item(key)? {
         Some(value) if !value.is_none() => {
-            let bytes: &PyBytes = value.extract()?;
+            let bytes = value.cast::<PyBytes>()?;
             Ok(Some(bytes.as_bytes().to_vec()))
         }
         _ => Ok(None),
@@ -416,16 +410,16 @@ fn get_bytes(payload: &PyDict, key: &str) -> PyResult<Option<Vec<u8>>> {
 
 fn get_message_bytes(
     py: Python,
-    payload: &PyDict,
+    payload: &Bound<'_, PyDict>,
     key: &str,
     message_name: &str,
 ) -> PyResult<Option<Vec<u8>>> {
-    match payload.get_item(key) {
+    match payload.get_item(key)? {
         Some(value) if !value.is_none() => {
-            if let Ok(bytes) = value.extract::<&PyBytes>() {
+            if let Ok(bytes) = value.cast::<PyBytes>() {
                 return Ok(Some(bytes.as_bytes().to_vec()));
             }
-            let dict = value.downcast::<PyDict>()?;
+            let dict = value.cast::<PyDict>()?;
             let schema = get_schema(message_name)?;
             let mut buffer = Vec::with_capacity(128);
             encode_message(py, schema, dict, &mut buffer)?;
@@ -435,9 +429,9 @@ fn get_message_bytes(
     }
 }
 
-fn get_list<'a>(payload: &'a PyDict, key: &str) -> PyResult<Option<&'a PyList>> {
-    match payload.get_item(key) {
-        Some(value) if !value.is_none() => Ok(Some(value.downcast::<PyList>()?)),
+fn get_list<'py>(payload: &Bound<'py, PyDict>, key: &str) -> PyResult<Option<Bound<'py, PyList>>> {
+    match payload.get_item(key)? {
+        Some(value) if !value.is_none() => Ok(Some(value.cast::<PyList>()?.clone())),
         _ => Ok(None),
     }
 }
@@ -549,21 +543,21 @@ fn decode_single_value(
     py: Python,
     field: &netcode::FieldSchema,
     cursor: &mut Cursor,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     match field.kind {
-        FieldKind::Int32 | FieldKind::Enum => Ok(cursor.read_i32()?.into_py(py)),
-        FieldKind::UInt32 => Ok(cursor.read_u32()?.into_py(py)),
-        FieldKind::Float => Ok(cursor.read_f32()?.into_py(py)),
-        FieldKind::Bool => Ok((cursor.read_u8()? == 1).into_py(py)),
+        FieldKind::Int32 | FieldKind::Enum => Ok(cursor.read_i32()?.into_py_any(py)?),
+        FieldKind::UInt32 => Ok(cursor.read_u32()?.into_py_any(py)?),
+        FieldKind::Float => Ok(cursor.read_f32()?.into_py_any(py)?),
+        FieldKind::Bool => Ok((cursor.read_u8()? == 1).into_py_any(py)?),
         FieldKind::String => {
             let bytes = cursor.read_bytes()?;
             let value = String::from_utf8(bytes.to_vec())
                 .map_err(|_| PyTypeError::new_err("Invalid UTF-8 string"))?;
-            Ok(value.into_py(py))
+            Ok(value.into_py_any(py)?)
         }
         FieldKind::Bytes => {
             let bytes = cursor.read_bytes()?;
-            Ok(PyBytes::new(py, bytes).into_py(py))
+            Ok(PyBytes::new(py, bytes).unbind().into())
         }
         FieldKind::Message => {
             let message_schema = match field.type_name.as_deref() {
@@ -576,7 +570,7 @@ fn decode_single_value(
                 }
             };
             let value = decode_message(py, message_schema, cursor)?;
-            Ok(value.into_py(py))
+            Ok(value.into())
         }
     }
 }

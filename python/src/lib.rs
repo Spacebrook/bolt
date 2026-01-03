@@ -5,8 +5,8 @@ use parry2d::shape::{Ball, Cuboid, SharedShape};
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use pyo3::pymethods;
-use pyo3::types::PyList;
-use pyo3::{PyObject, PyResult, Python};
+use pyo3::types::{PyList, PyListMethods, PyModule, PyModuleMethods};
+use pyo3::{Bound, PyResult, Python};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
@@ -21,29 +21,29 @@ use crate::quadtree::{PyConfig, QuadTreeWrapper};
 use crate::serialization::DiffFieldSetWrapper;
 
 #[pymodule]
-fn pycollisions(_py: Python, m: &PyModule) -> PyResult<()> {
-    m.add_wrapped(wrap_pyfunction!(get_mtv))?;
+fn pycollisions(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(get_mtv, m)?)?;
     Ok(())
 }
 
 #[pymodule]
-fn pyquadtree(_py: Python, m: &PyModule) -> PyResult<()> {
+fn pyquadtree(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<QuadTreeWrapper>()?;
     m.add_class::<PyConfig>()?;
     Ok(())
 }
 
 #[pymodule]
-fn pyserialization(_py: Python, m: &PyModule) -> PyResult<()> {
+fn pyserialization(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<DiffFieldSetWrapper>()?;
     Ok(())
 }
 
 #[pymodule]
-fn bolt(py: Python, m: &PyModule) -> PyResult<()> {
+fn bolt(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     let submod_collisions = PyModule::new(py, "collisions")?;
     pycollisions(py, &submod_collisions)?;
-    m.add_submodule(submod_collisions)?;
+    m.add_submodule(&submod_collisions)?;
 
     m.add_class::<QuadTreeWrapper>()?;
     m.add_class::<PyConfig>()?;
@@ -228,7 +228,7 @@ impl PyRng {
     }
 }
 
-fn extract_shape(py: Python, shape: PyObject) -> PyResult<ShapeEnum> {
+fn extract_shape(py: Python, shape: Py<PyAny>) -> PyResult<ShapeEnum> {
     if let Ok(py_rectangle) = shape.extract::<PyRectangle>(py) {
         Ok(ShapeEnum::Rectangle(py_rectangle.rectangle))
     } else if let Ok(py_circle) = shape.extract::<PyCircle>(py) {
@@ -244,7 +244,7 @@ fn extract_shape(py: Python, shape: PyObject) -> PyResult<ShapeEnum> {
     }
 }
 
-fn extract_shape_ncollide(py: Python, shape: PyObject) -> PyResult<ShapeWithPosition> {
+fn extract_shape_ncollide(py: Python, shape: Py<PyAny>) -> PyResult<ShapeWithPosition> {
     if let Ok(py_square) = shape.extract::<PySquare>(py) {
         return Ok(ShapeWithPosition {
             shape: SharedShape::new(Cuboid::new(Vector::new(
@@ -271,7 +271,7 @@ fn extract_shape_ncollide(py: Python, shape: PyObject) -> PyResult<ShapeWithPosi
     }
 }
 
-fn extract_entity_types(entity_types: Option<&PyList>) -> PyResult<Option<Vec<u32>>> {
+fn extract_entity_types(entity_types: Option<&Bound<'_, PyList>>) -> PyResult<Option<Vec<u32>>> {
     match entity_types {
         Some(entity_types_list) => {
             let et: Result<Vec<u32>, _> = entity_types_list
