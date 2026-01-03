@@ -5,7 +5,7 @@ use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use pyo3::pyclass;
 use pyo3::pymethods;
-use pyo3::types::{PyAny, PyDict, PyList};
+use pyo3::types::{PyAny, PyBool, PyDict, PyFloat, PyInt, PyList, PyString, PyStringMethods};
 use pyo3::IntoPyObjectExt;
 use smallvec::SmallVec;
 use std::collections::HashMap;
@@ -204,6 +204,102 @@ impl DiffFieldSetWrapper {
         Ok(())
     }
 
+    pub fn update_from_getters(
+        &mut self,
+        obj: &Bound<'_, PyAny>,
+        getters: &Bound<'_, PyList>,
+    ) -> PyResult<()> {
+        update_from_getters_internal(self, obj, getters)?;
+        Ok(())
+    }
+
+    pub fn update_from_getters_with_children(
+        &mut self,
+        obj: &Bound<'_, PyAny>,
+        getters: &Bound<'_, PyList>,
+        children: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        update_from_getters_internal(self, obj, getters)?;
+        update_children_internal(obj, children)?;
+        Ok(())
+    }
+
+    #[staticmethod]
+    pub fn build_child_payload(
+        obj: &Bound<'_, PyAny>,
+        include_all: bool,
+        children: &Bound<'_, PyDict>,
+        extras: &Bound<'_, PyList>,
+    ) -> PyResult<Py<PyAny>> {
+        build_payload_internal(None, obj, include_all, children, extras)
+    }
+
+    #[staticmethod]
+    pub fn build_child_payload_if_changed(
+        obj: &Bound<'_, PyAny>,
+        children: &Bound<'_, PyDict>,
+        extras: &Bound<'_, PyList>,
+    ) -> PyResult<Option<Py<PyAny>>> {
+        build_child_payload_if_changed_internal(obj, children, extras)
+    }
+
+    #[staticmethod]
+    pub fn update_children(obj: &Bound<'_, PyAny>, children: &Bound<'_, PyDict>) -> PyResult<()> {
+        update_children_internal(obj, children)
+    }
+
+    #[staticmethod]
+    pub fn child_has_changed(obj: &Bound<'_, PyAny>, children: &Bound<'_, PyDict>) -> PyResult<bool> {
+        child_has_changed_internal(obj, children)
+    }
+
+    pub fn build_payload(
+        &self,
+        obj: &Bound<'_, PyAny>,
+        include_all: bool,
+        children: &Bound<'_, PyDict>,
+        extras: &Bound<'_, PyList>,
+    ) -> PyResult<Py<PyAny>> {
+        build_payload_internal(
+            Some((self.field_names.as_slice(), &self.diff_field_set)),
+            obj,
+            include_all,
+            children,
+            extras,
+        )
+    }
+
+    pub fn build_payload_if_changed(
+        &self,
+        obj: &Bound<'_, PyAny>,
+        children: &Bound<'_, PyDict>,
+        extras: &Bound<'_, PyList>,
+    ) -> PyResult<Option<Py<PyAny>>> {
+        if self.field_names.is_empty() {
+            return Err(PyTypeError::new_err(
+                "Field names not configured for DiffFieldSet",
+            ));
+        }
+        build_payload_if_changed_internal(
+            &self.field_names,
+            &self.diff_field_set,
+            obj,
+            children,
+            extras,
+        )
+    }
+
+    pub fn has_changed_with_children(
+        &self,
+        obj: &Bound<'_, PyAny>,
+        children: &Bound<'_, PyDict>,
+    ) -> PyResult<bool> {
+        if self.diff_field_set.has_changed() {
+            return Ok(true);
+        }
+        child_has_changed_internal(obj, children)
+    }
+
     pub fn has_changed(&self) -> bool {
         self.diff_field_set.has_changed()
     }
@@ -256,19 +352,7 @@ fn convert_to_py_dict(
         ));
     }
     let dict = PyDict::new(py);
-    for (index, value) in field_values {
-        let name = names.get(index).ok_or_else(|| {
-            PyTypeError::new_err(format!("Field index out of range: {index}"))
-        })?;
-        let py_value = match value {
-            FieldValue::Int(val) => val.into_py_any(py)?,
-            FieldValue::Float(val) => val.into_py_any(py)?,
-            FieldValue::Bool(val) => val.into_py_any(py)?,
-            FieldValue::String(val) => val.into_py_any(py)?,
-            FieldValue::None => py.None(),
-        };
-        dict.set_item(name.as_str(), py_value)?;
-    }
+    fill_py_dict(py, &dict, names, field_values)?;
     Ok(dict.unbind().into_any())
 }
 
@@ -291,51 +375,340 @@ fn get_rust_value(
     if value.is_none() {
         return Ok(FieldValue::None);
     }
-
-    let label = field_name
-        .map(|name| format!("{name} (index {index})"))
-        .unwrap_or_else(|| format!("index {index}"));
+    let label = || {
+        field_name
+            .map(|name| format!("{name} (index {index})"))
+            .unwrap_or_else(|| format!("index {index}"))
+    };
 
     match field_type {
-        FieldType::Int => match value.extract::<i32>() {
-            Ok(val) => Ok(FieldValue::Int(val)),
-            Err(_) => {
-                let value_type = value.get_type().name()?.to_string_lossy().into_owned();
-                let value_repr = value.repr()?.to_string_lossy().into_owned();
-                Err(PyTypeError::new_err(format!(
-                    "Expected an integer value for {label}, got {value_type} value {value_repr}"
-                )))
+        FieldType::Int => {
+            if let Ok(int_value) = value.cast_exact::<PyInt>() {
+                return Ok(FieldValue::Int(int_value.extract::<i32>()?));
             }
-        },
-        FieldType::Float => match value.extract::<f32>() {
-            Ok(val) => Ok(FieldValue::Float(val)),
-            Err(_) => {
-                let value_type = value.get_type().name()?.to_string_lossy().into_owned();
-                let value_repr = value.repr()?.to_string_lossy().into_owned();
-                Err(PyTypeError::new_err(format!(
-                    "Expected a float value for {label}, got {value_type} value {value_repr}"
-                )))
+            match value.extract::<i32>() {
+                Ok(val) => Ok(FieldValue::Int(val)),
+                Err(_) => {
+                    let value_type = value.get_type().name()?.to_string_lossy().into_owned();
+                    let value_repr = value.repr()?.to_string_lossy().into_owned();
+                    Err(PyTypeError::new_err(format!(
+                        "Expected an integer value for {}, got {value_type} value {value_repr}",
+                        label()
+                    )))
+                }
             }
-        },
-        FieldType::Bool => match value.extract::<bool>() {
-            Ok(val) => Ok(FieldValue::Bool(val)),
-            Err(_) => {
-                let value_type = value.get_type().name()?.to_string_lossy().into_owned();
-                let value_repr = value.repr()?.to_string_lossy().into_owned();
-                Err(PyTypeError::new_err(format!(
-                    "Expected a boolean value for {label}, got {value_type} value {value_repr}"
-                )))
+        }
+        FieldType::Float => {
+            if let Ok(float_value) = value.cast_exact::<PyFloat>() {
+                return Ok(FieldValue::Float(float_value.value() as f32));
             }
-        },
-        FieldType::String => match value.extract::<String>() {
-            Ok(val) => Ok(FieldValue::String(val)),
-            Err(_) => {
-                let value_type = value.get_type().name()?.to_string_lossy().into_owned();
-                let value_repr = value.repr()?.to_string_lossy().into_owned();
-                Err(PyTypeError::new_err(format!(
-                    "Expected a string value for {label}, got {value_type} value {value_repr}"
-                )))
+            match value.extract::<f32>() {
+                Ok(val) => Ok(FieldValue::Float(val)),
+                Err(_) => {
+                    let value_type = value.get_type().name()?.to_string_lossy().into_owned();
+                    let value_repr = value.repr()?.to_string_lossy().into_owned();
+                    Err(PyTypeError::new_err(format!(
+                        "Expected a float value for {}, got {value_type} value {value_repr}",
+                        label()
+                    )))
+                }
             }
-        },
+        }
+        FieldType::Bool => {
+            if let Ok(bool_value) = value.cast_exact::<PyBool>() {
+                return Ok(FieldValue::Bool(bool_value.is_true()));
+            }
+            match value.extract::<bool>() {
+                Ok(val) => Ok(FieldValue::Bool(val)),
+                Err(_) => {
+                    let value_type = value.get_type().name()?.to_string_lossy().into_owned();
+                    let value_repr = value.repr()?.to_string_lossy().into_owned();
+                    Err(PyTypeError::new_err(format!(
+                        "Expected a boolean value for {}, got {value_type} value {value_repr}",
+                        label()
+                    )))
+                }
+            }
+        }
+        FieldType::String => {
+            if let Ok(str_value) = value.cast_exact::<PyString>() {
+                let text = str_value.to_str()?.to_owned();
+                return Ok(FieldValue::String(text));
+            }
+            match value.extract::<String>() {
+                Ok(val) => Ok(FieldValue::String(val)),
+                Err(_) => {
+                    let value_type = value.get_type().name()?.to_string_lossy().into_owned();
+                    let value_repr = value.repr()?.to_string_lossy().into_owned();
+                    Err(PyTypeError::new_err(format!(
+                        "Expected a string value for {}, got {value_type} value {value_repr}",
+                        label()
+                    )))
+                }
+            }
+        }
     }
+}
+
+fn fill_py_dict(
+    py: Python,
+    dict: &Bound<'_, PyDict>,
+    names: &[String],
+    field_values: SmallVec<[(usize, FieldValue); 16]>,
+) -> PyResult<()> {
+    for (index, value) in field_values {
+        set_py_dict_value(py, dict, names, index, &value)?;
+    }
+    Ok(())
+}
+
+fn fill_py_dict_from_indices(
+    py: Python,
+    dict: &Bound<'_, PyDict>,
+    names: &[String],
+    fields: &[FieldValue],
+    indices: &[usize],
+) -> PyResult<()> {
+    for &index in indices {
+        let value = fields.get(index).ok_or_else(|| {
+            PyTypeError::new_err(format!("Field index out of range: {index}"))
+        })?;
+        set_py_dict_value(py, dict, names, index, value)?;
+    }
+    Ok(())
+}
+
+fn set_py_dict_value(
+    py: Python,
+    dict: &Bound<'_, PyDict>,
+    names: &[String],
+    index: usize,
+    value: &FieldValue,
+) -> PyResult<()> {
+    let name = names
+        .get(index)
+        .ok_or_else(|| PyTypeError::new_err(format!("Field index out of range: {index}")))?;
+    let py_value = match value {
+        FieldValue::Int(val) => val.into_py_any(py)?,
+        FieldValue::Float(val) => val.into_py_any(py)?,
+        FieldValue::Bool(val) => val.into_py_any(py)?,
+        FieldValue::String(val) => val.into_py_any(py)?,
+        FieldValue::None => py.None(),
+    };
+    dict.set_item(name.as_str(), py_value)?;
+    Ok(())
+}
+
+fn update_from_getters_internal(
+    wrapper: &mut DiffFieldSetWrapper,
+    obj: &Bound<'_, PyAny>,
+    getters: &Bound<'_, PyList>,
+) -> PyResult<()> {
+    wrapper.diff_field_set.changed_fields.clear();
+    wrapper.diff_field_set.fields_without_defaults.clear();
+    for (index, getter) in getters.iter().enumerate() {
+        let field_type = &wrapper.diff_field_set.field_types[index];
+        let field_name = wrapper.field_names.get(index).map(String::as_str);
+        let value = match getter.cast::<PyString>() {
+            Ok(name) => obj.getattr(name)?,
+            Err(_) => getter.call1((obj,))?,
+        };
+        let value = get_rust_value(field_type, &value, index, field_name)?;
+        if wrapper.diff_field_set.fields[index] != value {
+            wrapper.diff_field_set.fields[index] = value.clone();
+            wrapper.diff_field_set.changed_fields.push(index);
+        }
+        if wrapper.diff_field_set.field_defaults[index] != value {
+            wrapper.diff_field_set.fields_without_defaults.push(index);
+        }
+    }
+    Ok(())
+}
+
+fn update_children_internal(obj: &Bound<'_, PyAny>, children: &Bound<'_, PyDict>) -> PyResult<()> {
+    if children.is_empty() {
+        return Ok(());
+    }
+    for (_, value) in children.iter() {
+        let attr_name = value.cast::<PyString>()?;
+        let child = obj.getattr(attr_name)?;
+        if child.is_none() {
+            continue;
+        }
+        child.call_method0("update_field_set")?;
+    }
+    Ok(())
+}
+
+fn child_has_changed_internal(obj: &Bound<'_, PyAny>, children: &Bound<'_, PyDict>) -> PyResult<bool> {
+    if children.is_empty() {
+        return Ok(false);
+    }
+    for (_, value) in children.iter() {
+        let attr_name = value.cast::<PyString>()?;
+        let child = obj.getattr(attr_name)?;
+        if child.is_none() {
+            continue;
+        }
+        if child.call_method0("has_changed")?.is_truthy()? {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+fn build_child_payload_if_changed_internal(
+    obj: &Bound<'_, PyAny>,
+    children: &Bound<'_, PyDict>,
+    extras: &Bound<'_, PyList>,
+) -> PyResult<Option<Py<PyAny>>> {
+    let py = obj.py();
+    let mut child_payloads: Vec<(Bound<'_, PyAny>, Bound<'_, PyAny>)> = Vec::new();
+    let mut changed = false;
+    if !children.is_empty() {
+        for (key, value) in children.iter() {
+            let attr_name = value.cast::<PyString>()?;
+            let child = obj.getattr(attr_name)?;
+            if child.is_none() {
+                continue;
+            }
+            if child.call_method0("has_changed")?.is_truthy()? {
+                let payload = child.call_method0("get_diff")?;
+                child_payloads.push((key, payload));
+                changed = true;
+            }
+        }
+    }
+    if !changed {
+        return Ok(None);
+    }
+    let dict = PyDict::new(py);
+    for (key, payload) in child_payloads {
+        dict.set_item(key, payload)?;
+    }
+    for extra in extras.iter() {
+        let tuple = extra.cast::<pyo3::types::PyTuple>()?;
+        let key = tuple.get_item(0)?;
+        let getter = tuple.get_item(1)?;
+        let value = match getter.cast::<PyString>() {
+            Ok(name) => obj.getattr(name)?,
+            Err(_) => getter.call1((obj,))?,
+        };
+        dict.set_item(key, value)?;
+    }
+    Ok(Some(dict.unbind().into_any()))
+}
+
+fn build_payload_if_changed_internal(
+    names: &[String],
+    field_set: &DiffFieldSet,
+    obj: &Bound<'_, PyAny>,
+    children: &Bound<'_, PyDict>,
+    extras: &Bound<'_, PyList>,
+) -> PyResult<Option<Py<PyAny>>> {
+    let py = obj.py();
+    let mut child_payloads: Vec<(Bound<'_, PyAny>, Bound<'_, PyAny>)> = Vec::new();
+    let mut changed = field_set.has_changed();
+    if !children.is_empty() {
+        for (key, value) in children.iter() {
+            let attr_name = value.cast::<PyString>()?;
+            let child = obj.getattr(attr_name)?;
+            if child.is_none() {
+                continue;
+            }
+            if child.call_method0("has_changed")?.is_truthy()? {
+                let payload = child.call_method0("get_diff")?;
+                child_payloads.push((key, payload));
+                changed = true;
+            }
+        }
+    }
+    if !changed {
+        return Ok(None);
+    }
+    let dict = PyDict::new(py);
+    fill_py_dict_from_indices(
+        py,
+        &dict,
+        names,
+        &field_set.fields,
+        &field_set.changed_fields,
+    )?;
+    for (key, payload) in child_payloads {
+        dict.set_item(key, payload)?;
+    }
+    for extra in extras.iter() {
+        let tuple = extra.cast::<pyo3::types::PyTuple>()?;
+        let key = tuple.get_item(0)?;
+        let getter = tuple.get_item(1)?;
+        let value = match getter.cast::<PyString>() {
+            Ok(name) => obj.getattr(name)?,
+            Err(_) => getter.call1((obj,))?,
+        };
+        dict.set_item(key, value)?;
+    }
+    Ok(Some(dict.unbind().into_any()))
+}
+fn build_payload_internal(
+    fields: Option<(&[String], &DiffFieldSet)>,
+    obj: &Bound<'_, PyAny>,
+    include_all: bool,
+    children: &Bound<'_, PyDict>,
+    extras: &Bound<'_, PyList>,
+) -> PyResult<Py<PyAny>> {
+    let py = obj.py();
+    let dict = PyDict::new(py);
+    if let Some((names, field_set)) = fields {
+        if names.is_empty() {
+            return Err(PyTypeError::new_err(
+                "Field names not configured for DiffFieldSet",
+            ));
+        }
+        if include_all {
+            fill_py_dict_from_indices(
+                py,
+                &dict,
+                names,
+                &field_set.fields,
+                &field_set.fields_without_defaults,
+            )?;
+        } else {
+            fill_py_dict_from_indices(
+                py,
+                &dict,
+                names,
+                &field_set.fields,
+                &field_set.changed_fields,
+            )?;
+        }
+    }
+
+    for (key, value) in children.iter() {
+        let attr_name = value.cast::<PyString>()?;
+        let child = obj.getattr(attr_name)?;
+        if child.is_none() {
+            continue;
+        }
+        if include_all || child.call_method0("has_changed")?.is_truthy()? {
+            let child_payload = if include_all {
+                child.call_method0("get_all")?
+            } else {
+                child.call_method0("get_diff")?
+            };
+            dict.set_item(key, child_payload)?;
+        }
+    }
+
+    for extra in extras.iter() {
+        let tuple = extra.cast::<pyo3::types::PyTuple>()?;
+        let key = tuple.get_item(0)?;
+        let getter = tuple.get_item(1)?;
+        let value = match getter.cast::<PyString>() {
+            Ok(name) => obj.getattr(name)?,
+            Err(_) => getter.call1((obj,))?,
+        };
+        dict.set_item(key, value)?;
+    }
+
+    Ok(dict.unbind().into_any())
 }
