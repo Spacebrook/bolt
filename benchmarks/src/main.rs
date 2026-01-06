@@ -38,6 +38,15 @@ struct Entity {
 }
 
 impl Entity {
+    fn to_rectangle(&self) -> Rectangle {
+        Rectangle {
+            x: self.center_x(),
+            y: self.center_y(),
+            width: self.width(),
+            height: self.height(),
+        }
+    }
+
     fn width(&self) -> f32 {
         self.max_x - self.min_x
     }
@@ -52,15 +61,6 @@ impl Entity {
 
     fn center_y(&self) -> f32 {
         (self.min_y + self.max_y) * 0.5
-    }
-
-    fn to_rectangle(&self) -> Rectangle {
-        Rectangle {
-            x: self.center_x(),
-            y: self.center_y(),
-            width: self.width(),
-            height: self.height(),
-        }
     }
 
     fn query_rectangle(&self) -> Rectangle {
@@ -211,37 +211,44 @@ fn collide_entities(entity_a: &mut Entity, entity_b: &mut Entity) {
     let a_half = rect_to_half_extent(entity_a);
     let b_half = rect_to_half_extent(entity_b);
 
-    let dx = b_half.x - a_half.x;
-    let dy = b_half.y - a_half.y;
-    let w = a_half.w + b_half.w;
-    let h = a_half.h + b_half.h;
+    let diff_x = a_half.x - b_half.x;
+    let diff_y = a_half.y - b_half.y;
+    let overlap_x = (a_half.w + b_half.w) - diff_x.abs();
+    let overlap_y = (a_half.h + b_half.h) - diff_y.abs();
 
-    if dx.abs() <= w && dy.abs() <= h {
-        let wy = w * dy;
-        let hx = h * dx;
-
-        if wy > hx {
-            if wy > -hx {
-                move_entity(entity_a, 0.0, dy - h);
-            } else {
-                move_entity(entity_a, dx + w, 0.0);
-            }
-        } else if wy > -hx {
-            move_entity(entity_a, dx - w, 0.0);
-        } else {
-            move_entity(entity_a, 0.0, dy + h);
-        }
-
-        let size_a = a_half.w * a_half.h;
-        let size_b = b_half.w * b_half.h;
+    if overlap_x > 0.0 && overlap_y > 0.0 {
+        let size_a = a_half.w * a_half.h * 4.0;
+        let size_b = b_half.w * b_half.h * 4.0;
         let total_size = size_a + size_b;
 
-        if total_size > 0.0 {
+        if overlap_x < overlap_y {
+            let push_a = overlap_x * (size_b / total_size);
+            let push_b = overlap_x * (size_a / total_size);
+
+            if diff_x > 0.0 {
+                move_entity(entity_a, push_a, 0.0);
+                move_entity(entity_b, -push_b, 0.0);
+            } else {
+                move_entity(entity_a, -push_a, 0.0);
+                move_entity(entity_b, push_b, 0.0);
+            }
+
             let temp_vx = entity_a.vx;
             entity_a.vx =
                 (entity_a.vx * (size_a - size_b) + 2.0 * size_b * entity_b.vx) / total_size;
             entity_b.vx =
                 (entity_b.vx * (size_b - size_a) + 2.0 * size_a * temp_vx) / total_size;
+        } else {
+            let push_a = overlap_y * (size_b / total_size);
+            let push_b = overlap_y * (size_a / total_size);
+
+            if diff_y > 0.0 {
+                move_entity(entity_a, 0.0, push_a);
+                move_entity(entity_b, 0.0, -push_b);
+            } else {
+                move_entity(entity_a, 0.0, -push_a);
+                move_entity(entity_b, 0.0, push_b);
+            }
 
             let temp_vy = entity_a.vy;
             entity_a.vy =
@@ -290,16 +297,14 @@ fn resolve_pair(entities: &mut [Entity], a: u32, b: u32) {
         return;
     }
 
-    if a < b {
-        let (left, right) = entities.split_at_mut(b);
-        let entity_a = &mut left[a];
-        let entity_b = &mut right[0];
-        collide_entities(entity_a, entity_b);
-    } else {
-        let (left, right) = entities.split_at_mut(a);
-        let entity_b = &mut left[b];
-        let entity_a = &mut right[0];
-        collide_entities(entity_a, entity_b);
+    unsafe {
+        let ptr = entities.as_mut_ptr();
+        let (a_ptr, b_ptr) = if a < b {
+            (ptr.add(a), ptr.add(b))
+        } else {
+            (ptr.add(b), ptr.add(a))
+        };
+        collide_entities(&mut *a_ptr, &mut *b_ptr);
     }
 }
 
@@ -358,6 +363,14 @@ fn bench_bolt(entities_seed: &[Entity], bounds: Bounds, ticks: usize) -> BenchRe
         max_depth,
         min_size: MIN_SIZE,
     };
+    let no_collide = env::var("BOLT_BENCH_NO_COLLIDE")
+        .ok()
+        .map(|value| value == "1")
+        .unwrap_or(false);
+    let use_raw = env::var("BOLT_BENCH_RAW")
+        .ok()
+        .map(|value| value == "1")
+        .unwrap_or(true);
 
     let mut entities = entities_seed.to_vec();
     let mut quadtree = BoltQuadTree::new_with_config(
@@ -371,7 +384,18 @@ fn bench_bolt(entities_seed: &[Entity], bounds: Bounds, ticks: usize) -> BenchRe
     );
 
     for (i, entity) in entities.iter().enumerate() {
-        quadtree.insert(i as u32, ShapeEnum::Rectangle(entity.to_rectangle()), None);
+        if use_raw {
+            quadtree.insert_rect_extent(
+                i as u32,
+                entity.min_x,
+                entity.min_y,
+                entity.max_x,
+                entity.max_y,
+                None,
+            );
+        } else {
+            quadtree.insert(i as u32, ShapeEnum::Rectangle(entity.to_rectangle()), None);
+        }
     }
 
     let mut collide_total = Duration::ZERO;
@@ -383,7 +407,11 @@ fn bench_bolt(entities_seed: &[Entity], bounds: Bounds, ticks: usize) -> BenchRe
     let query_count = QUERIES_NUM.min(entities.len());
     for _ in 0..ticks {
         let start = Instant::now();
-        quadtree.for_each_collision_pair(|a, b| resolve_pair(&mut entities, a, b));
+        if no_collide {
+            quadtree.for_each_collision_pair(|_, _| {});
+        } else {
+            quadtree.for_each_collision_pair(|a, b| resolve_pair(&mut entities, a, b));
+        }
         collide_total += start.elapsed();
 
         let start = Instant::now();
@@ -393,12 +421,25 @@ fn bench_bolt(entities_seed: &[Entity], bounds: Bounds, ticks: usize) -> BenchRe
         update_total += start.elapsed();
 
         let start = Instant::now();
-        for (value, entity) in entities.iter().enumerate() {
-            quadtree.relocate(
-                value as u32,
-                ShapeEnum::Rectangle(entity.to_rectangle()),
-                None,
-            );
+        if use_raw {
+            for (value, entity) in entities.iter().enumerate() {
+                quadtree.relocate_rect_extent(
+                    value as u32,
+                    entity.min_x,
+                    entity.min_y,
+                    entity.max_x,
+                    entity.max_y,
+                    None,
+                );
+            }
+        } else {
+            for (value, entity) in entities.iter().enumerate() {
+                quadtree.relocate(
+                    value as u32,
+                    ShapeEnum::Rectangle(entity.to_rectangle()),
+                    None,
+                );
+            }
         }
         relocate_total += start.elapsed();
 
@@ -407,8 +448,26 @@ fn bench_bolt(entities_seed: &[Entity], bounds: Bounds, ticks: usize) -> BenchRe
         normalize_total += start.elapsed();
 
         let start = Instant::now();
-        for i in 0..query_count {
-            quadtree.collisions_with(ShapeEnum::Rectangle(entities[i].query_rectangle()), |_| {});
+        if use_raw {
+            let q_half_w = QUERY_WIDTH * 0.5;
+            let q_half_h = QUERY_HEIGHT * 0.5;
+            for i in 0..query_count {
+                let entity = entities[i];
+                quadtree.collisions_rect_extent_with(
+                    entity.min_x - q_half_w,
+                    entity.min_y - q_half_h,
+                    entity.max_x + q_half_w,
+                    entity.max_y + q_half_h,
+                    |_| {},
+                );
+            }
+        } else {
+            for i in 0..query_count {
+                quadtree.collisions_with(
+                    ShapeEnum::Rectangle(entities[i].query_rectangle()),
+                    |_| {},
+                );
+            }
         }
         query_total += start.elapsed();
     }
