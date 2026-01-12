@@ -19,12 +19,13 @@ impl QuadTreeInner {
         filter_entity_types: Option<Vec<u32>>,
     ) -> Vec<Vec<u32>> {
         let filter = filter_entity_types.map(EntityTypeFilter::from_vec);
+        let filter = self.resolve_filter(filter.as_ref());
         self.normalize_hard();
         shapes
             .into_iter()
             .map(|shape| {
                 let mut collisions = Vec::new();
-                self.collisions_from_with_normalized(&shape, filter.as_ref(), &mut |value| {
+                self.collisions_from_with_normalized(&shape, filter, &mut |value| {
                     collisions.push(value);
                 });
                 collisions
@@ -43,7 +44,8 @@ impl QuadTreeInner {
         collisions: &mut Vec<u32>,
     ) {
         let filter = filter_entity_types.map(EntityTypeFilter::from_vec);
-        self.collisions_from(&shape, filter.as_ref(), collisions);
+        let filter = self.resolve_filter(filter.as_ref());
+        self.collisions_from(&shape, filter, collisions);
     }
 
     pub fn collisions_with<F>(&mut self, shape: ShapeEnum, mut f: F)
@@ -62,7 +64,8 @@ impl QuadTreeInner {
         F: FnMut(u32),
     {
         let filter = filter_entity_types.map(EntityTypeFilter::from_vec);
-        self.collisions_from_with(&shape, filter.as_ref(), &mut f);
+        let filter = self.resolve_filter(filter.as_ref());
+        self.collisions_from_with(&shape, filter, &mut f);
     }
 
     pub fn collisions_rect_extent(
@@ -362,6 +365,9 @@ impl QuadTreeInner {
                     current += 1;
                     continue;
                 }
+                if has_dedupe {
+                    query_marks[entity_idx_usize] = tick;
+                }
 
                 if let Some(filter) = filter_entity_types {
                     let entity_type = entity_types
@@ -415,9 +421,6 @@ impl QuadTreeInner {
                 };
 
                 if hit {
-                    if has_dedupe {
-                        query_marks[entity_idx_usize] = tick;
-                    }
                     f(packed.value());
                 }
 
@@ -431,4 +434,75 @@ impl QuadTreeInner {
         self.query_stack = stack;
     }
 
+    #[inline(always)]
+    fn resolve_filter<'a>(
+        &mut self,
+        filter: Option<&'a EntityTypeFilter>,
+    ) -> Option<&'a EntityTypeFilter> {
+        if let Some(filter) = filter {
+            if self.filter_is_universal(filter) {
+                None
+            } else {
+                Some(filter)
+            }
+        } else {
+            None
+        }
+    }
+
+    fn filter_is_universal(&mut self, filter: &EntityTypeFilter) -> bool {
+        if self.typed_count == 0
+            || self.typed_count != self.alive_count
+            || self.entity_types.is_none()
+        {
+            return false;
+        }
+        let max_type = match self.max_entity_type() {
+            Some(max_type) => max_type,
+            None => return false,
+        };
+        filter.is_universal_for(max_type)
+    }
+
+    fn max_entity_type(&mut self) -> Option<u32> {
+        if self.typed_count == 0 || self.entity_types.is_none() {
+            self.max_entity_type = 0;
+            self.max_entity_type_dirty = false;
+            return None;
+        }
+        if self.max_entity_type_dirty {
+            self.recompute_max_entity_type();
+        }
+        Some(self.max_entity_type)
+    }
+
+    fn recompute_max_entity_type(&mut self) {
+        if self.typed_count == 0 {
+            self.max_entity_type = 0;
+            self.max_entity_type_dirty = false;
+            return;
+        }
+        let types = match self.entity_types.as_ref() {
+            Some(types) => types,
+            None => {
+                self.max_entity_type = 0;
+                self.max_entity_type_dirty = false;
+                return;
+            }
+        };
+        let mut max_value = 0u32;
+        for (idx, &value) in types.iter().enumerate().skip(1) {
+            if value == u32::MAX {
+                continue;
+            }
+            if self.entities[idx].alive == 0 {
+                continue;
+            }
+            if value > max_value {
+                max_value = value;
+            }
+        }
+        self.max_entity_type = max_value;
+        self.max_entity_type_dirty = false;
+    }
 }

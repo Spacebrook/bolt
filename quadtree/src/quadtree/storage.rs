@@ -318,6 +318,45 @@ impl EntityTypeFilter {
         }
     }
 
+    fn is_universal_for(&self, max_value: u32) -> bool {
+        const UNIVERSAL_MAX: u32 = 4096;
+        if max_value > UNIVERSAL_MAX {
+            return false;
+        }
+        let max = max_value as usize;
+        if let Some(list) = &self.small {
+            if max >= 64 || list.len() != max + 1 {
+                return false;
+            }
+            let mut mask = 0u64;
+            for &value in list {
+                let idx = value as usize;
+                if idx > max {
+                    return false;
+                }
+                mask |= 1u64 << idx;
+            }
+            let expected = if max == 63 {
+                u64::MAX
+            } else {
+                (1u64 << (max + 1)) - 1
+            };
+            mask == expected
+        } else if let Some(bitset) = &self.bitset {
+            if bitset.len() <= max {
+                return false;
+            }
+            bitset[..=max].iter().all(|&value| value)
+        } else if let Some(set) = &self.set {
+            if set.len() != max + 1 {
+                return false;
+            }
+            (0..=max).all(|value| set.contains(&(value as u32)))
+        } else {
+            false
+        }
+    }
+
     fn contains(&self, value: u32) -> bool {
         if let Some(list) = &self.small {
             list.contains(&value)
@@ -523,5 +562,7 @@ struct QuadTreeInner {
     circle_count: u32,
     typed_count: u32,
     alive_count: u32,
+    max_entity_type: u32,
+    max_entity_type_dirty: bool,
     entity_reorder_map: Vec<u32>,
 }

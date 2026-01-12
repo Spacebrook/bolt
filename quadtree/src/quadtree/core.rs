@@ -225,6 +225,8 @@ impl QuadTreeInner {
             circle_count: 0,
             typed_count: 0,
             alive_count: 0,
+            max_entity_type: 0,
+            max_entity_type_dirty: false,
             entity_reorder_map: Vec::new(),
         }
     }
@@ -444,7 +446,39 @@ impl QuadTreeInner {
             self.large_entity_slots.resize(self.entities.len(), 0);
         }
         self.update_large_entity_state(idx, extent);
+        if stored_type != u32::MAX {
+            self.update_max_entity_type_on_insert(stored_type);
+        }
         idx
+    }
+
+    #[inline(always)]
+    fn update_max_entity_type_on_insert(&mut self, stored_type: u32) {
+        if stored_type == u32::MAX {
+            return;
+        }
+        if self.typed_count == 0 {
+            self.max_entity_type = stored_type;
+            self.max_entity_type_dirty = false;
+            return;
+        }
+        if self.max_entity_type_dirty {
+            if stored_type >= self.max_entity_type {
+                self.max_entity_type = stored_type;
+                self.max_entity_type_dirty = false;
+            }
+            return;
+        }
+        if stored_type > self.max_entity_type {
+            self.max_entity_type = stored_type;
+        }
+    }
+
+    #[inline(always)]
+    fn mark_max_entity_type_dirty_if_needed(&mut self, stored_type: u32) {
+        if stored_type != u32::MAX && stored_type == self.max_entity_type {
+            self.max_entity_type_dirty = true;
+        }
     }
     fn entity_extent(&self, entity_idx: u32) -> RectExtent {
         let idx = entity_idx as usize;

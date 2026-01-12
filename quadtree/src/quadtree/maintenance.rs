@@ -140,10 +140,18 @@ impl QuadTreeInner {
             self.typed_count = self.typed_count.saturating_add(1);
         } else if old_type != u32::MAX && new_type == u32::MAX {
             self.typed_count = self.typed_count.saturating_sub(1);
+            self.mark_max_entity_type_dirty_if_needed(old_type);
+        } else if old_type != u32::MAX && old_type != new_type {
+            self.mark_max_entity_type_dirty_if_needed(old_type);
+        }
+        if new_type != u32::MAX {
+            self.update_max_entity_type_on_insert(new_type);
         }
         if self.typed_count == 0 {
             self.entity_types = None;
             self.entity_types_scratch = None;
+            self.max_entity_type = 0;
+            self.max_entity_type_dirty = false;
         }
         if self.circle_count == 0 {
             self.circle_data = None;

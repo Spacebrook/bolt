@@ -334,31 +334,39 @@ impl QuadTreeInner {
 
         self.remove_stack = stack;
 
-        let entity = &mut self.entities[entity_idx as usize];
-        if entity.alive != 0 {
+        let entity_alive = self.entities[entity_idx as usize].alive != 0;
+        let entity_shape_kind = self.entities[entity_idx as usize].shape_kind;
+        if entity_alive {
             self.alive_count = self.alive_count.saturating_sub(1);
-            if entity.shape_kind == SHAPE_CIRCLE {
+            if entity_shape_kind == SHAPE_CIRCLE {
                 self.circle_count = self.circle_count.saturating_sub(1);
             }
         }
-        entity.alive = 0;
-        entity.status_changed = self.status_tick ^ 1;
+        self.entities[entity_idx as usize].alive = 0;
+        self.entities[entity_idx as usize].status_changed = self.status_tick ^ 1;
+        let mut removed_type = None;
         if let Some(types) = self.entity_types.as_mut() {
             let stored_type = types[entity_idx as usize];
             if stored_type != u32::MAX {
                 self.typed_count = self.typed_count.saturating_sub(1);
+                removed_type = Some(stored_type);
             }
             types[entity_idx as usize] = u32::MAX;
+        }
+        if let Some(stored_type) = removed_type {
+            self.mark_max_entity_type_dirty_if_needed(stored_type);
         }
         if self.typed_count == 0 {
             self.entity_types = None;
             self.entity_types_scratch = None;
+            self.max_entity_type = 0;
+            self.max_entity_type_dirty = false;
         }
         if self.circle_count == 0 {
             self.circle_data = None;
             self.circle_data_scratch = None;
         }
-        entity.next_free = self.free_entity;
+        self.entities[entity_idx as usize].next_free = self.free_entity;
         self.free_entity = entity_idx;
     }
 
