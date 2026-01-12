@@ -1,3 +1,6 @@
 /target
 **/*.rs.bk
 netcode/schema/gen/net_schema.json
+benchmarks/third_party/*
+!benchmarks/third_party/c-quadtree/
+!benchmarks/third_party/c-quadtree/**
