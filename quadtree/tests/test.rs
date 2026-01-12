@@ -418,6 +418,7 @@ fn test_no_multiple_subdivision() {
         max_depth: 2,
         min_size: 1.0,
         looseness: 1.0,
+        large_entity_threshold_factor: 0.0,
     };
 
     // Create a QuadTree with the custom config

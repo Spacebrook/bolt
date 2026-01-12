@@ -118,6 +118,7 @@ fn main() {
         max_depth,
         min_size: bench_min_size(),
         looseness: 1.0,
+        large_entity_threshold_factor: 0.0,
     };
 
     let entities = make_entities(bounds, entity_count, seed);

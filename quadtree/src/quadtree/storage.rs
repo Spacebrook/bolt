@@ -357,6 +357,32 @@ impl PairDedupe {
         }
     }
 
+    fn rehash(&mut self, desired: usize) {
+        let mut size = desired.next_power_of_two();
+        if size < 1024 {
+            size = 1024;
+        }
+        if size <= self.table.len() {
+            return;
+        }
+        let old_table = std::mem::take(&mut self.table);
+        let old_stamps = std::mem::take(&mut self.stamps);
+        let old_generation = self.generation;
+        self.table = vec![0; size];
+        self.stamps = vec![0; size];
+        self.generation = 1;
+        for (idx, key) in old_table.into_iter().enumerate() {
+            if old_stamps
+                .get(idx)
+                .copied()
+                .unwrap_or(0)
+                == old_generation
+            {
+                let _ = self.insert(key);
+            }
+        }
+    }
+
     fn clear(&mut self) {
         self.generation = self.generation.wrapping_add(1);
         if self.generation == 0 {
@@ -366,8 +392,12 @@ impl PairDedupe {
     }
 
     fn insert(&mut self, key: u64) -> bool {
-        let mask = self.table.len() - 1;
+        if self.table.is_empty() {
+            self.ensure_capacity(1024);
+        }
+        let mut mask = self.table.len() - 1;
         let mut idx = (key as usize).wrapping_mul(2654435761) & mask;
+        let mut probes = 0usize;
         loop {
             if self.stamps[idx] != self.generation {
                 self.table[idx] = key;
@@ -378,7 +408,37 @@ impl PairDedupe {
                 return false;
             }
             idx = (idx + 1) & mask;
+            probes += 1;
+            if probes > mask {
+                let new_size = self.table.len().saturating_mul(2).max(1024);
+                self.rehash(new_size);
+                mask = self.table.len() - 1;
+                idx = (key as usize).wrapping_mul(2654435761) & mask;
+                probes = 0;
+            }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::PairDedupe;
+
+    #[test]
+    fn pair_dedupe_grows_when_full() {
+        let mut dedupe = PairDedupe::new();
+        dedupe.ensure_capacity(1024);
+        dedupe.clear();
+
+        let mut inserted = 0usize;
+        for key in 1u64..=1025u64 {
+            if dedupe.insert(key) {
+                inserted += 1;
+            }
+        }
+
+        assert_eq!(inserted, 1025);
+        assert!(dedupe.table.len() > 1024);
     }
 }
 
