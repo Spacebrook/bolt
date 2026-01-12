@@ -300,6 +300,8 @@ impl QuadTreeInner {
                         }
                         node.set_has_dedupe(has_dedupe);
                     }
+                    current = next;
+                    continue;
                 }
                 prev = current;
                 current = self.node_entities_next[current as usize];

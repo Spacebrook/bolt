@@ -45,8 +45,7 @@ fn ensure_repo() -> Result<PathBuf, String> {
     }
 
     if let Some(parent) = vendor_dir.parent() {
-        fs::create_dir_all(parent)
-            .map_err(|err| format!("create c-quadtree vendor dir: {err}"))?;
+        fs::create_dir_all(parent).map_err(|err| format!("create c-quadtree vendor dir: {err}"))?;
     }
 
     let repo_url = env::var("BOLT_C_QUADTREE_REPO").unwrap_or_else(|_| DEFAULT_REPO.to_string());
@@ -70,10 +69,7 @@ fn should_update_repo() -> bool {
 
 fn git_pull(repo_dir: &Path) -> Result<(), String> {
     let mut cmd = Command::new("git");
-    cmd.arg("-C")
-        .arg(repo_dir)
-        .arg("pull")
-        .arg("--ff-only");
+    cmd.arg("-C").arg(repo_dir).arg("pull").arg("--ff-only");
     run_command(cmd, "git pull c-quadtree")
 }
 
@@ -138,9 +134,7 @@ fn run_benchmark(repo_dir: &Path, bin_path: &Path) -> Result<String, String> {
         .map_err(|err| format!("run c-quadtree benchmark: {err}"))?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!(
-            "c-quadtree benchmark failed: {stderr}"
-        ));
+        return Err(format!("c-quadtree benchmark failed: {stderr}"));
     }
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
@@ -175,8 +169,7 @@ fn parse_output(output: &str) -> Result<CQuadMetrics, String> {
                     query_entities_per = Some(entities);
                 }
             }
-        }
-        else if let Some(value) = parse_u32(trimmed, "Nodes") {
+        } else if let Some(value) = parse_u32(trimmed, "Nodes") {
             node_count = Some(value);
         } else if let Some(value) = parse_u32(trimmed, "Node entities") {
             node_entities_count = Some(value);

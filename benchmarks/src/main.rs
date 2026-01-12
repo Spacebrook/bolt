@@ -2,9 +2,9 @@ mod c_quadtree;
 
 use bolt_quadtree::quadtree::{Config, QuadTree as BoltQuadTree};
 use common::shapes::{Rectangle, ShapeEnum};
-use quadtree_crate::{shapes::Rect as QtRect, vec2, Quadtree as QtGeneric, Vec2};
+use quadtree_crate::{Quadtree as QtGeneric, Vec2, shapes::Rect as QtRect, vec2};
 use quadtree_f32::{Item, ItemId, Point as F32Point, QuadTree as QtF32, Rect as RectF32};
-use quadtree_rs::{area::AreaBuilder, point::Point as RsPoint, Quadtree as QtRs};
+use quadtree_rs::{Quadtree as QtRs, area::AreaBuilder, point::Point as RsPoint};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use spatialtree::{QuadTree as SpatialQuadTree, QuadVec};
@@ -236,8 +236,7 @@ fn collide_entities(entity_a: &mut Entity, entity_b: &mut Entity) {
             let temp_vx = entity_a.vx;
             entity_a.vx =
                 (entity_a.vx * (size_a - size_b) + 2.0 * size_b * entity_b.vx) / total_size;
-            entity_b.vx =
-                (entity_b.vx * (size_b - size_a) + 2.0 * size_a * temp_vx) / total_size;
+            entity_b.vx = (entity_b.vx * (size_b - size_a) + 2.0 * size_a * temp_vx) / total_size;
         } else {
             let push_a = overlap_y * (size_b / total_size);
             let push_b = overlap_y * (size_a / total_size);
@@ -253,8 +252,7 @@ fn collide_entities(entity_a: &mut Entity, entity_b: &mut Entity) {
             let temp_vy = entity_a.vy;
             entity_a.vy =
                 (entity_a.vy * (size_a - size_b) + 2.0 * size_b * entity_b.vy) / total_size;
-            entity_b.vy =
-                (entity_b.vy * (size_b - size_a) + 2.0 * size_a * temp_vy) / total_size;
+            entity_b.vy = (entity_b.vy * (size_b - size_a) + 2.0 * size_a * temp_vy) / total_size;
         }
     }
 }
@@ -486,10 +484,7 @@ fn bench_bolt(entities_seed: &[Entity], bounds: Bounds, ticks: usize) -> BenchRe
         } else {
             for i in 0..query_count {
                 let entity = unsafe { &*entities_ptr.add(i) };
-                quadtree.collisions_with(
-                    ShapeEnum::Rectangle(entity.query_rectangle()),
-                    |_| {},
-                );
+                quadtree.collisions_with(ShapeEnum::Rectangle(entity.query_rectangle()), |_| {});
             }
         }
         query_total += start.elapsed();
@@ -518,17 +513,14 @@ fn bench_bolt(entities_seed: &[Entity], bounds: Bounds, ticks: usize) -> BenchRe
         );
         println!(
             "  Entity nodes avg {:.2}, max {}",
-            entity_node_stats.0,
-            entity_node_stats.1
+            entity_node_stats.0, entity_node_stats.1
         );
     }
 
     let (node_count, node_entities_count, entity_count_out) = quadtree.storage_counts();
     println!(
         "  Storage: nodes {}, node_entities {}, entities {}",
-        node_count,
-        node_entities_count,
-        entity_count_out
+        node_count, node_entities_count, entity_count_out
     );
 
     BenchResult {
@@ -819,12 +811,8 @@ fn bench_spatialtree(
             let rect = unsafe { (*entities_ptr.add(i)).query_rectangle() };
             let (x, y, w, h) = mapper.map_query(rect);
             let min = QuadVec::build(x, y, grid_depth);
-            let max_x = x
-                .saturating_add(w)
-                .min(mapper.size.saturating_sub(1));
-            let max_y = y
-                .saturating_add(h)
-                .min(mapper.size.saturating_sub(1));
+            let max_x = x.saturating_add(w).min(mapper.size.saturating_sub(1));
+            let max_y = y.saturating_add(h).min(mapper.size.saturating_sub(1));
             let max = QuadVec::build(max_x, max_y, grid_depth);
             let mut count = 0usize;
             for _ in tree.iter_chunks_in_aabb(min, max) {
@@ -909,8 +897,14 @@ fn main() {
 
     println!("Simulation settings:");
     println!("Initial count:    {}", ITER);
-    println!("Arena size:       {:.01} x {:.01}", ARENA_WIDTH, ARENA_HEIGHT);
-    println!("Initial radius:   From {:.01} to {:.01}", RADIUS_MIN, RADIUS_MAX);
+    println!(
+        "Arena size:       {:.01} x {:.01}",
+        ARENA_WIDTH, ARENA_HEIGHT
+    );
+    println!(
+        "Initial radius:   From {:.01} to {:.01}",
+        RADIUS_MIN, RADIUS_MAX
+    );
     println!("Seed: {}", 36207250);
     println!("Measure ticks:    {}", ticks);
     println!("Entity count:     {}", entity_count);
@@ -927,34 +921,25 @@ fn main() {
         results.push(bench_quadtree_f32(&entities_seed, bounds, ticks));
     }
     if should_run(filter.as_deref(), "quadtree_rs") {
-        results.push(bench_quadtree_rs(
-            &entities_seed,
-            bounds,
-            grid_depth,
-            ticks,
-        ));
+        results.push(bench_quadtree_rs(&entities_seed, bounds, grid_depth, ticks));
     }
     if should_run(filter.as_deref(), "quadtree (points)") {
         results.push(bench_quadtree_generic(&entities_seed, bounds, ticks));
     }
     if should_run(filter.as_deref(), "spatialtree") {
-        results.push(bench_spatialtree(
-            &entities_seed,
-            bounds,
-            grid_depth,
-            ticks,
-        ));
+        results.push(bench_spatialtree(&entities_seed, bounds, grid_depth, ticks));
     }
     if should_run(filter.as_deref(), "c-quadtree") {
         match c_quadtree::run() {
             Ok(metrics) => {
                 let tick_total_ms = metrics.update_ms + metrics.normalize_ms;
                 #[cfg(feature = "query_stats")]
-                if let (Some(nodes), Some(entities)) = (metrics.query_nodes_per, metrics.query_entities_per) {
+                if let (Some(nodes), Some(entities)) =
+                    (metrics.query_nodes_per, metrics.query_entities_per)
+                {
                     println!(
                         "  Query stats (c-quadtree): nodes/query {:.2}, entities/query {:.2}",
-                        nodes,
-                        entities
+                        nodes, entities
                     );
                 }
                 if let (Some(nodes), Some(node_entities), Some(entities)) = (
@@ -964,9 +949,7 @@ fn main() {
                 ) {
                     println!(
                         "  Storage (c-quadtree): nodes {}, node_entities {}, entities {}",
-                        nodes,
-                        node_entities,
-                        entities
+                        nodes, node_entities, entities
                     );
                 }
                 results.push(BenchResult {

@@ -62,10 +62,9 @@ impl DiffFieldSetWrapper {
             )));
         }
 
-        let schema = NET_SCHEMA
-            .messages
-            .get(message_name)
-            .ok_or_else(|| PyTypeError::new_err(format!("Unknown message schema: {message_name}")))?;
+        let schema = NET_SCHEMA.messages.get(message_name).ok_or_else(|| {
+            PyTypeError::new_err(format!("Unknown message schema: {message_name}"))
+        })?;
 
         let rust_field_types = field_names
             .iter()
@@ -150,10 +149,7 @@ impl DiffFieldSetWrapper {
                         list.len()
                     )));
                 }
-                defaults = list
-                    .iter()
-                    .map(|value| value.unbind())
-                    .collect();
+                defaults = list.iter().map(|value| value.unbind()).collect();
             } else if let Ok(dict) = values.cast::<PyDict>() {
                 for (key, value) in dict.iter() {
                     let name = key.extract::<String>()?;
@@ -249,7 +245,10 @@ impl DiffFieldSetWrapper {
     }
 
     #[staticmethod]
-    pub fn child_has_changed(obj: &Bound<'_, PyAny>, children: &Bound<'_, PyDict>) -> PyResult<bool> {
+    pub fn child_has_changed(
+        obj: &Bound<'_, PyAny>,
+        children: &Bound<'_, PyDict>,
+    ) -> PyResult<bool> {
         child_has_changed_internal(obj, children)
     }
 
@@ -470,9 +469,9 @@ fn fill_py_dict_from_indices(
     indices: &[usize],
 ) -> PyResult<()> {
     for &index in indices {
-        let value = fields.get(index).ok_or_else(|| {
-            PyTypeError::new_err(format!("Field index out of range: {index}"))
-        })?;
+        let value = fields
+            .get(index)
+            .ok_or_else(|| PyTypeError::new_err(format!("Field index out of range: {index}")))?;
         set_py_dict_value(py, dict, names, index, value)?;
     }
     Ok(())
@@ -540,7 +539,10 @@ fn update_children_internal(obj: &Bound<'_, PyAny>, children: &Bound<'_, PyDict>
     Ok(())
 }
 
-fn child_has_changed_internal(obj: &Bound<'_, PyAny>, children: &Bound<'_, PyDict>) -> PyResult<bool> {
+fn child_has_changed_internal(
+    obj: &Bound<'_, PyAny>,
+    children: &Bound<'_, PyDict>,
+) -> PyResult<bool> {
     if children.is_empty() {
         return Ok(false);
     }

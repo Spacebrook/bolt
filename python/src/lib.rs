@@ -247,10 +247,7 @@ fn extract_shape(py: Python, shape: Py<PyAny>) -> PyResult<ShapeEnum> {
 fn extract_shape_ncollide(py: Python, shape: Py<PyAny>) -> PyResult<ShapeWithPosition> {
     if let Ok(py_square) = shape.extract::<PySquare>(py) {
         return Ok(ShapeWithPosition {
-            shape: SharedShape::new(Cuboid::new(Vector::new(
-                py_square.radius,
-                py_square.radius,
-            ))),
+            shape: SharedShape::new(Cuboid::new(Vector::new(py_square.radius, py_square.radius))),
             position: Isometry::new(Vector::new(py_square.x, py_square.y), py_square.angle),
         });
     }

@@ -149,14 +149,24 @@ impl NetCodec {
         Ok(PyBytes::new(py, &buffer).unbind())
     }
 
-    pub fn encode_message(&self, py: Python, name: &str, payload: &Bound<'_, PyDict>) -> PyResult<Py<PyBytes>> {
+    pub fn encode_message(
+        &self,
+        py: Python,
+        name: &str,
+        payload: &Bound<'_, PyDict>,
+    ) -> PyResult<Py<PyBytes>> {
         let schema = get_schema(name)?;
         let mut buffer = Vec::with_capacity(256);
         encode_message(py, schema, payload, &mut buffer)?;
         Ok(PyBytes::new(py, &buffer).unbind())
     }
 
-    pub fn decode_message(&self, py: Python, name: &str, bytes: &Bound<'_, PyBytes>) -> PyResult<Py<PyDict>> {
+    pub fn decode_message(
+        &self,
+        py: Python,
+        name: &str,
+        bytes: &Bound<'_, PyBytes>,
+    ) -> PyResult<Py<PyDict>> {
         let schema = get_schema(name)?;
         let mut cursor = Cursor::new(bytes.as_bytes());
         let dict = decode_message(py, schema, &mut cursor)?;
@@ -510,11 +520,7 @@ impl<'a> Cursor<'a> {
     }
 }
 
-fn decode_message(
-    py: Python,
-    schema: &MessageSchema,
-    cursor: &mut Cursor,
-) -> PyResult<Py<PyDict>> {
+fn decode_message(py: Python, schema: &MessageSchema, cursor: &mut Cursor) -> PyResult<Py<PyDict>> {
     let field_count = cursor.read_u16()? as usize;
     let dict = PyDict::new(py);
     for _ in 0..field_count {

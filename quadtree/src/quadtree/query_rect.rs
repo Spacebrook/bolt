@@ -249,7 +249,6 @@ impl QuadTreeInner {
             node_info.write(NodeQueryInfo { node_idx: 0 });
         }
         node_info = unsafe { node_info.add(1) };
-
         while node_info != stack_ptr {
             node_info = unsafe { node_info.sub(1) };
             let info = unsafe { *node_info };

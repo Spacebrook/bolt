@@ -1,6 +1,6 @@
+use common::shapes::{Rectangle, ShapeEnum};
 use criterion::{black_box, criterion_group, criterion_main, BatchSize, Criterion};
 use quadtree::quadtree::{Config, QuadTree, RelocationRequest};
-use common::shapes::{Rectangle, ShapeEnum};
 use rand::prelude::*;
 
 fn build_tree(
@@ -203,7 +203,8 @@ fn collisions_batch_filter_large_filter_benchmark(c: &mut Criterion) {
 
     c.bench_function("quadtree_collisions_batch_filter_large_filter", |b| {
         b.iter(|| {
-            let result = quadtree.collisions_batch_filter(black_box(shapes.clone()), Some(filter.clone()));
+            let result =
+                quadtree.collisions_batch_filter(black_box(shapes.clone()), Some(filter.clone()));
             black_box(result);
         })
     });

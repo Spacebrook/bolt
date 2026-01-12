@@ -124,7 +124,11 @@ impl QuadTreeWrapper {
         Ok(collisions)
     }
 
-    pub fn collisions_batch(&self, py: Python, shapes: &Bound<'_, PyList>) -> PyResult<Vec<Vec<u32>>> {
+    pub fn collisions_batch(
+        &self,
+        py: Python,
+        shapes: &Bound<'_, PyList>,
+    ) -> PyResult<Vec<Vec<u32>>> {
         self.collisions_batch_filter(py, shapes, None)
     }
 

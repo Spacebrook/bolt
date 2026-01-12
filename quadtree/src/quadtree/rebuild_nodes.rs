@@ -91,7 +91,7 @@ impl QuadTreeInner {
                         position_flags |= child_pos;
                         let mut current = old_nodes[child_idx as usize].head();
                         while current != 0 {
-                                let entity_idx = old_node_entities[current as usize].index();
+                            let entity_idx = old_node_entities[current as usize].index();
                                 let next_current = old_node_entities_next[current as usize];
                                 let mut hash =
                                     (entity_idx as usize).wrapping_mul(2654435761) & merge_mask;

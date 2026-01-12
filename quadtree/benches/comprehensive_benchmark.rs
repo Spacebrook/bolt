@@ -145,8 +145,7 @@ fn collide_entities(entity_a: &mut Entity, entity_b: &mut Entity) {
             let temp_vx = entity_a.vx;
             entity_a.vx =
                 (entity_a.vx * (size_a - size_b) + 2.0 * size_b * entity_b.vx) / total_size;
-            entity_b.vx =
-                (entity_b.vx * (size_b - size_a) + 2.0 * size_a * temp_vx) / total_size;
+            entity_b.vx = (entity_b.vx * (size_b - size_a) + 2.0 * size_a * temp_vx) / total_size;
         } else {
             let push_a = overlap_y * (size_b / total_size);
             let push_b = overlap_y * (size_a / total_size);
@@ -162,8 +161,7 @@ fn collide_entities(entity_a: &mut Entity, entity_b: &mut Entity) {
             let temp_vy = entity_a.vy;
             entity_a.vy =
                 (entity_a.vy * (size_a - size_b) + 2.0 * size_b * entity_b.vy) / total_size;
-            entity_b.vy =
-                (entity_b.vy * (size_b - size_a) + 2.0 * size_a * temp_vy) / total_size;
+            entity_b.vy = (entity_b.vy * (size_b - size_a) + 2.0 * size_a * temp_vy) / total_size;
         }
     }
 }
@@ -251,8 +249,14 @@ fn main() {
 
     println!("Simulation settings:");
     println!("Initial count:    {}", ITER);
-    println!("Arena size:       {:.01} x {:.01}", ARENA_WIDTH, ARENA_HEIGHT);
-    println!("Initial radius:   From {:.01} to {:.01}", RADIUS_MIN, RADIUS_MAX);
+    println!(
+        "Arena size:       {:.01} x {:.01}",
+        ARENA_WIDTH, ARENA_HEIGHT
+    );
+    println!(
+        "Initial radius:   From {:.01} to {:.01}",
+        RADIUS_MIN, RADIUS_MAX
+    );
     println!(
         "Query results:    {}",
         if query_push { "collect" } else { "ignore" }
@@ -313,7 +317,10 @@ fn main() {
     }
 
     let insert_time = start.elapsed();
-    println!("Queueing insertions took {:.02}ms", duration_ms(insert_time));
+    println!(
+        "Queueing insertions took {:.02}ms",
+        duration_ms(insert_time)
+    );
 
     let mut collide_total = Duration::ZERO;
     let mut update_total = Duration::ZERO;
@@ -356,10 +363,8 @@ fn main() {
                     &mut collisions,
                 );
             } else {
-                quadtree.collisions_with(
-                    ShapeEnum::Rectangle(entities[i].query_rectangle()),
-                    |_| {},
-                );
+                quadtree
+                    .collisions_with(ShapeEnum::Rectangle(entities[i].query_rectangle()), |_| {});
             }
         }
         query_total += start.elapsed();

@@ -1,5 +1,5 @@
 use common::shapes::{Circle, Rectangle, ShapeEnum};
-use quadtree::quadtree::{Config, QuadTree};
+use quadtree::quadtree::{Config, QuadTree, RelocationRequest};
 
 use rand::Rng;
 use std::collections::HashSet;
@@ -541,6 +541,347 @@ fn test_no_multiple_subdivision() {
     let mut all_bounding_boxes = Vec::new();
     qt.all_node_bounding_boxes(&mut all_bounding_boxes);
     assert!(all_bounding_boxes.len() > 1);
+}
+
+#[test]
+fn stress_multi_tree_collision_queries() {
+    const GROUP_A_COUNT: usize = 1200;
+    const GROUP_B_COUNT: usize = 2400;
+    const GROUP_C_COUNT: usize = 1600;
+    const TICKS: usize = 600;
+    const ARENA_W: f32 = 1200.0;
+    const ARENA_H: f32 = 1200.0;
+
+    let bounds = Rectangle {
+        x: 0.0,
+        y: 0.0,
+        width: ARENA_W,
+        height: ARENA_H,
+    };
+    let min_x = -ARENA_W * 0.5;
+    let max_x = ARENA_W * 0.5;
+    let min_y = -ARENA_H * 0.5;
+    let max_y = ARENA_H * 0.5;
+
+    let config = Config {
+        pool_size: 5000,
+        node_capacity: 4,
+        max_depth: 6,
+        min_size: 1.0,
+        looseness: 1.0,
+        large_entity_threshold_factor: 0.0,
+    };
+    let mut group_a_quadtree = QuadTree::new_with_config(bounds, config.clone());
+    let mut group_a_active_quadtree = QuadTree::new_with_config(bounds, config.clone());
+    let mut group_a_inactive_quadtree = QuadTree::new_with_config(bounds, config.clone());
+    let mut group_b_quadtree = QuadTree::new_with_config(bounds, config.clone());
+    let mut group_c_quadtree = QuadTree::new_with_config(bounds, config);
+
+    let mut seed: u64 = 0x1234_5678_9abc_def0;
+    let mut next_f32 = || {
+        seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
+        let bits = (seed >> 32) as u32;
+        (bits as f32) / (u32::MAX as f32)
+    };
+
+    let mut group_a = Vec::with_capacity(GROUP_A_COUNT);
+    let mut group_a_active = vec![false; GROUP_A_COUNT];
+    let mut group_a_inactive = vec![false; GROUP_A_COUNT];
+    for id in 0..GROUP_A_COUNT {
+        let radius = 8.0 + next_f32() * 16.0;
+        let x = min_x + radius + next_f32() * (ARENA_W - radius * 2.0);
+        let y = min_y + radius + next_f32() * (ARENA_H - radius * 2.0);
+        let vx = (next_f32() * 2.0 - 1.0) * 90.0;
+        let vy = (next_f32() * 2.0 - 1.0) * 90.0;
+        group_a.push((id as u32, x, y, vx, vy, radius));
+        group_a_quadtree.insert_circle_raw(id as u32, x, y, radius, None);
+        group_a_active[id] = next_f32() > 0.4;
+        group_a_inactive[id] = next_f32() > 0.9;
+    }
+
+    let mut group_b = Vec::with_capacity(GROUP_B_COUNT);
+    for i in 0..GROUP_B_COUNT {
+        let id = (GROUP_A_COUNT + i) as u32;
+        let is_rect = next_f32() < 0.2;
+        let w = 10.0 + next_f32() * 50.0;
+        let h = 10.0 + next_f32() * 50.0;
+        let radius = 8.0 + next_f32() * 40.0;
+        let x = min_x + w + next_f32() * (ARENA_W - w * 2.0);
+        let y = min_y + h + next_f32() * (ARENA_H - h * 2.0);
+        let vx = (next_f32() * 2.0 - 1.0) * 120.0;
+        let vy = (next_f32() * 2.0 - 1.0) * 120.0;
+        group_b.push((id, x, y, vx, vy, radius, w, h, is_rect));
+    }
+
+    let mut group_c = Vec::with_capacity(GROUP_C_COUNT);
+    for i in 0..GROUP_C_COUNT {
+        let id = (GROUP_A_COUNT + GROUP_B_COUNT + i) as u32;
+        let radius = 3.0 + next_f32() * 6.0;
+        let x = min_x + radius + next_f32() * (ARENA_W - radius * 2.0);
+        let y = min_y + radius + next_f32() * (ARENA_H - radius * 2.0);
+        let vx = (next_f32() * 2.0 - 1.0) * 70.0;
+        let vy = (next_f32() * 2.0 - 1.0) * 70.0;
+        group_c.push((id, x, y, vx, vy, radius));
+    }
+
+    let ticks = std::env::var("BOLT_QT_STRESS_TICKS")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(TICKS);
+    let log_progress = std::env::var("BOLT_QT_STRESS_LOG").ok().as_deref() == Some("1");
+    for tick in 0..ticks {
+        if log_progress {
+            eprintln!("stress tick {} start", tick);
+        }
+        if log_progress && tick % 5 == 0 {
+            eprintln!("stress tick {} checkpoint", tick);
+        }
+        if log_progress {
+            eprintln!("tick {} move group A", tick);
+        }
+        for (i, (_, x, y, vx, vy, radius)) in group_a.iter_mut().enumerate() {
+            *x += *vx;
+            *y += *vy;
+            if *x - *radius < min_x {
+                *x = min_x + *radius;
+                *vx = -*vx;
+            } else if *x + *radius > max_x {
+                *x = max_x - *radius;
+                *vx = -*vx;
+            }
+            if *y - *radius < min_y {
+                *y = min_y + *radius;
+                *vy = -*vy;
+            } else if *y + *radius > max_y {
+                *y = max_y - *radius;
+                *vy = -*vy;
+            }
+            if next_f32() > 0.985 {
+                group_a_active[i] = !group_a_active[i];
+            }
+            if next_f32() > 0.995 {
+                group_a_inactive[i] = !group_a_inactive[i];
+            }
+        }
+
+        if log_progress {
+            eprintln!("tick {} move group B", tick);
+        }
+        for (_id, x, y, vx, vy, radius, w, h, is_rect) in group_b.iter_mut() {
+            *x += *vx;
+            *y += *vy;
+            let bound_w = if *is_rect { *w } else { *radius };
+            let bound_h = if *is_rect { *h } else { *radius };
+            if *x - bound_w < min_x {
+                *x = min_x + bound_w;
+                *vx = -*vx;
+            } else if *x + bound_w > max_x {
+                *x = max_x - bound_w;
+                *vx = -*vx;
+            }
+            if *y - bound_h < min_y {
+                *y = min_y + bound_h;
+                *vy = -*vy;
+            } else if *y + bound_h > max_y {
+                *y = max_y - bound_h;
+                *vy = -*vy;
+            }
+        }
+
+        if log_progress {
+            eprintln!("tick {} move group C", tick);
+        }
+        for (_, x, y, vx, vy, radius) in group_c.iter_mut() {
+            *x += *vx;
+            *y += *vy;
+            if *x - *radius < min_x {
+                *x = min_x + *radius;
+                *vx = -*vx;
+            } else if *x + *radius > max_x {
+                *x = max_x - *radius;
+                *vx = -*vx;
+            }
+            if *y - *radius < min_y {
+                *y = min_y + *radius;
+                *vy = -*vy;
+            } else if *y + *radius > max_y {
+                *y = max_y - *radius;
+                *vy = -*vy;
+            }
+        }
+
+        if log_progress {
+            eprintln!("tick {} relocate group A", tick);
+        }
+        let mut group_a_requests = Vec::with_capacity(group_a.len());
+        for (id, x, y, _, _, radius) in group_a.iter() {
+            group_a_requests.push(RelocationRequest {
+                value: *id,
+                shape: ShapeEnum::Circle(Circle::new(*x, *y, *radius)),
+                entity_type: None,
+            });
+        }
+        group_a_quadtree.relocate_batch(group_a_requests);
+
+        if log_progress {
+            eprintln!("tick {} relocate active subset", tick);
+        }
+        for (idx, (id, ..)) in group_a.iter().enumerate() {
+            if !group_a_active[idx] {
+                group_a_active_quadtree.delete(*id);
+            }
+        }
+
+        let mut active_requests = Vec::new();
+        for (idx, (id, x, y, _, _, radius)) in group_a.iter().enumerate() {
+            if group_a_active[idx] {
+                active_requests.push(RelocationRequest {
+                    value: *id,
+                    shape: ShapeEnum::Circle(Circle::new(*x, *y, *radius)),
+                    entity_type: None,
+                });
+            }
+        }
+        group_a_active_quadtree.relocate_batch(active_requests);
+
+        if log_progress {
+            eprintln!("tick {} relocate inactive subset", tick);
+        }
+        for (idx, (id, ..)) in group_a.iter().enumerate() {
+            if !group_a_inactive[idx] {
+                group_a_inactive_quadtree.delete(*id);
+            }
+        }
+
+        let mut dead_requests = Vec::new();
+        for (idx, (id, x, y, _, _, radius)) in group_a.iter().enumerate() {
+            if group_a_inactive[idx] {
+                dead_requests.push(RelocationRequest {
+                    value: *id,
+                    shape: ShapeEnum::Circle(Circle::new(*x, *y, *radius)),
+                    entity_type: None,
+                });
+            }
+        }
+        group_a_inactive_quadtree.relocate_batch(dead_requests);
+
+        if log_progress {
+            eprintln!("tick {} relocate group B", tick);
+        }
+        let mut group_b_requests = Vec::with_capacity(group_b.len());
+        for (id, x, y, _, _, radius, w, h, is_rect) in group_b.iter() {
+            let shape = if *is_rect {
+                ShapeEnum::Rectangle(Rectangle {
+                    x: *x,
+                    y: *y,
+                    width: *w * 2.0,
+                    height: *h * 2.0,
+                })
+            } else {
+                ShapeEnum::Circle(Circle::new(*x, *y, *radius * 1.2))
+            };
+            group_b_requests.push(RelocationRequest {
+                value: *id,
+                shape,
+                entity_type: None,
+            });
+        }
+        group_b_quadtree.relocate_batch(group_b_requests);
+
+        if log_progress {
+            eprintln!("tick {} relocate group C", tick);
+        }
+        let mut group_c_requests = Vec::with_capacity(group_c.len());
+        for (id, x, y, _, _, radius) in group_c.iter() {
+            group_c_requests.push(RelocationRequest {
+                value: *id,
+                shape: ShapeEnum::Circle(Circle::new(*x, *y, *radius)),
+                entity_type: None,
+            });
+        }
+        group_c_quadtree.relocate_batch(group_c_requests);
+
+        if log_progress {
+            eprintln!("tick {} query group A", tick);
+        }
+        if log_progress && tick == 17 {
+            let (nodes, node_entities, entities) = group_a_active_quadtree.storage_counts();
+            eprintln!(
+                "tick {} active subset counts: nodes={}, node_entities={}, entities={}",
+                tick, nodes, node_entities, entities
+            );
+        }
+        let mut pair_count = 0usize;
+        let mut hits = Vec::new();
+        let group_a_query_count = group_a.len().min(64);
+        for i in 0..group_a_query_count {
+            let idx = (tick * 31 + i * 7) % group_a.len();
+            let (id, x, y, _, _, radius) = group_a[idx];
+            let shape = ShapeEnum::Circle(Circle::new(x, y, radius));
+            hits.clear();
+            if log_progress {
+                eprintln!("tick {} group A {} vs group B", tick, idx);
+            }
+            group_b_quadtree.collisions(shape, &mut hits);
+            pair_count = pair_count.wrapping_add(hits.len());
+            hits.clear();
+            if log_progress {
+                eprintln!("tick {} group A {} vs group C", tick, idx);
+            }
+            group_c_quadtree.collisions(
+                ShapeEnum::Circle(Circle::new(x, y, radius * 1.5)),
+                &mut hits,
+            );
+            pair_count = pair_count.wrapping_add(hits.len());
+            if group_a_active[idx] {
+                hits.clear();
+                if log_progress {
+                    eprintln!("tick {} group A {} vs active subset", tick, idx);
+                }
+                group_a_active_quadtree
+                    .collisions(ShapeEnum::Circle(Circle::new(x, y, radius)), &mut hits);
+                pair_count = pair_count.wrapping_add(hits.len());
+            }
+            if group_a_inactive[idx] {
+                hits.clear();
+                if log_progress {
+                    eprintln!("tick {} group A {} vs inactive subset", tick, idx);
+                }
+                group_a_inactive_quadtree
+                    .collisions(ShapeEnum::Circle(Circle::new(x, y, radius)), &mut hits);
+                pair_count = pair_count.wrapping_add(hits.len());
+            }
+            let _ = id;
+        }
+
+        if log_progress {
+            eprintln!("tick {} query group B", tick);
+        }
+        let group_b_query_count = group_b.len().min(96);
+        for i in 0..group_b_query_count {
+            let idx = (tick * 17 + i * 13) % group_b.len();
+            let (id, x, y, _, _, radius, w, h, is_rect) = group_b[idx];
+            let shape = if is_rect {
+                ShapeEnum::Rectangle(Rectangle {
+                    x,
+                    y,
+                    width: w * 2.0,
+                    height: h * 2.0,
+                })
+            } else {
+                ShapeEnum::Circle(Circle::new(x, y, radius))
+            };
+            let mut hits = Vec::new();
+            group_a_quadtree.collisions(shape, &mut hits);
+            pair_count = pair_count.wrapping_add(hits.len());
+            let _ = id;
+        }
+
+        if log_progress {
+            eprintln!("stress tick {} end", tick);
+        }
+        let _ = pair_count;
+    }
 }
 
 #[test]
