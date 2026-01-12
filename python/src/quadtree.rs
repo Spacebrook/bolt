@@ -14,16 +14,29 @@ pub struct PyConfig {
     pool_size: usize,
     node_capacity: usize,
     max_depth: usize,
+    min_size: f32,
+    looseness: f32,
 }
 
 #[pymethods]
 impl PyConfig {
     #[new]
-    pub fn new(pool_size: usize, node_capacity: usize, max_depth: usize) -> Self {
+    #[pyo3(signature = (pool_size, node_capacity, max_depth, min_size=None, looseness=None))]
+    pub fn new(
+        pool_size: usize,
+        node_capacity: usize,
+        max_depth: usize,
+        min_size: Option<f32>,
+        looseness: Option<f32>,
+    ) -> Self {
+        let min_size = min_size.unwrap_or(1.0);
+        let looseness = looseness.unwrap_or(1.0).max(1.0);
         PyConfig {
             pool_size,
             node_capacity,
             max_depth,
+            min_size,
+            looseness,
         }
     }
 }
@@ -60,6 +73,8 @@ impl QuadTreeWrapper {
             pool_size: config.pool_size,
             node_capacity: config.node_capacity,
             max_depth: config.max_depth,
+            min_size: config.min_size,
+            looseness: config.looseness,
         };
         QuadTreeWrapper {
             quadtree: QuadTree::new_with_config(bounding_rect, rust_config),
