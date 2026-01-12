@@ -13,6 +13,7 @@ impl QuadTreeInner {
     where
         F: FnMut(u32),
     {
+        // Keep in sync with collisions_rect_fast_with; duplicated for perf.
         let query_extent = query.extent;
         let query_kind = query.kind;
         let looseness = self.looseness;

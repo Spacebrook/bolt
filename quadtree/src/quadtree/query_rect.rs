@@ -8,6 +8,7 @@ impl QuadTreeInner {
     ) where
         F: FnMut(u32),
     {
+        // Keep in sync with collisions_circle_fast_with; duplicated for perf.
         let q_min_x = query_extent.min_x;
         let q_max_x = query_extent.max_x;
         let q_min_y = query_extent.min_y;

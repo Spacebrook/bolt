@@ -395,6 +395,7 @@ impl QuadTreeInner {
     where
         F: FnMut(u32, u32),
     {
+        self.normalize_hard();
         let desired = (self.node_entities.len() + self.large_entities.len()).max(1024);
         self.pair_dedupe.ensure_capacity(desired);
         self.pair_dedupe.clear();

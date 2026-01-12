@@ -1,10 +1,13 @@
 impl QuadTreeInner {
     pub fn collisions_batch(&mut self, shapes: Vec<ShapeEnum>) -> Vec<Vec<u32>> {
+        self.normalize_hard();
         shapes
             .into_iter()
             .map(|shape| {
                 let mut collisions = Vec::new();
-                self.collisions_with(shape, |value| collisions.push(value));
+                self.collisions_from_with_normalized(&shape, None, &mut |value| {
+                    collisions.push(value);
+                });
                 collisions
             })
             .collect()
@@ -16,11 +19,12 @@ impl QuadTreeInner {
         filter_entity_types: Option<Vec<u32>>,
     ) -> Vec<Vec<u32>> {
         let filter = filter_entity_types.map(EntityTypeFilter::from_vec);
+        self.normalize_hard();
         shapes
             .into_iter()
             .map(|shape| {
                 let mut collisions = Vec::new();
-                self.collisions_from_with(&shape, filter.as_ref(), &mut |value| {
+                self.collisions_from_with_normalized(&shape, filter.as_ref(), &mut |value| {
                     collisions.push(value);
                 });
                 collisions
@@ -101,6 +105,7 @@ impl QuadTreeInner {
         self.collisions_inner_with(query, None, &mut f);
     }
 
+    /// Fast path: requires rectangle-only storage and no pending updates.
     #[inline(always)]
     pub fn collisions_rect_extent_fast_with<F>(
         &mut self,
@@ -164,6 +169,17 @@ impl QuadTreeInner {
         F: FnMut(u32),
     {
         self.normalize_hard();
+        self.collisions_from_with_normalized(query_shape, filter_entity_types, f);
+    }
+
+    fn collisions_from_with_normalized<F>(
+        &mut self,
+        query_shape: &ShapeEnum,
+        filter_entity_types: Option<&EntityTypeFilter>,
+        f: &mut F,
+    ) where
+        F: FnMut(u32),
+    {
         let query = Query::from_shape(query_shape);
         self.collisions_inner_with(query, filter_entity_types, f);
     }
