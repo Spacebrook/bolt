@@ -10,11 +10,19 @@ name = "quadtree"
 [dependencies]
 common = { path = "../common" }
 fxhash = "0.2"
+smallvec = "1"
 
 [dev-dependencies]
 rand = "0.8.5"
 criterion = "0.4.0"
 
+[features]
+query_stats = []
+
 [[bench]]
 name = "benchmarks"
+harness = false
+
+[[bench]]
+name = "comprehensive_benchmark"
 harness = false

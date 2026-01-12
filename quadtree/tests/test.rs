@@ -416,6 +416,8 @@ fn test_no_multiple_subdivision() {
         pool_size: 4000,
         node_capacity: 4,
         max_depth: 2,
+        min_size: 1.0,
+        looseness: 1.0,
     };
 
     // Create a QuadTree with the custom config
