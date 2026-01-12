@@ -247,5 +247,4 @@ impl QuadTree {
     pub fn all_shapes(&self, shapes: &mut Vec<ShapeEnum>) {
         self.inner.borrow().all_shapes(shapes);
     }
-
 }

@@ -68,7 +68,7 @@ impl QuadTreeInner {
                     old_nodes[node_idx].child(3),
                 ];
                 debug_assert!(children.iter().all(|&child| child != 0));
-                let mut total = 0u32;
+                let mut total = old_nodes[node_idx].count();
                 let mut can_merge = true;
                 for &child_idx in &children {
                     let child = &old_nodes[child_idx as usize];
@@ -76,142 +76,208 @@ impl QuadTreeInner {
                         can_merge = false;
                         break;
                     }
-                    total += child.count();
+                    total = total.saturating_add(child.count());
                 }
                 if can_merge && total <= self.merge_threshold {
                     *did_merge = true;
                     let node_extent = info.half.to_rect_extent();
                     self.merge_ht.fill(0);
                     let merge_mask = self.merge_ht.len() - 1;
-                    let mut position_flags = 0u8;
+                    let mut position_flags = old_nodes[node_idx].position_flags();
                     let mut head = 0u32;
                     let mut count = 0u32;
+                    let mut has_dedupe = false;
+
+                    let mut current = old_nodes[node_idx].head();
+                    while current != 0 {
+                        let entity_idx = old_node_entities[current as usize].index();
+                        let next_current = old_node_entities_next[current as usize];
+                        let mut hash =
+                            (entity_idx as usize).wrapping_mul(2654435761) & merge_mask;
+                        loop {
+                            let entry = self.merge_ht[hash];
+                            if entry == 0 {
+                                self.merge_ht[hash] = entity_idx;
+                                let extent = old_entity_extents.extent(entity_idx as usize);
+                                let flags = Self::compute_node_entity_flags(
+                                    node_extent,
+                                    position_flags,
+                                    extent,
+                                );
+                                let dedupe = entities[entity_idx as usize].in_nodes_minus_one > 0;
+                                if dedupe {
+                                    has_dedupe = true;
+                                }
+                                old_node_entities_flags[current as usize] = flags;
+                                old_node_entities[current as usize].set_dedupe(dedupe);
+                                old_node_entities_next[current as usize] = head;
+                                old_node_entities_last[current as usize] = (head == 0) as u8;
+                                head = current;
+                                count += 1;
+                                break;
+                            }
+                            if entry == entity_idx {
+                                let in_nodes = &mut entities[entity_idx as usize].in_nodes_minus_one;
+                                if *in_nodes > 0 {
+                                    *in_nodes -= 1;
+                                }
+                                mapper.update_in_nodes_if_mapped(entity_idx, *in_nodes);
+                                old_node_entities_next[current as usize] = free_node_entity;
+                                free_node_entity = current;
+                                break;
+                            }
+                            hash = (hash + 1) & merge_mask;
+                        }
+                        current = next_current;
+                    }
+
                     for &child_idx in &children {
                         let child_pos = old_nodes[child_idx as usize].position_flags();
                         position_flags |= child_pos;
                         let mut current = old_nodes[child_idx as usize].head();
                         while current != 0 {
                             let entity_idx = old_node_entities[current as usize].index();
-                                let next_current = old_node_entities_next[current as usize];
-                                let mut hash =
-                                    (entity_idx as usize).wrapping_mul(2654435761) & merge_mask;
-                                loop {
-                                    let entry = self.merge_ht[hash];
-                                    if entry == 0 {
-                                        self.merge_ht[hash] = entity_idx;
-                                        let extent = old_entity_extents.extent(entity_idx as usize);
-                                        let flags = Self::compute_node_entity_flags(
-                                            node_extent,
-                                            position_flags,
-                                            extent,
-                                        );
-                                        let dedupe =
-                                            entities[entity_idx as usize].in_nodes_minus_one > 0;
-                                        old_node_entities_flags[current as usize] = flags;
-                                        old_node_entities[current as usize].set_dedupe(dedupe);
-                                        old_node_entities_next[current as usize] = head;
-                                        old_node_entities_last[current as usize] = (head == 0) as u8;
-                                        head = current;
-                                        count += 1;
-                                        break;
+                            let next_current = old_node_entities_next[current as usize];
+                            let mut hash =
+                                (entity_idx as usize).wrapping_mul(2654435761) & merge_mask;
+                            loop {
+                                let entry = self.merge_ht[hash];
+                                if entry == 0 {
+                                    self.merge_ht[hash] = entity_idx;
+                                    let extent = old_entity_extents.extent(entity_idx as usize);
+                                    let flags = Self::compute_node_entity_flags(
+                                        node_extent,
+                                        position_flags,
+                                        extent,
+                                    );
+                                    let dedupe =
+                                        entities[entity_idx as usize].in_nodes_minus_one > 0;
+                                    if dedupe {
+                                        has_dedupe = true;
                                     }
-                                    if entry == entity_idx {
-                                        let in_nodes =
-                                            &mut entities[entity_idx as usize].in_nodes_minus_one;
-                                        if *in_nodes > 0 {
-                                            *in_nodes -= 1;
-                                        }
-                                        mapper.update_in_nodes_if_mapped(entity_idx, *in_nodes);
-                                        old_node_entities_next[current as usize] = free_node_entity;
-                                        free_node_entity = current;
-                                        break;
-                                    }
-                                    hash = (hash + 1) & merge_mask;
+                                    old_node_entities_flags[current as usize] = flags;
+                                    old_node_entities[current as usize].set_dedupe(dedupe);
+                                    old_node_entities_next[current as usize] = head;
+                                    old_node_entities_last[current as usize] = (head == 0) as u8;
+                                    head = current;
+                                    count += 1;
+                                    break;
                                 }
-                                current = next_current;
+                                if entry == entity_idx {
+                                    let in_nodes =
+                                        &mut entities[entity_idx as usize].in_nodes_minus_one;
+                                    if *in_nodes > 0 {
+                                        *in_nodes -= 1;
+                                    }
+                                    mapper.update_in_nodes_if_mapped(entity_idx, *in_nodes);
+                                    old_node_entities_next[current as usize] = free_node_entity;
+                                    free_node_entity = current;
+                                    break;
+                                }
+                                hash = (hash + 1) & merge_mask;
                             }
-                            old_nodes[child_idx as usize].set_head(free_node);
-                            free_node = child_idx;
-                            }
-                            
-                            let node = &mut old_nodes[node_idx];
-                            *node = Node::new_leaf(position_flags);
-                            node.set_head(head);
-                            node.set_count(count);
-                            is_leaf = true;
-                            }
-                            } else {
-                            let count = old_nodes[node_idx].count();
-                            let can_split = count >= self.split_threshold
-                            && info.depth < self.max_depth
-                            && info.half.w >= self.min_size
-                            && info.half.h >= self.min_size;
-                            if can_split {
-                            let head = old_nodes[node_idx].head();
-                            let position_flags = old_nodes[node_idx].position_flags();
-                            
-                            let mut child_indices = [0u32; 4];
-                            for i in 0..4 {
-                            let child_idx = if free_node != 0 {
-                                let idx = free_node;
-                                free_node = old_nodes[idx as usize].head();
-                                idx
-                            } else {
-                                let idx = old_nodes.len() as u32;
-                                old_nodes.push(Node::new_leaf(0));
-                                idx
-                            };
-                            child_indices[i] = child_idx;
-                            let child = &mut old_nodes[child_idx as usize];
-                            *child = Node::new_leaf(position_flags & position_flags_mask[i]);
-                            }
-                            
-                            old_nodes[node_idx].set_children(child_indices);
-                            old_nodes[node_idx].set_head(0);
-                            old_nodes[node_idx].set_count(0);
-                            
-                            let mut node_entity_idx = head;
-                            while node_entity_idx != 0 {
-                            let next_node_entity_idx =
-                                old_node_entities_next[node_entity_idx as usize];
-                            let entity_idx = old_node_entities[node_entity_idx as usize].index();
-                            let extent = old_entity_extents.extent(entity_idx as usize);
-                            let mut targets = [0usize; 4];
-                            let targets_len =
-                                child_targets_for_extent(info.half, extent, self.looseness, &mut targets);
+                            current = next_current;
+                        }
+                        old_nodes[child_idx as usize].set_head(free_node);
+                        free_node = child_idx;
+                    }
 
-                            debug_assert!(targets_len > 0);
+                    let node = &mut old_nodes[node_idx];
+                    *node = Node::new_leaf(position_flags);
+                    node.set_head(head);
+                    node.set_count(count);
+                    node.set_has_dedupe(has_dedupe);
+                    is_leaf = true;
+                }
+            } else {
+                let count = old_nodes[node_idx].count();
+                let can_split = count >= self.split_threshold
+                    && info.depth < self.max_depth
+                    && info.half.w >= self.min_size
+                    && info.half.h >= self.min_size;
+                if can_split {
+                    let head = old_nodes[node_idx].head();
+                    let position_flags = old_nodes[node_idx].position_flags();
 
-                            let flags = old_node_entities_flags[node_entity_idx as usize];
-                            let dedupe =
-                                entities[entity_idx as usize].in_nodes_minus_one > 0;
-                            old_node_entities_flags[node_entity_idx as usize] = flags;
-                            old_node_entities[node_entity_idx as usize].set_dedupe(dedupe);
+                    let mut child_indices = [0u32; 4];
+                    for i in 0..4 {
+                        let child_idx = if free_node != 0 {
+                            let idx = free_node;
+                            free_node = old_nodes[idx as usize].head();
+                            idx
+                        } else {
+                            let idx = old_nodes.len() as u32;
+                            old_nodes.push(Node::new_leaf(0));
+                            idx
+                        };
+                        child_indices[i] = child_idx;
+                        let child = &mut old_nodes[child_idx as usize];
+                        *child = Node::new_leaf(position_flags & position_flags_mask[i]);
+                    }
+
+                    old_nodes[node_idx].set_children(child_indices);
+                    old_nodes[node_idx].set_head(0);
+                    old_nodes[node_idx].set_count(0);
+
+                    let mut node_entity_idx = head;
+                    while node_entity_idx != 0 {
+                        let next_node_entity_idx =
+                            old_node_entities_next[node_entity_idx as usize];
+                        let entity_idx = old_node_entities[node_entity_idx as usize].index();
+                        let extent = old_entity_extents.extent(entity_idx as usize);
+                        let mut targets = [0usize; 4];
+                        let targets_len = child_targets_for_extent(
+                            info.half,
+                            extent,
+                            self.looseness,
+                            &mut targets,
+                        );
+
+                        debug_assert!(targets_len > 0);
+
+                        let flags = old_node_entities_flags[node_entity_idx as usize];
+                        let dedupe =
+                            entities[entity_idx as usize].in_nodes_minus_one > 0;
+                        old_node_entities_flags[node_entity_idx as usize] = flags;
+                        old_node_entities[node_entity_idx as usize].set_dedupe(dedupe);
 
                             if targets_len == 1 {
-                                let child_idx = child_indices[targets[0]];
-                                let child_head = old_nodes[child_idx as usize].head();
-                                old_node_entities_next[node_entity_idx as usize] = child_head;
-                                old_node_entities_last[node_entity_idx as usize] = (child_head == 0) as u8;
-                                old_nodes[child_idx as usize].set_head(node_entity_idx);
-                                let child_count = old_nodes[child_idx as usize].count();
-                                old_nodes[child_idx as usize].set_count(child_count + 1);
+                                let child_half =
+                                    Self::child_half_extent(info.half, targets[0]);
+                                if extent_fits_in_loose_half(child_half, extent, self.looseness) {
+                                    let child_idx = child_indices[targets[0]];
+                                    let child_head = old_nodes[child_idx as usize].head();
+                                    old_node_entities_next[node_entity_idx as usize] = child_head;
+                                    old_node_entities_last[node_entity_idx as usize] =
+                                        (child_head == 0) as u8;
+                                    old_nodes[child_idx as usize].set_head(node_entity_idx);
+                                    let child_count = old_nodes[child_idx as usize].count();
+                                    old_nodes[child_idx as usize].set_count(child_count + 1);
+                                } else {
+                                    let parent_head = old_nodes[node_idx].head();
+                                    old_node_entities_next[node_entity_idx as usize] = parent_head;
+                                    old_node_entities_last[node_entity_idx as usize] =
+                                        (parent_head == 0) as u8;
+                                    old_nodes[node_idx].set_head(node_entity_idx);
+                                    let parent_count = old_nodes[node_idx].count();
+                                    old_nodes[node_idx].set_count(parent_count + 1);
+                                }
                             } else {
                                 let parent_head = old_nodes[node_idx].head();
                                 old_node_entities_next[node_entity_idx as usize] = parent_head;
                                 old_node_entities_last[node_entity_idx as usize] =
                                     (parent_head == 0) as u8;
-                                old_nodes[node_idx].set_head(node_entity_idx);
-                                let parent_count = old_nodes[node_idx].count();
-                                old_nodes[node_idx].set_count(parent_count + 1);
-                            }
+                            old_nodes[node_idx].set_head(node_entity_idx);
+                            let parent_count = old_nodes[node_idx].count();
+                            old_nodes[node_idx].set_count(parent_count + 1);
+                        }
 
-                            node_entity_idx = next_node_entity_idx;
-                            }
-                            
-                            is_leaf = false;
-                            }
-                            }
+                        node_entity_idx = next_node_entity_idx;
+                    }
+
+                    is_leaf = false;
+                }
+            }
                             
                             {
                             let old_node = &old_nodes[node_idx];

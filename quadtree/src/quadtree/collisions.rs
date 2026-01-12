@@ -213,7 +213,6 @@ impl QuadTreeInner {
                 self.collisions_rect_fast_with(query_extent, tick, f);
                 return;
             }
-
             if all_circles {
                 self.collisions_circle_fast_with(query, tick, f);
                 return;
@@ -358,12 +357,10 @@ impl QuadTreeInner {
                     .map(|data| data[entity_idx_usize])
                     .unwrap_or(default_circle);
 
-                if entity.has_dedupe() {
-                    if query_marks[entity_idx_usize] == tick {
-                        current += 1;
-                        continue;
-                    }
-                    query_marks[entity_idx_usize] = tick;
+                let has_dedupe = entity.has_dedupe();
+                if has_dedupe && query_marks[entity_idx_usize] == tick {
+                    current += 1;
+                    continue;
                 }
 
                 if let Some(filter) = filter_entity_types {
@@ -418,6 +415,9 @@ impl QuadTreeInner {
                 };
 
                 if hit {
+                    if has_dedupe {
+                        query_marks[entity_idx_usize] = tick;
+                    }
                     f(packed.value());
                 }
 

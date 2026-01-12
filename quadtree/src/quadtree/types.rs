@@ -184,7 +184,7 @@ fn circle_circle_raw(x1: f32, y1: f32, r1: f32, x2: f32, y2: f32, r2: f32) -> bo
     let dx = x1 - x2;
     let dy = y1 - y2;
     let r = r1 + r2;
-    dx * dx + dy * dy <= r * r
+    dx * dx + dy * dy < r * r
 }
 
 #[inline(always)]
@@ -437,4 +437,3 @@ impl EntityMapper for IdentityMapper {
     #[inline(always)]
     fn update_in_nodes_if_mapped(&mut self, _old_idx: u32, _in_nodes_minus_one: u32) {}
 }
-

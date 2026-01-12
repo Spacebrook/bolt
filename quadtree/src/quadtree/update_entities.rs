@@ -122,12 +122,7 @@ impl QuadTreeInner {
                         *flags_ptr = flags;
                     }
 
-                    if crossed_new_boundary && entity.reinsertion_tick != update_tick {
-                        entity.reinsertion_tick = update_tick;
-                        self.reinsertions.push(entity_idx as u32);
-                        self.normalization = Normalization::Hard;
-                    }
-
+                    let mut needs_removal = crossed_new_boundary;
                     if (max_x < node_extent.min_x && (position_flags & FLAG_LEFT) == 0)
                         || (max_y < node_extent.min_y
                             && (position_flags & FLAG_BOTTOM) == 0)
@@ -135,12 +130,24 @@ impl QuadTreeInner {
                             && (position_flags & FLAG_RIGHT) == 0)
                         || (node_extent.max_y < min_y && (position_flags & FLAG_TOP) == 0)
                     {
+                        needs_removal = true;
+                    }
+
+                    if needs_removal {
                         self.node_removals.push(NodeRemoval {
                             node_idx,
                             prev_idx: prev,
                             node_entity_idx: current as u32,
                             entity_idx: entity_idx as u32,
                         });
+                        self.normalization = Normalization::Hard;
+                        if entity.reinsertion_tick != update_tick {
+                            entity.reinsertion_tick = update_tick;
+                            self.reinsertions.push(entity_idx as u32);
+                        }
+                    } else if crossed_new_boundary && entity.reinsertion_tick != update_tick {
+                        entity.reinsertion_tick = update_tick;
+                        self.reinsertions.push(entity_idx as u32);
                         self.normalization = Normalization::Hard;
                     }
                 }
@@ -194,10 +201,15 @@ impl QuadTreeInner {
                 let targets_len =
                     child_targets_for_extent(half, extent, self.looseness, &mut targets);
                 if targets_len == 1 {
+                    let child_half = Self::child_half_extent(half, targets[0]);
+                    if !extent_fits_in_loose_half(child_half, extent, self.looseness) {
+                        // Extent does not fit in the child, keep it in the current node.
+                    } else {
                     let child = nodes[node_idx_usize].child(targets[0]);
                     if child != 0 {
-                        stack.push((child, Self::child_half_extent(half, targets[0])));
+                        stack.push((child, child_half));
                         continue;
+                    }
                     }
                 }
                 // Multi-child extents stay in this node to avoid duplication.

@@ -37,7 +37,9 @@ impl QuadTreeInner {
 
                 let entity_idx = removal.entity_idx as usize;
                 let in_nodes = &mut self.entities[entity_idx].in_nodes_minus_one;
-                if *in_nodes > 0 {
+                if *in_nodes == 0 {
+                    self.reinsertions.push(entity_idx as u32);
+                } else {
                     *in_nodes -= 1;
                 }
 
@@ -116,10 +118,13 @@ impl QuadTreeInner {
                         let targets_len =
                             child_targets_for_extent(half, extent, looseness, &mut targets);
                         if targets_len == 1 {
-                            let child = nodes[node_idx_usize].child(targets[0]);
-                            if child != 0 {
-                                stack.push((child, Self::child_half_extent(half, targets[0])));
-                                continue;
+                            let child_half = Self::child_half_extent(half, targets[0]);
+                            if extent_fits_in_loose_half(child_half, extent, looseness) {
+                                let child = nodes[node_idx_usize].child(targets[0]);
+                                if child != 0 {
+                                    stack.push((child, child_half));
+                                    continue;
+                                }
                             }
                         }
                         // Multi-child extents stay in this node to avoid duplication.
