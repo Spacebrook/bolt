@@ -268,6 +268,7 @@ impl QuadTreeInner {
 
     fn remove_entity(&mut self, entity_idx: u32) {
         self.remove_large_entity(entity_idx);
+        let remove_all = self.entities[entity_idx as usize].status_changed == self.status_tick;
         let extent = self.entity_extent(entity_idx);
         let mut stack = std::mem::take(&mut self.remove_stack);
         stack.clear();
@@ -320,13 +321,22 @@ impl QuadTreeInner {
             }
 
             if !node.is_leaf() {
-                let mut targets = [0usize; 4];
-                let targets_len =
-                    child_targets_for_extent(half, extent, self.looseness, &mut targets);
-                for target in targets.iter().take(targets_len) {
-                    let child = node.child(*target);
-                    if child != 0 {
-                        stack.push((child, Self::child_half_extent(half, *target)));
+                if remove_all {
+                    for i in 0..4 {
+                        let child = node.child(i);
+                        if child != 0 {
+                            stack.push((child, Self::child_half_extent(half, i)));
+                        }
+                    }
+                } else {
+                    let mut targets = [0usize; 4];
+                    let targets_len =
+                        child_targets_for_extent(half, extent, self.looseness, &mut targets);
+                    for target in targets.iter().take(targets_len) {
+                        let child = node.child(*target);
+                        if child != 0 {
+                            stack.push((child, Self::child_half_extent(half, *target)));
+                        }
                     }
                 }
             }

@@ -115,6 +115,50 @@ fn test_full_tree() {
 }
 
 #[test]
+fn delete_after_relocate_before_update_clears_nodes() {
+    let bounds = Rectangle::new(0.0, 0.0, 100.0, 100.0);
+    let config = Config {
+        pool_size: 64,
+        node_capacity: 1,
+        max_depth: 4,
+        min_size: 1.0,
+        looseness: 1.0,
+        large_entity_threshold_factor: 0.0,
+    };
+    let mut qt = QuadTree::new_with_config(bounds, config);
+
+    qt.insert(1, ShapeEnum::Circle(Circle::new(-30.0, -30.0, 2.0)), None);
+    qt.insert(2, ShapeEnum::Circle(Circle::new(-30.0, 30.0, 2.0)), None);
+    qt.insert(3, ShapeEnum::Circle(Circle::new(30.0, -30.0, 2.0)), None);
+    qt.insert(4, ShapeEnum::Circle(Circle::new(30.0, 30.0, 2.0)), None);
+    qt.insert(10, ShapeEnum::Circle(Circle::new(-35.0, 0.0, 2.0)), None);
+    qt.update();
+
+    qt.relocate(10, ShapeEnum::Circle(Circle::new(35.0, 0.0, 2.0)), None);
+    qt.delete(10);
+
+    let mut hits = Vec::new();
+    qt.collisions(
+        ShapeEnum::Rectangle(Rectangle::new(0.0, 0.0, 200.0, 200.0)),
+        &mut hits,
+    );
+    assert!(
+        !hits.contains(&10),
+        "deleted entity should not appear in world query"
+    );
+
+    hits.clear();
+    qt.collisions(
+        ShapeEnum::Circle(Circle::new(-35.0, 0.0, 3.0)),
+        &mut hits,
+    );
+    assert!(
+        !hits.contains(&10),
+        "deleted entity should not appear at prior location"
+    );
+}
+
+#[test]
 fn test_huge_bounds() {
     let mut qt = QuadTree::new(Rectangle::new(0.0, 0.0, 2000000.0, 2000000.0));
     qt.insert(
