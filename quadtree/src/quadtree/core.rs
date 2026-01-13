@@ -110,6 +110,42 @@ impl QuadTreeInner {
         let entity_types_scratch = None;
         let circle_data = None;
         let circle_data_scratch = None;
+        let reserve = config.pool_size.saturating_add(1);
+        if reserve > 1 {
+            if node_entities.len() < reserve {
+                node_entities.reserve(reserve - node_entities.len());
+            }
+            if node_entity_extents.len() < reserve {
+                node_entity_extents.reserve(reserve - node_entity_extents.len());
+            }
+            if node_entity_packed.len() < reserve {
+                node_entity_packed.reserve(reserve - node_entity_packed.len());
+            }
+            if node_entities_next.len() < reserve {
+                node_entities_next.reserve(reserve - node_entities_next.len());
+            }
+            if node_entity_values.len() < reserve {
+                node_entity_values.reserve(reserve - node_entity_values.len());
+            }
+            if node_entities_flags.len() < reserve {
+                node_entities_flags.reserve(reserve - node_entities_flags.len());
+            }
+            if node_entities_last.len() < reserve {
+                node_entities_last.reserve(reserve - node_entities_last.len());
+            }
+            if entities.len() < reserve {
+                entities.reserve(reserve - entities.len());
+            }
+            if entity_extents.len() < reserve {
+                entity_extents.reserve(reserve - entity_extents.len());
+            }
+            if query_marks.len() < reserve {
+                query_marks.reserve(reserve - query_marks.len());
+            }
+            if entity_values.len() < reserve {
+                entity_values.reserve(reserve - entity_values.len());
+            }
+        }
         let rebuild_stack = Vec::with_capacity(
             (max_depth as usize).saturating_mul(3).saturating_add(1),
         );

@@ -1,6 +1,7 @@
 
 #[derive(Debug, Clone)]
 pub struct Config {
+    /// Pre-allocate storage sized for about this many entities.
     pub pool_size: usize,
     pub node_capacity: usize,
     pub max_depth: usize,

@@ -28,12 +28,12 @@ pub fn circle_rectangle(circle: &Circle, rectangle: &Rectangle) -> bool {
     let half_rect_height = rectangle.height / 2.0;
 
     // Check if the circle is outside the rectangle's bounds
-    if dx > half_rect_width + circle.radius || dy > half_rect_height + circle.radius {
+    if dx >= half_rect_width + circle.radius || dy >= half_rect_height + circle.radius {
         return false;
     }
 
     // Check if the circle's center is inside the rectangle
-    if dx <= half_rect_width || dy <= half_rect_height {
+    if dx < half_rect_width || dy < half_rect_height {
         return true;
     }
 
@@ -42,7 +42,7 @@ pub fn circle_rectangle(circle: &Circle, rectangle: &Rectangle) -> bool {
     let corner_dy = dy - half_rect_height;
     let corner_distance_sq = corner_dx * corner_dx + corner_dy * corner_dy;
 
-    corner_distance_sq <= circle.radius * circle.radius
+    corner_distance_sq < circle.radius * circle.radius
 }
 
 pub fn shape_shape(a: &ShapeEnum, b: &ShapeEnum) -> bool {

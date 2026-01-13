@@ -55,10 +55,10 @@ impl QuadTreeInner {
                         let b_max_x = b_extent.max_x;
                         let b_max_y = b_extent.max_y;
 
-                        if a_max_x >= b_min_x
-                            && a_max_y >= b_min_y
-                            && b_max_x >= a_min_x
-                            && b_max_y >= a_min_y
+                        if a_max_x > b_min_x
+                            && a_max_y > b_min_y
+                            && b_max_x > a_min_x
+                            && b_max_y > a_min_y
                         {
                             if allow_duplicates {
                                 let b_in_nodes = b_entity.in_nodes_minus_one;

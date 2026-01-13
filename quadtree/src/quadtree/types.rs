@@ -200,15 +200,15 @@ fn circle_rect_raw(
 ) -> bool {
     let dx = (cx - rect_x).abs();
     let dy = (cy - rect_y).abs();
-    if dx > half_w + radius || dy > half_h + radius {
+    if dx >= half_w + radius || dy >= half_h + radius {
         return false;
     }
-    if dx <= half_w || dy <= half_h {
+    if dx < half_w || dy < half_h {
         return true;
     }
     let corner_dx = dx - half_w;
     let corner_dy = dy - half_h;
-    corner_dx * corner_dx + corner_dy * corner_dy <= radius_sq
+    corner_dx * corner_dx + corner_dy * corner_dy < radius_sq
 }
 
 #[inline(always)]

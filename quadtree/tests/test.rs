@@ -148,10 +148,7 @@ fn delete_after_relocate_before_update_clears_nodes() {
     );
 
     hits.clear();
-    qt.collisions(
-        ShapeEnum::Circle(Circle::new(-35.0, 0.0, 3.0)),
-        &mut hits,
-    );
+    qt.collisions(ShapeEnum::Circle(Circle::new(-35.0, 0.0, 3.0)), &mut hits);
     assert!(
         !hits.contains(&10),
         "deleted entity should not appear at prior location"
@@ -202,6 +199,42 @@ fn test_no_collision() {
         &mut collisions,
     );
     assert!(collisions.is_empty());
+}
+
+#[test]
+fn test_edge_touching_exclusive_collisions() {
+    let mut qt = QuadTree::new(Rectangle::new(0.0, 0.0, 100.0, 100.0));
+    qt.insert(
+        1,
+        ShapeEnum::Rectangle(Rectangle::new(0.0, 0.0, 10.0, 10.0)),
+        None,
+    );
+    qt.insert(2, ShapeEnum::Circle(Circle::new(20.0, 0.0, 5.0)), None);
+    qt.insert(3, ShapeEnum::Circle(Circle::new(45.0, 0.0, 5.0)), None);
+
+    let mut hits = Vec::new();
+    qt.collisions(
+        ShapeEnum::Rectangle(Rectangle::new(10.0, 0.0, 10.0, 10.0)),
+        &mut hits,
+    );
+    assert!(
+        !hits.contains(&1),
+        "rectangle edge touch should not collide"
+    );
+
+    hits.clear();
+    qt.collisions(ShapeEnum::Circle(Circle::new(30.0, 0.0, 5.0)), &mut hits);
+    assert!(!hits.contains(&2), "circle edge touch should not collide");
+
+    hits.clear();
+    qt.collisions(
+        ShapeEnum::Rectangle(Rectangle::new(30.0, 0.0, 20.0, 10.0)),
+        &mut hits,
+    );
+    assert!(
+        !hits.contains(&3),
+        "circle-rectangle edge touch should not collide"
+    );
 }
 
 #[test]
@@ -985,8 +1018,7 @@ fn stress_multi_tree_collision_queries() {
                 &mut hits,
                 &mut expected,
                 |query, expected| {
-                    for (b_id, b_x, b_y, _, _, b_radius, b_w, b_h, b_is_rect) in group_b.iter()
-                    {
+                    for (b_id, b_x, b_y, _, _, b_radius, b_w, b_h, b_is_rect) in group_b.iter() {
                         let candidate = if *b_is_rect {
                             ShapeEnum::Rectangle(Rectangle {
                                 x: *b_x,
@@ -1030,9 +1062,7 @@ fn stress_multi_tree_collision_queries() {
                 &mut hits,
                 &mut expected,
                 |query, expected| {
-                    for (a_idx, (a_id, a_x, a_y, _, _, a_radius)) in
-                        group_a.iter().enumerate()
-                    {
+                    for (a_idx, (a_id, a_x, a_y, _, _, a_radius)) in group_a.iter().enumerate() {
                         if !group_a_active[a_idx] {
                             continue;
                         }
@@ -1052,9 +1082,7 @@ fn stress_multi_tree_collision_queries() {
                 &mut hits,
                 &mut expected,
                 |query, expected| {
-                    for (a_idx, (a_id, a_x, a_y, _, _, a_radius)) in
-                        group_a.iter().enumerate()
-                    {
+                    for (a_idx, (a_id, a_x, a_y, _, _, a_radius)) in group_a.iter().enumerate() {
                         if !group_a_inactive[a_idx] {
                             continue;
                         }
@@ -1107,9 +1135,7 @@ fn stress_multi_tree_collision_queries() {
                 &mut hits,
                 &mut expected,
                 |query, expected| {
-                    for (a_idx, (a_id, a_x, a_y, _, _, a_radius)) in
-                        group_a.iter().enumerate()
-                    {
+                    for (a_idx, (a_id, a_x, a_y, _, _, a_radius)) in group_a.iter().enumerate() {
                         if !group_a_active[a_idx] {
                             continue;
                         }
@@ -1129,9 +1155,7 @@ fn stress_multi_tree_collision_queries() {
                 &mut hits,
                 &mut expected,
                 |query, expected| {
-                    for (a_idx, (a_id, a_x, a_y, _, _, a_radius)) in
-                        group_a.iter().enumerate()
-                    {
+                    for (a_idx, (a_id, a_x, a_y, _, _, a_radius)) in group_a.iter().enumerate() {
                         if !group_a_inactive[a_idx] {
                             continue;
                         }
@@ -1151,8 +1175,7 @@ fn stress_multi_tree_collision_queries() {
                 &mut hits,
                 &mut expected,
                 |query, expected| {
-                    for (b_id, b_x, b_y, _, _, b_radius, b_w, b_h, b_is_rect) in group_b.iter()
-                    {
+                    for (b_id, b_x, b_y, _, _, b_radius, b_w, b_h, b_is_rect) in group_b.iter() {
                         let candidate = if *b_is_rect {
                             ShapeEnum::Rectangle(Rectangle {
                                 x: *b_x,
@@ -1219,9 +1242,7 @@ fn stress_multi_tree_collision_queries() {
                 &mut hits,
                 &mut expected,
                 |query, expected| {
-                    for (a_idx, (a_id, a_x, a_y, _, _, a_radius)) in
-                        group_a.iter().enumerate()
-                    {
+                    for (a_idx, (a_id, a_x, a_y, _, _, a_radius)) in group_a.iter().enumerate() {
                         if !group_a_active[a_idx] {
                             continue;
                         }
@@ -1241,9 +1262,7 @@ fn stress_multi_tree_collision_queries() {
                 &mut hits,
                 &mut expected,
                 |query, expected| {
-                    for (a_idx, (a_id, a_x, a_y, _, _, a_radius)) in
-                        group_a.iter().enumerate()
-                    {
+                    for (a_idx, (a_id, a_x, a_y, _, _, a_radius)) in group_a.iter().enumerate() {
                         if !group_a_inactive[a_idx] {
                             continue;
                         }
@@ -1263,8 +1282,7 @@ fn stress_multi_tree_collision_queries() {
                 &mut hits,
                 &mut expected,
                 |query, expected| {
-                    for (b_id, b_x, b_y, _, _, b_radius, b_w, b_h, b_is_rect) in group_b.iter()
-                    {
+                    for (b_id, b_x, b_y, _, _, b_radius, b_w, b_h, b_is_rect) in group_b.iter() {
                         let candidate = if *b_is_rect {
                             ShapeEnum::Rectangle(Rectangle {
                                 x: *b_x,

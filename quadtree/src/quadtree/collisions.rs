@@ -121,6 +121,8 @@ impl QuadTreeInner {
         F: FnMut(u32),
     {
         debug_assert!(self.circle_count == 0);
+        debug_assert!(!self.update_pending);
+        debug_assert!(self.normalization == Normalization::Normal);
         let extent = RectExtent::from_min_max(min_x, min_y, max_x, max_y);
         let tick = self.next_query_tick();
         #[cfg(feature = "query_stats")]
