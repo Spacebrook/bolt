@@ -262,10 +262,10 @@ impl QuadTreeInner {
                         let b_max_y = b_extent.max_y;
 
                         let hit = if !a_is_circle && !b_is_circle {
-                            a_max_x >= b_min_x
-                                && a_max_y >= b_min_y
-                                && b_max_x >= a_min_x
-                                && b_max_y >= a_min_y
+                            a_max_x > b_min_x
+                                && a_max_y > b_min_y
+                                && b_max_x > a_min_x
+                                && b_max_y > a_min_y
                         } else if a_is_circle && b_is_circle {
                             circle_circle_raw(
                                 a_circle.x,
@@ -279,6 +279,7 @@ impl QuadTreeInner {
                             circle_extent_raw(
                                 a_circle.x,
                                 a_circle.y,
+                                a_circle.radius,
                                 a_circle.radius_sq,
                                 RectExtent::from_min_max(b_min_x, b_min_y, b_max_x, b_max_y),
                             )
@@ -286,6 +287,7 @@ impl QuadTreeInner {
                             circle_extent_raw(
                                 b_circle.x,
                                 b_circle.y,
+                                b_circle.radius,
                                 b_circle.radius_sq,
                                 RectExtent::from_min_max(a_min_x, a_min_y, a_max_x, a_max_y),
                             )
@@ -453,15 +455,27 @@ impl QuadTreeInner {
                                 b_circle.radius,
                             )
                         } else {
-                            circle_extent_raw(a_circle.x, a_circle.y, a_circle.radius_sq, b_extent)
+                            circle_extent_raw(
+                                a_circle.x,
+                                a_circle.y,
+                                a_circle.radius,
+                                a_circle.radius_sq,
+                                b_extent,
+                            )
                         }
                     } else if b_is_circle {
-                        circle_extent_raw(b_circle.x, b_circle.y, b_circle.radius_sq, a_extent)
+                        circle_extent_raw(
+                            b_circle.x,
+                            b_circle.y,
+                            b_circle.radius,
+                            b_circle.radius_sq,
+                            a_extent,
+                        )
                     } else {
-                        a_extent.max_x >= b_extent.min_x
-                            && a_extent.max_y >= b_extent.min_y
-                            && b_extent.max_x >= a_extent.min_x
-                            && b_extent.max_y >= a_extent.min_y
+                        a_extent.max_x > b_extent.min_x
+                            && a_extent.max_y > b_extent.min_y
+                            && b_extent.max_x > a_extent.min_x
+                            && b_extent.max_y > a_extent.min_y
                     };
 
                     if hits {

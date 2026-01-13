@@ -30,20 +30,22 @@ impl QuadTreeInner {
             let entity_idx = entity.index() as usize;
             if entity.has_dedupe() {
                 let mark_ptr = query_marks_ptr.add(entity_idx);
-                if *mark_ptr != tick {
-                    *mark_ptr = tick;
-                } else {
+                if *mark_ptr == tick {
                     idx += 1;
                     continue;
                 }
             }
-            if packed.max_x < q_min_x || q_max_x < packed.min_x {
+            if packed.max_x <= q_min_x || q_max_x <= packed.min_x {
                 idx += 1;
                 continue;
             }
-            if packed.max_y < q_min_y || q_max_y < packed.min_y {
+            if packed.max_y <= q_min_y || q_max_y <= packed.min_y {
                 idx += 1;
                 continue;
+            }
+            if entity.has_dedupe() {
+                let mark_ptr = query_marks_ptr.add(entity_idx);
+                *mark_ptr = tick;
             }
             f(packed.value());
             idx += 1;

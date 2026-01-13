@@ -82,7 +82,7 @@ impl QuadTreeInner {
                     let max_x = extent.max_x;
                     let max_y = extent.max_y;
 
-                    if max_y >= node_extent.max_y && (position_flags & FLAG_TOP) == 0 {
+                    if max_y > node_extent.max_y && (position_flags & FLAG_TOP) == 0 {
                         if (flags & FLAG_TOP) == 0 {
                             flags |= FLAG_TOP;
                             crossed_new_boundary = true;
@@ -91,7 +91,7 @@ impl QuadTreeInner {
                         flags &= !FLAG_TOP;
                     }
 
-                    if max_x >= node_extent.max_x && (position_flags & FLAG_RIGHT) == 0 {
+                    if max_x > node_extent.max_x && (position_flags & FLAG_RIGHT) == 0 {
                         if (flags & FLAG_RIGHT) == 0 {
                             flags |= FLAG_RIGHT;
                             crossed_new_boundary = true;
@@ -100,7 +100,7 @@ impl QuadTreeInner {
                         flags &= !FLAG_RIGHT;
                     }
 
-                    if min_y <= node_extent.min_y && (position_flags & FLAG_BOTTOM) == 0 {
+                    if min_y < node_extent.min_y && (position_flags & FLAG_BOTTOM) == 0 {
                         if (flags & FLAG_BOTTOM) == 0 {
                             flags |= FLAG_BOTTOM;
                             crossed_new_boundary = true;
@@ -109,7 +109,7 @@ impl QuadTreeInner {
                         flags &= !FLAG_BOTTOM;
                     }
 
-                    if min_x <= node_extent.min_x && (position_flags & FLAG_LEFT) == 0 {
+                    if min_x < node_extent.min_x && (position_flags & FLAG_LEFT) == 0 {
                         if (flags & FLAG_LEFT) == 0 {
                             flags |= FLAG_LEFT;
                             crossed_new_boundary = true;
@@ -122,7 +122,7 @@ impl QuadTreeInner {
                         *flags_ptr = flags;
                     }
 
-                    let mut needs_removal = crossed_new_boundary;
+                    let mut needs_removal = crossed_new_boundary || flags != 0;
                     if (max_x < node_extent.min_x && (position_flags & FLAG_LEFT) == 0)
                         || (max_y < node_extent.min_y
                             && (position_flags & FLAG_BOTTOM) == 0)
@@ -378,16 +378,16 @@ impl QuadTreeInner {
     ) -> u8 {
         let mut flags = 0u8;
 
-        if entity_extent.max_y >= node_extent.max_y && (position_flags & FLAG_TOP) == 0 {
+        if entity_extent.max_y > node_extent.max_y && (position_flags & FLAG_TOP) == 0 {
             flags |= FLAG_TOP;
         }
-        if entity_extent.max_x >= node_extent.max_x && (position_flags & FLAG_RIGHT) == 0 {
+        if entity_extent.max_x > node_extent.max_x && (position_flags & FLAG_RIGHT) == 0 {
             flags |= FLAG_RIGHT;
         }
-        if entity_extent.min_y <= node_extent.min_y && (position_flags & FLAG_BOTTOM) == 0 {
+        if entity_extent.min_y < node_extent.min_y && (position_flags & FLAG_BOTTOM) == 0 {
             flags |= FLAG_BOTTOM;
         }
-        if entity_extent.min_x <= node_extent.min_x && (position_flags & FLAG_LEFT) == 0 {
+        if entity_extent.min_x < node_extent.min_x && (position_flags & FLAG_LEFT) == 0 {
             flags |= FLAG_LEFT;
         }
 

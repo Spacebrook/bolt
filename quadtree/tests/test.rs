@@ -29,6 +29,19 @@ fn assert_collisions_with_expected<F>(
     assert_eq!(hit_set, *expected, "{}", label);
 }
 
+fn assert_tree_contents(label: &str, tree: &QuadTree, query: &ShapeEnum, expected: &HashSet<u32>) {
+    let mut hits = Vec::new();
+    tree.collisions(query.clone(), &mut hits);
+    let hit_set: HashSet<u32> = hits.iter().copied().collect();
+    assert_eq!(
+        hit_set.len(),
+        hits.len(),
+        "{} returned duplicate ids",
+        label
+    );
+    assert_eq!(hit_set, *expected, "{}", label);
+}
+
 #[test]
 fn test_single_collision() {
     let mut qt = QuadTree::new(Rectangle::new(50.0, 50.0, 100.0, 100.0));
@@ -827,6 +840,63 @@ fn stress_multi_tree_collision_queries() {
             });
         }
         group_c_quadtree.relocate_batch(group_c_requests);
+
+        let world_query = ShapeEnum::Rectangle(Rectangle {
+            x: 0.0,
+            y: 0.0,
+            width: ARENA_W * 2.0,
+            height: ARENA_H * 2.0,
+        });
+        let mut expected_all = HashSet::new();
+        let mut expected_active = HashSet::new();
+        let mut expected_inactive = HashSet::new();
+        let mut expected_b = HashSet::new();
+        let mut expected_c = HashSet::new();
+        for (idx, (id, ..)) in group_a.iter().enumerate() {
+            expected_all.insert(*id);
+            if group_a_active[idx] {
+                expected_active.insert(*id);
+            }
+            if group_a_inactive[idx] {
+                expected_inactive.insert(*id);
+            }
+        }
+        for (id, ..) in group_b.iter() {
+            expected_b.insert(*id);
+        }
+        for (id, ..) in group_c.iter() {
+            expected_c.insert(*id);
+        }
+        assert_tree_contents(
+            &format!("tick {} group A contents", tick),
+            &group_a_quadtree,
+            &world_query,
+            &expected_all,
+        );
+        assert_tree_contents(
+            &format!("tick {} active subset contents", tick),
+            &group_a_active_quadtree,
+            &world_query,
+            &expected_active,
+        );
+        assert_tree_contents(
+            &format!("tick {} inactive subset contents", tick),
+            &group_a_inactive_quadtree,
+            &world_query,
+            &expected_inactive,
+        );
+        assert_tree_contents(
+            &format!("tick {} group B contents", tick),
+            &group_b_quadtree,
+            &world_query,
+            &expected_b,
+        );
+        assert_tree_contents(
+            &format!("tick {} group C contents", tick),
+            &group_c_quadtree,
+            &world_query,
+            &expected_c,
+        );
 
         if log_progress {
             eprintln!("tick {} query group A", tick);

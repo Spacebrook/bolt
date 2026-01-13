@@ -53,12 +53,12 @@ impl QuadTreeInner {
                 let max_x = _mm256_loadu_ps(node_entity_max_x_ptr.add(base));
                 let max_y = _mm256_loadu_ps(node_entity_max_y_ptr.add(base));
                 let x_ok = _mm256_and_ps(
-                    _mm256_cmp_ps(max_x, qminx, _CMP_GE_OQ),
-                    _mm256_cmp_ps(qmaxx, min_x, _CMP_GE_OQ),
+                    _mm256_cmp_ps(max_x, qminx, _CMP_GT_OQ),
+                    _mm256_cmp_ps(qmaxx, min_x, _CMP_GT_OQ),
                 );
                 let y_ok = _mm256_and_ps(
-                    _mm256_cmp_ps(max_y, qminy, _CMP_GE_OQ),
-                    _mm256_cmp_ps(qmaxy, min_y, _CMP_GE_OQ),
+                    _mm256_cmp_ps(max_y, qminy, _CMP_GT_OQ),
+                    _mm256_cmp_ps(qmaxy, min_y, _CMP_GT_OQ),
                 );
                 let mask = _mm256_movemask_ps(_mm256_and_ps(x_ok, y_ok)) as u32;
                 if (mask & 0b0000_0001) != 0 {
@@ -116,8 +116,8 @@ impl QuadTreeInner {
                 let min_y = _mm_loadu_ps(node_entity_min_y_ptr.add(base));
                 let max_x = _mm_loadu_ps(node_entity_max_x_ptr.add(base));
                 let max_y = _mm_loadu_ps(node_entity_max_y_ptr.add(base));
-                let x_ok = _mm_and_ps(_mm_cmpge_ps(max_x, qminx), _mm_cmpge_ps(qmaxx, min_x));
-                let y_ok = _mm_and_ps(_mm_cmpge_ps(max_y, qminy), _mm_cmpge_ps(qmaxy, min_y));
+                let x_ok = _mm_and_ps(_mm_cmpgt_ps(max_x, qminx), _mm_cmpgt_ps(qmaxx, min_x));
+                let y_ok = _mm_and_ps(_mm_cmpgt_ps(max_y, qminy), _mm_cmpgt_ps(qmaxy, min_y));
                 let mask = _mm_movemask_ps(_mm_and_ps(x_ok, y_ok)) as u32;
                 if (mask & 0b0001) != 0 {
                     f(*node_entity_values_ptr.add(base));
@@ -139,13 +139,13 @@ impl QuadTreeInner {
             Self::bump_query_entity_ptr(stats);
             let min_x = *node_entity_min_x_ptr.add(idx);
             let max_x = *node_entity_max_x_ptr.add(idx);
-            if max_x < q_min_x || q_max_x < min_x {
+            if max_x <= q_min_x || q_max_x <= min_x {
                 idx += 1;
                 continue;
             }
             let min_y = *node_entity_min_y_ptr.add(idx);
             let max_y = *node_entity_max_y_ptr.add(idx);
-            if max_y < q_min_y || q_max_y < min_y {
+            if max_y <= q_min_y || q_max_y <= min_y {
                 idx += 1;
                 continue;
             }

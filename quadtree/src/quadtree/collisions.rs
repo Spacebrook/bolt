@@ -212,7 +212,7 @@ impl QuadTreeInner {
         }
 
         if filter_entity_types.is_none() {
-            if all_rectangles && matches!(query_kind, QueryKind::Rect) {
+            if all_rectangles && matches!(query_kind, QueryKind::Rect { .. }) {
                 self.collisions_rect_fast_with(query_extent, tick, f);
                 return;
             }
@@ -296,18 +296,27 @@ impl QuadTreeInner {
                 }
 
                 let hit = match query_kind {
-                    QueryKind::Rect => {
+                    QueryKind::Rect {
+                        x,
+                        y,
+                        half_w,
+                        half_h,
+                    } => {
                         if all_rectangles || entity.shape_kind == SHAPE_RECT {
-                            max_x >= query_extent.min_x
-                                && max_y >= query_extent.min_y
-                                && query_extent.max_x >= min_x
-                                && query_extent.max_y >= min_y
+                            max_x > query_extent.min_x
+                                && max_y > query_extent.min_y
+                                && query_extent.max_x > min_x
+                                && query_extent.max_y > min_y
                         } else {
-                            circle_extent_raw(
+                            circle_rect_raw(
                                 circle.x,
                                 circle.y,
+                                circle.radius,
                                 circle.radius_sq,
-                                query_extent,
+                                x,
+                                y,
+                                half_w,
+                                half_h,
                             )
                         }
                     }
@@ -321,6 +330,7 @@ impl QuadTreeInner {
                             circle_extent_raw(
                                 x,
                                 y,
+                                radius,
                                 radius_sq,
                                 RectExtent::from_min_max(min_x, min_y, max_x, max_y),
                             )
@@ -360,15 +370,6 @@ impl QuadTreeInner {
                     .map(|data| data[entity_idx_usize])
                     .unwrap_or(default_circle);
 
-                let has_dedupe = entity.has_dedupe();
-                if has_dedupe && query_marks[entity_idx_usize] == tick {
-                    current += 1;
-                    continue;
-                }
-                if has_dedupe {
-                    query_marks[entity_idx_usize] = tick;
-                }
-
                 if let Some(filter) = filter_entity_types {
                     let entity_type = entity_types
                         .expect("entity types missing for type filter")[entity_idx_usize];
@@ -378,19 +379,34 @@ impl QuadTreeInner {
                     }
                 }
 
+                let has_dedupe = entity.has_dedupe();
+                if has_dedupe && query_marks[entity_idx_usize] == tick {
+                    current += 1;
+                    continue;
+                }
+
                 let hit = match query_kind {
-                    QueryKind::Rect => {
+                    QueryKind::Rect {
+                        x,
+                        y,
+                        half_w,
+                        half_h,
+                    } => {
                         if all_rectangles || entity_ref.shape_kind == SHAPE_RECT {
-                            max_x >= query_extent.min_x
-                                && max_y >= query_extent.min_y
-                                && query_extent.max_x >= min_x
-                                && query_extent.max_y >= min_y
+                            max_x > query_extent.min_x
+                                && max_y > query_extent.min_y
+                                && query_extent.max_x > min_x
+                                && query_extent.max_y > min_y
                         } else {
-                            circle_extent_raw(
+                            circle_rect_raw(
                                 circle.x,
                                 circle.y,
+                                circle.radius,
                                 circle.radius_sq,
-                                query_extent,
+                                x,
+                                y,
+                                half_w,
+                                half_h,
                             )
                         }
                     }
@@ -404,6 +420,7 @@ impl QuadTreeInner {
                             circle_extent_raw(
                                 x,
                                 y,
+                                radius,
                                 radius_sq,
                                 RectExtent::from_min_max(min_x, min_y, max_x, max_y),
                             )
@@ -421,6 +438,9 @@ impl QuadTreeInner {
                 };
 
                 if hit {
+                    if has_dedupe {
+                        query_marks[entity_idx_usize] = tick;
+                    }
                     f(packed.value());
                 }
 

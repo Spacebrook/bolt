@@ -481,15 +481,21 @@ impl QuadTreeInner {
                     continue;
                 }
                 let circle = *circle_data_ptr.add(entity_idx as usize);
-                if circle_extent_raw(circle.x, circle.y, circle.radius_sq, query_extent) {
+                if circle_extent_raw(
+                    circle.x,
+                    circle.y,
+                    circle.radius,
+                    circle.radius_sq,
+                    query_extent,
+                ) {
                     f(*values_ptr.add(entity_idx as usize));
                 }
             } else {
                 let extent = *extents_ptr.add(entity_idx as usize);
-                if !(extent.max_x < q_min_x
-                    || q_max_x < extent.min_x
-                    || extent.max_y < q_min_y
-                    || q_max_y < extent.min_y)
+                if !(extent.max_x <= q_min_x
+                    || q_max_x <= extent.min_x
+                    || extent.max_y <= q_min_y
+                    || q_max_y <= extent.min_y)
                 {
                     f(*values_ptr.add(entity_idx as usize));
                 }

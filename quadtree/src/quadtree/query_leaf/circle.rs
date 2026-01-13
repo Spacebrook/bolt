@@ -6,7 +6,7 @@ impl QuadTreeInner {
         count: usize,
         query_marks_ptr: *mut u32,
         circle_data_ptr: *const CircleData,
-        query_extent: RectExtent,
+        _query_extent: RectExtent,
         query_kind: QueryKind,
         tick: u32,
         f: &mut F,
@@ -28,21 +28,37 @@ impl QuadTreeInner {
             let entity_idx = entity.index() as usize;
             if entity.has_dedupe() {
                 let mark_ptr = query_marks_ptr.add(entity_idx);
-                if *mark_ptr != tick {
-                    *mark_ptr = tick;
-                } else {
+                if *mark_ptr == tick {
                     idx += 1;
                     continue;
                 }
             }
             let circle = *circle_data_ptr.add(entity_idx);
             let hit = match query_kind {
-                QueryKind::Rect => circle_extent_raw(circle.x, circle.y, circle.radius_sq, query_extent),
+                QueryKind::Rect {
+                    x,
+                    y,
+                    half_w,
+                    half_h,
+                } => circle_rect_raw(
+                    circle.x,
+                    circle.y,
+                    circle.radius,
+                    circle.radius_sq,
+                    x,
+                    y,
+                    half_w,
+                    half_h,
+                ),
                 QueryKind::Circle { x, y, radius, radius_sq: _ } => {
                     circle_circle_raw(x, y, radius, circle.x, circle.y, circle.radius)
                 }
             };
             if hit {
+                if entity.has_dedupe() {
+                    let mark_ptr = query_marks_ptr.add(entity_idx);
+                    *mark_ptr = tick;
+                }
                 f(packed.value());
             }
             idx += 1;
@@ -55,7 +71,7 @@ impl QuadTreeInner {
         start: u32,
         count: usize,
         circle_data_ptr: *const CircleData,
-        query_extent: RectExtent,
+        _query_extent: RectExtent,
         query_kind: QueryKind,
         f: &mut F,
         stats: *mut QueryStats,
@@ -75,7 +91,21 @@ impl QuadTreeInner {
             let entity_idx = packed.entity().index() as usize;
             let circle = *circle_data_ptr.add(entity_idx);
             let hit = match query_kind {
-                QueryKind::Rect => circle_extent_raw(circle.x, circle.y, circle.radius_sq, query_extent),
+                QueryKind::Rect {
+                    x,
+                    y,
+                    half_w,
+                    half_h,
+                } => circle_rect_raw(
+                    circle.x,
+                    circle.y,
+                    circle.radius,
+                    circle.radius_sq,
+                    x,
+                    y,
+                    half_w,
+                    half_h,
+                ),
                 QueryKind::Circle { x, y, radius, radius_sq: _ } => {
                     circle_circle_raw(x, y, radius, circle.x, circle.y, circle.radius)
                 }

@@ -389,8 +389,22 @@ impl QuadTreeInner {
                             f(*values_ptr.add(entity_idx as usize));
                         }
                     }
-                    QueryKind::Rect { .. } => {
-                        if circle_extent_raw(circle.x, circle.y, circle.radius_sq, query_extent) {
+                    QueryKind::Rect {
+                        x,
+                        y,
+                        half_w,
+                        half_h,
+                    } => {
+                        if circle_rect_raw(
+                            circle.x,
+                            circle.y,
+                            circle.radius,
+                            circle.radius_sq,
+                            x,
+                            y,
+                            half_w,
+                            half_h,
+                        ) {
                             f(*values_ptr.add(entity_idx as usize));
                         }
                     }
@@ -398,16 +412,16 @@ impl QuadTreeInner {
             } else {
                 let extent = *extents_ptr.add(entity_idx as usize);
                 match query_kind {
-                    QueryKind::Circle { x, y, radius_sq, .. } => {
-                        if circle_extent_raw(x, y, radius_sq, extent) {
+                    QueryKind::Circle { x, y, radius, radius_sq } => {
+                        if circle_extent_raw(x, y, radius, radius_sq, extent) {
                             f(*values_ptr.add(entity_idx as usize));
                         }
                     }
                     QueryKind::Rect { .. } => {
-                        if !(extent.max_x < query_extent.min_x
-                            || query_extent.max_x < extent.min_x
-                            || extent.max_y < query_extent.min_y
-                            || query_extent.max_y < extent.min_y)
+                        if !(extent.max_x <= query_extent.min_x
+                            || query_extent.max_x <= extent.min_x
+                            || extent.max_y <= query_extent.min_y
+                            || query_extent.max_y <= extent.min_y)
                         {
                             f(*values_ptr.add(entity_idx as usize));
                         }

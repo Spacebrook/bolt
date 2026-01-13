@@ -188,8 +188,36 @@ fn circle_circle_raw(x1: f32, y1: f32, r1: f32, x2: f32, y2: f32, r2: f32) -> bo
 }
 
 #[inline(always)]
-fn circle_extent_raw(cx: f32, cy: f32, radius_sq: f32, extent: RectExtent) -> bool {
-    point_to_extent_distance_sq(cx, cy, extent) <= radius_sq
+fn circle_rect_raw(
+    cx: f32,
+    cy: f32,
+    radius: f32,
+    radius_sq: f32,
+    rect_x: f32,
+    rect_y: f32,
+    half_w: f32,
+    half_h: f32,
+) -> bool {
+    let dx = (cx - rect_x).abs();
+    let dy = (cy - rect_y).abs();
+    if dx > half_w + radius || dy > half_h + radius {
+        return false;
+    }
+    if dx <= half_w || dy <= half_h {
+        return true;
+    }
+    let corner_dx = dx - half_w;
+    let corner_dy = dy - half_h;
+    corner_dx * corner_dx + corner_dy * corner_dy <= radius_sq
+}
+
+#[inline(always)]
+fn circle_extent_raw(cx: f32, cy: f32, radius: f32, radius_sq: f32, extent: RectExtent) -> bool {
+    let rect_x = (extent.min_x + extent.max_x) * 0.5;
+    let rect_y = (extent.min_y + extent.max_y) * 0.5;
+    let half_w = (extent.max_x - extent.min_x) * 0.5;
+    let half_h = (extent.max_y - extent.min_y) * 0.5;
+    circle_rect_raw(cx, cy, radius, radius_sq, rect_x, rect_y, half_w, half_h)
 }
 
 #[derive(Clone, Copy)]
@@ -241,7 +269,12 @@ impl Entity {
 
 #[derive(Clone, Copy)]
 enum QueryKind {
-    Rect,
+    Rect {
+        x: f32,
+        y: f32,
+        half_w: f32,
+        half_h: f32,
+    },
     Circle {
         x: f32,
         y: f32,
@@ -261,7 +294,12 @@ impl Query {
         match shape {
             ShapeEnum::Rectangle(rect) => Self {
                 extent: RectExtent::from_rect(rect),
-                kind: QueryKind::Rect,
+                kind: QueryKind::Rect {
+                    x: rect.x,
+                    y: rect.y,
+                    half_w: rect.width * 0.5,
+                    half_h: rect.height * 0.5,
+                },
             },
             ShapeEnum::Circle(circle) => {
                 let radius = circle.radius;
@@ -287,7 +325,12 @@ impl Query {
     fn from_rect_extent(extent: RectExtent) -> Self {
         Self {
             extent,
-            kind: QueryKind::Rect,
+            kind: QueryKind::Rect {
+                x: (extent.min_x + extent.max_x) * 0.5,
+                y: (extent.min_y + extent.max_y) * 0.5,
+                half_w: (extent.max_x - extent.min_x) * 0.5,
+                half_h: (extent.max_y - extent.min_y) * 0.5,
+            },
         }
     }
 
