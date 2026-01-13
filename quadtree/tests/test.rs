@@ -5,6 +5,30 @@ use quadtree::quadtree::{Config, QuadTree, RelocationRequest};
 use rand::Rng;
 use std::collections::HashSet;
 
+fn assert_collisions_with_expected<F>(
+    label: &str,
+    tree: &QuadTree,
+    query: &ShapeEnum,
+    hits: &mut Vec<u32>,
+    expected: &mut HashSet<u32>,
+    build_expected: F,
+) where
+    F: FnOnce(&ShapeEnum, &mut HashSet<u32>),
+{
+    hits.clear();
+    tree.collisions(query.clone(), hits);
+    let hit_set: HashSet<u32> = hits.iter().copied().collect();
+    assert_eq!(
+        hit_set.len(),
+        hits.len(),
+        "{} returned duplicate ids",
+        label
+    );
+    expected.clear();
+    build_expected(query, expected);
+    assert_eq!(hit_set, *expected, "{}", label);
+}
+
 #[test]
 fn test_single_collision() {
     let mut qt = QuadTree::new(Rectangle::new(50.0, 50.0, 100.0, 100.0));
@@ -607,8 +631,10 @@ fn stress_multi_tree_collision_queries() {
         let w = 10.0 + next_f32() * 50.0;
         let h = 10.0 + next_f32() * 50.0;
         let radius = 8.0 + next_f32() * 40.0;
-        let x = min_x + w + next_f32() * (ARENA_W - w * 2.0);
-        let y = min_y + h + next_f32() * (ARENA_H - h * 2.0);
+        let bound_w = if is_rect { w } else { radius * 1.2 };
+        let bound_h = if is_rect { h } else { radius * 1.2 };
+        let x = min_x + bound_w + next_f32() * (ARENA_W - bound_w * 2.0);
+        let y = min_y + bound_h + next_f32() * (ARENA_H - bound_h * 2.0);
         let vx = (next_f32() * 2.0 - 1.0) * 120.0;
         let vy = (next_f32() * 2.0 - 1.0) * 120.0;
         group_b.push((id, x, y, vx, vy, radius, w, h, is_rect));
@@ -671,8 +697,8 @@ fn stress_multi_tree_collision_queries() {
         for (_id, x, y, vx, vy, radius, w, h, is_rect) in group_b.iter_mut() {
             *x += *vx;
             *y += *vy;
-            let bound_w = if *is_rect { *w } else { *radius };
-            let bound_h = if *is_rect { *h } else { *radius };
+            let bound_w = if *is_rect { *w } else { *radius * 1.2 };
+            let bound_h = if *is_rect { *h } else { *radius * 1.2 };
             if *x - bound_w < min_x {
                 *x = min_x + bound_w;
                 *vx = -*vx;
@@ -814,161 +840,351 @@ fn stress_multi_tree_collision_queries() {
         }
         let mut pair_count = 0usize;
         let mut hits = Vec::new();
-        let group_a_query_count = group_a.len().min(64);
-        for i in 0..group_a_query_count {
-            let idx = (tick * 31 + i * 7) % group_a.len();
-            let (id, x, y, _, _, radius) = group_a[idx];
-            let shape = ShapeEnum::Circle(Circle::new(x, y, radius));
-            hits.clear();
-            if log_progress {
-                eprintln!("tick {} group A {} vs group B", tick, idx);
-            }
-            group_b_quadtree.collisions(shape.clone(), &mut hits);
-            let hit_set: HashSet<u32> = hits.iter().copied().collect();
-            let mut expected = HashSet::new();
-            for (b_id, b_x, b_y, _, _, b_radius, b_w, b_h, b_is_rect) in group_b.iter() {
-                let candidate = if *b_is_rect {
-                    ShapeEnum::Rectangle(Rectangle {
-                        x: *b_x,
-                        y: *b_y,
-                        width: *b_w * 2.0,
-                        height: *b_h * 2.0,
-                    })
-                } else {
-                    ShapeEnum::Circle(Circle::new(*b_x, *b_y, *b_radius * 1.2))
-                };
-                if shape_shape(&shape, &candidate) {
-                    expected.insert(*b_id);
-                }
-            }
-            assert_eq!(
-                hit_set, expected,
-                "tick {} group A {} vs group B",
-                tick, idx
-            );
-            pair_count = pair_count.wrapping_add(hits.len());
-            hits.clear();
-            if log_progress {
-                eprintln!("tick {} group A {} vs group C", tick, idx);
-            }
-            group_c_quadtree.collisions(
-                ShapeEnum::Circle(Circle::new(x, y, radius * 1.5)),
+        let mut expected = HashSet::new();
+
+        if log_progress {
+            eprintln!("tick {} query group A", tick);
+        }
+        for (idx, (_id, x, y, _, _, radius)) in group_a.iter().enumerate() {
+            let query = ShapeEnum::Circle(Circle::new(*x, *y, *radius));
+            assert_collisions_with_expected(
+                &format!("tick {} group A {} vs group A", tick, idx),
+                &group_a_quadtree,
+                &query,
                 &mut hits,
-            );
-            let hit_set: HashSet<u32> = hits.iter().copied().collect();
-            let mut expected = HashSet::new();
-            let query_shape = ShapeEnum::Circle(Circle::new(x, y, radius * 1.5));
-            for (c_id, c_x, c_y, _, _, c_radius) in group_c.iter() {
-                let candidate = ShapeEnum::Circle(Circle::new(*c_x, *c_y, *c_radius));
-                if shape_shape(&query_shape, &candidate) {
-                    expected.insert(*c_id);
-                }
-            }
-            assert_eq!(
-                hit_set, expected,
-                "tick {} group A {} vs group C",
-                tick, idx
+                &mut expected,
+                |query, expected| {
+                    for (a_id, a_x, a_y, _, _, a_radius) in group_a.iter() {
+                        let candidate = ShapeEnum::Circle(Circle::new(*a_x, *a_y, *a_radius));
+                        if shape_shape(query, &candidate) {
+                            expected.insert(*a_id);
+                        }
+                    }
+                },
             );
             pair_count = pair_count.wrapping_add(hits.len());
-            if group_a_active[idx] {
-                hits.clear();
-                if log_progress {
-                    eprintln!("tick {} group A {} vs active subset", tick, idx);
-                }
-                group_a_active_quadtree
-                    .collisions(ShapeEnum::Circle(Circle::new(x, y, radius)), &mut hits);
-                let hit_set: HashSet<u32> = hits.iter().copied().collect();
-                let mut expected = HashSet::new();
-                let query_shape = ShapeEnum::Circle(Circle::new(x, y, radius));
-                for (a_idx, (a_id, a_x, a_y, _, _, a_radius)) in group_a.iter().enumerate() {
-                    if !group_a_active[a_idx] {
-                        continue;
+
+            assert_collisions_with_expected(
+                &format!("tick {} group A {} vs group B", tick, idx),
+                &group_b_quadtree,
+                &query,
+                &mut hits,
+                &mut expected,
+                |query, expected| {
+                    for (b_id, b_x, b_y, _, _, b_radius, b_w, b_h, b_is_rect) in group_b.iter()
+                    {
+                        let candidate = if *b_is_rect {
+                            ShapeEnum::Rectangle(Rectangle {
+                                x: *b_x,
+                                y: *b_y,
+                                width: *b_w * 2.0,
+                                height: *b_h * 2.0,
+                            })
+                        } else {
+                            ShapeEnum::Circle(Circle::new(*b_x, *b_y, *b_radius * 1.2))
+                        };
+                        if shape_shape(query, &candidate) {
+                            expected.insert(*b_id);
+                        }
                     }
-                    let candidate = ShapeEnum::Circle(Circle::new(*a_x, *a_y, *a_radius));
-                    if shape_shape(&query_shape, &candidate) {
-                        expected.insert(*a_id);
+                },
+            );
+            pair_count = pair_count.wrapping_add(hits.len());
+
+            let query_c = ShapeEnum::Circle(Circle::new(*x, *y, *radius * 1.5));
+            assert_collisions_with_expected(
+                &format!("tick {} group A {} vs group C", tick, idx),
+                &group_c_quadtree,
+                &query_c,
+                &mut hits,
+                &mut expected,
+                |query, expected| {
+                    for (c_id, c_x, c_y, _, _, c_radius) in group_c.iter() {
+                        let candidate = ShapeEnum::Circle(Circle::new(*c_x, *c_y, *c_radius));
+                        if shape_shape(query, &candidate) {
+                            expected.insert(*c_id);
+                        }
                     }
-                }
-                assert_eq!(
-                    hit_set, expected,
-                    "tick {} group A {} vs active subset",
-                    tick, idx
-                );
-                pair_count = pair_count.wrapping_add(hits.len());
-            }
-            if group_a_inactive[idx] {
-                hits.clear();
-                if log_progress {
-                    eprintln!("tick {} group A {} vs inactive subset", tick, idx);
-                }
-                group_a_inactive_quadtree
-                    .collisions(ShapeEnum::Circle(Circle::new(x, y, radius)), &mut hits);
-                let hit_set: HashSet<u32> = hits.iter().copied().collect();
-                let mut expected = HashSet::new();
-                let query_shape = ShapeEnum::Circle(Circle::new(x, y, radius));
-                for (a_idx, (a_id, a_x, a_y, _, _, a_radius)) in group_a.iter().enumerate() {
-                    if !group_a_inactive[a_idx] {
-                        continue;
+                },
+            );
+            pair_count = pair_count.wrapping_add(hits.len());
+
+            assert_collisions_with_expected(
+                &format!("tick {} group A {} vs active subset", tick, idx),
+                &group_a_active_quadtree,
+                &query,
+                &mut hits,
+                &mut expected,
+                |query, expected| {
+                    for (a_idx, (a_id, a_x, a_y, _, _, a_radius)) in
+                        group_a.iter().enumerate()
+                    {
+                        if !group_a_active[a_idx] {
+                            continue;
+                        }
+                        let candidate = ShapeEnum::Circle(Circle::new(*a_x, *a_y, *a_radius));
+                        if shape_shape(query, &candidate) {
+                            expected.insert(*a_id);
+                        }
                     }
-                    let candidate = ShapeEnum::Circle(Circle::new(*a_x, *a_y, *a_radius));
-                    if shape_shape(&query_shape, &candidate) {
-                        expected.insert(*a_id);
+                },
+            );
+            pair_count = pair_count.wrapping_add(hits.len());
+
+            assert_collisions_with_expected(
+                &format!("tick {} group A {} vs inactive subset", tick, idx),
+                &group_a_inactive_quadtree,
+                &query,
+                &mut hits,
+                &mut expected,
+                |query, expected| {
+                    for (a_idx, (a_id, a_x, a_y, _, _, a_radius)) in
+                        group_a.iter().enumerate()
+                    {
+                        if !group_a_inactive[a_idx] {
+                            continue;
+                        }
+                        let candidate = ShapeEnum::Circle(Circle::new(*a_x, *a_y, *a_radius));
+                        if shape_shape(query, &candidate) {
+                            expected.insert(*a_id);
+                        }
                     }
-                }
-                assert_eq!(
-                    hit_set, expected,
-                    "tick {} group A {} vs inactive subset",
-                    tick, idx
-                );
-                pair_count = pair_count.wrapping_add(hits.len());
-            }
-            let _ = id;
+                },
+            );
+            pair_count = pair_count.wrapping_add(hits.len());
         }
 
         if log_progress {
             eprintln!("tick {} query group B", tick);
         }
-        let group_b_query_count = group_b.len().min(96);
-        for i in 0..group_b_query_count {
-            let idx = (tick * 17 + i * 13) % group_b.len();
-            let (id, x, y, _, _, radius, w, h, is_rect) = group_b[idx];
-            let shape = if is_rect {
+        for (idx, (_id, x, y, _, _, radius, w, h, is_rect)) in group_b.iter().enumerate() {
+            let query = if *is_rect {
                 ShapeEnum::Rectangle(Rectangle {
-                    x,
-                    y,
-                    width: w * 2.0,
-                    height: h * 2.0,
+                    x: *x,
+                    y: *y,
+                    width: *w * 2.0,
+                    height: *h * 2.0,
                 })
             } else {
-                ShapeEnum::Circle(Circle::new(x, y, radius))
+                ShapeEnum::Circle(Circle::new(*x, *y, *radius))
             };
-            let mut hits = Vec::new();
-            group_a_quadtree.collisions(shape, &mut hits);
-            let hit_set: HashSet<u32> = hits.iter().copied().collect();
-            let mut expected = HashSet::new();
-            let query_shape = if is_rect {
-                ShapeEnum::Rectangle(Rectangle {
-                    x,
-                    y,
-                    width: w * 2.0,
-                    height: h * 2.0,
-                })
-            } else {
-                ShapeEnum::Circle(Circle::new(x, y, radius))
-            };
-            for (a_id, a_x, a_y, _, _, a_radius) in group_a.iter() {
-                let candidate = ShapeEnum::Circle(Circle::new(*a_x, *a_y, *a_radius));
-                if shape_shape(&query_shape, &candidate) {
-                    expected.insert(*a_id);
-                }
-            }
-            assert_eq!(
-                hit_set, expected,
-                "tick {} group B {} vs group A",
-                tick, idx
+
+            assert_collisions_with_expected(
+                &format!("tick {} group B {} vs group A", tick, idx),
+                &group_a_quadtree,
+                &query,
+                &mut hits,
+                &mut expected,
+                |query, expected| {
+                    for (a_id, a_x, a_y, _, _, a_radius) in group_a.iter() {
+                        let candidate = ShapeEnum::Circle(Circle::new(*a_x, *a_y, *a_radius));
+                        if shape_shape(query, &candidate) {
+                            expected.insert(*a_id);
+                        }
+                    }
+                },
             );
             pair_count = pair_count.wrapping_add(hits.len());
-            let _ = id;
+
+            assert_collisions_with_expected(
+                &format!("tick {} group B {} vs active subset", tick, idx),
+                &group_a_active_quadtree,
+                &query,
+                &mut hits,
+                &mut expected,
+                |query, expected| {
+                    for (a_idx, (a_id, a_x, a_y, _, _, a_radius)) in
+                        group_a.iter().enumerate()
+                    {
+                        if !group_a_active[a_idx] {
+                            continue;
+                        }
+                        let candidate = ShapeEnum::Circle(Circle::new(*a_x, *a_y, *a_radius));
+                        if shape_shape(query, &candidate) {
+                            expected.insert(*a_id);
+                        }
+                    }
+                },
+            );
+            pair_count = pair_count.wrapping_add(hits.len());
+
+            assert_collisions_with_expected(
+                &format!("tick {} group B {} vs inactive subset", tick, idx),
+                &group_a_inactive_quadtree,
+                &query,
+                &mut hits,
+                &mut expected,
+                |query, expected| {
+                    for (a_idx, (a_id, a_x, a_y, _, _, a_radius)) in
+                        group_a.iter().enumerate()
+                    {
+                        if !group_a_inactive[a_idx] {
+                            continue;
+                        }
+                        let candidate = ShapeEnum::Circle(Circle::new(*a_x, *a_y, *a_radius));
+                        if shape_shape(query, &candidate) {
+                            expected.insert(*a_id);
+                        }
+                    }
+                },
+            );
+            pair_count = pair_count.wrapping_add(hits.len());
+
+            assert_collisions_with_expected(
+                &format!("tick {} group B {} vs group B", tick, idx),
+                &group_b_quadtree,
+                &query,
+                &mut hits,
+                &mut expected,
+                |query, expected| {
+                    for (b_id, b_x, b_y, _, _, b_radius, b_w, b_h, b_is_rect) in group_b.iter()
+                    {
+                        let candidate = if *b_is_rect {
+                            ShapeEnum::Rectangle(Rectangle {
+                                x: *b_x,
+                                y: *b_y,
+                                width: *b_w * 2.0,
+                                height: *b_h * 2.0,
+                            })
+                        } else {
+                            ShapeEnum::Circle(Circle::new(*b_x, *b_y, *b_radius * 1.2))
+                        };
+                        if shape_shape(query, &candidate) {
+                            expected.insert(*b_id);
+                        }
+                    }
+                },
+            );
+            pair_count = pair_count.wrapping_add(hits.len());
+
+            assert_collisions_with_expected(
+                &format!("tick {} group B {} vs group C", tick, idx),
+                &group_c_quadtree,
+                &query,
+                &mut hits,
+                &mut expected,
+                |query, expected| {
+                    for (c_id, c_x, c_y, _, _, c_radius) in group_c.iter() {
+                        let candidate = ShapeEnum::Circle(Circle::new(*c_x, *c_y, *c_radius));
+                        if shape_shape(query, &candidate) {
+                            expected.insert(*c_id);
+                        }
+                    }
+                },
+            );
+            pair_count = pair_count.wrapping_add(hits.len());
+        }
+
+        if log_progress {
+            eprintln!("tick {} query group C", tick);
+        }
+        for (idx, (_id, x, y, _, _, radius)) in group_c.iter().enumerate() {
+            let query = ShapeEnum::Circle(Circle::new(*x, *y, *radius));
+
+            assert_collisions_with_expected(
+                &format!("tick {} group C {} vs group A", tick, idx),
+                &group_a_quadtree,
+                &query,
+                &mut hits,
+                &mut expected,
+                |query, expected| {
+                    for (a_id, a_x, a_y, _, _, a_radius) in group_a.iter() {
+                        let candidate = ShapeEnum::Circle(Circle::new(*a_x, *a_y, *a_radius));
+                        if shape_shape(query, &candidate) {
+                            expected.insert(*a_id);
+                        }
+                    }
+                },
+            );
+            pair_count = pair_count.wrapping_add(hits.len());
+
+            assert_collisions_with_expected(
+                &format!("tick {} group C {} vs active subset", tick, idx),
+                &group_a_active_quadtree,
+                &query,
+                &mut hits,
+                &mut expected,
+                |query, expected| {
+                    for (a_idx, (a_id, a_x, a_y, _, _, a_radius)) in
+                        group_a.iter().enumerate()
+                    {
+                        if !group_a_active[a_idx] {
+                            continue;
+                        }
+                        let candidate = ShapeEnum::Circle(Circle::new(*a_x, *a_y, *a_radius));
+                        if shape_shape(query, &candidate) {
+                            expected.insert(*a_id);
+                        }
+                    }
+                },
+            );
+            pair_count = pair_count.wrapping_add(hits.len());
+
+            assert_collisions_with_expected(
+                &format!("tick {} group C {} vs inactive subset", tick, idx),
+                &group_a_inactive_quadtree,
+                &query,
+                &mut hits,
+                &mut expected,
+                |query, expected| {
+                    for (a_idx, (a_id, a_x, a_y, _, _, a_radius)) in
+                        group_a.iter().enumerate()
+                    {
+                        if !group_a_inactive[a_idx] {
+                            continue;
+                        }
+                        let candidate = ShapeEnum::Circle(Circle::new(*a_x, *a_y, *a_radius));
+                        if shape_shape(query, &candidate) {
+                            expected.insert(*a_id);
+                        }
+                    }
+                },
+            );
+            pair_count = pair_count.wrapping_add(hits.len());
+
+            assert_collisions_with_expected(
+                &format!("tick {} group C {} vs group B", tick, idx),
+                &group_b_quadtree,
+                &query,
+                &mut hits,
+                &mut expected,
+                |query, expected| {
+                    for (b_id, b_x, b_y, _, _, b_radius, b_w, b_h, b_is_rect) in group_b.iter()
+                    {
+                        let candidate = if *b_is_rect {
+                            ShapeEnum::Rectangle(Rectangle {
+                                x: *b_x,
+                                y: *b_y,
+                                width: *b_w * 2.0,
+                                height: *b_h * 2.0,
+                            })
+                        } else {
+                            ShapeEnum::Circle(Circle::new(*b_x, *b_y, *b_radius * 1.2))
+                        };
+                        if shape_shape(query, &candidate) {
+                            expected.insert(*b_id);
+                        }
+                    }
+                },
+            );
+            pair_count = pair_count.wrapping_add(hits.len());
+
+            assert_collisions_with_expected(
+                &format!("tick {} group C {} vs group C", tick, idx),
+                &group_c_quadtree,
+                &query,
+                &mut hits,
+                &mut expected,
+                |query, expected| {
+                    for (c_id, c_x, c_y, _, _, c_radius) in group_c.iter() {
+                        let candidate = ShapeEnum::Circle(Circle::new(*c_x, *c_y, *c_radius));
+                        if shape_shape(query, &candidate) {
+                            expected.insert(*c_id);
+                        }
+                    }
+                },
+            );
+            pair_count = pair_count.wrapping_add(hits.len());
         }
 
         if log_progress {
@@ -1011,6 +1227,15 @@ fn test_collisions_batch() {
 
     // Check results.
     assert_eq!(collision_results.len(), 3);
+    for (idx, hits) in collision_results.iter().enumerate() {
+        let hit_set: HashSet<u32> = hits.iter().copied().collect();
+        assert_eq!(
+            hit_set.len(),
+            hits.len(),
+            "collisions_batch query {} returned duplicate ids",
+            idx
+        );
+    }
 
     // Query 1 should collide with shape 1 only.
     assert!(collision_results[0].contains(&1));
@@ -1026,6 +1251,64 @@ fn test_collisions_batch() {
     assert!(!collision_results[2].contains(&1));
     assert!(!collision_results[2].contains(&2));
     assert!(!collision_results[2].contains(&3));
+}
+
+#[test]
+fn test_delete_and_reuse_ids() {
+    let bounding_box = Rectangle {
+        x: 0.0,
+        y: 0.0,
+        width: 20.0,
+        height: 20.0,
+    };
+    let mut quadtree = QuadTree::new(bounding_box);
+
+    quadtree.insert(1, ShapeEnum::Circle(Circle::new(-4.0, -4.0, 1.0)), None);
+    quadtree.insert(2, ShapeEnum::Circle(Circle::new(-2.0, -2.0, 1.0)), None);
+    quadtree.insert(
+        3,
+        ShapeEnum::Rectangle(Rectangle {
+            x: 2.0,
+            y: -2.0,
+            width: 2.0,
+            height: 2.0,
+        }),
+        None,
+    );
+    quadtree.insert(4, ShapeEnum::Circle(Circle::new(4.0, 4.0, 1.0)), None);
+
+    let mut hits = Vec::new();
+    quadtree.collisions(ShapeEnum::Circle(Circle::new(-2.0, -2.0, 1.0)), &mut hits);
+    assert!(hits.contains(&2));
+
+    quadtree.delete(2);
+    quadtree.delete(4);
+
+    hits.clear();
+    quadtree.collisions(ShapeEnum::Circle(Circle::new(-2.0, -2.0, 1.0)), &mut hits);
+    assert!(!hits.contains(&2));
+    hits.clear();
+    quadtree.collisions(ShapeEnum::Circle(Circle::new(4.0, 4.0, 1.0)), &mut hits);
+    assert!(!hits.contains(&4));
+
+    quadtree.insert(2, ShapeEnum::Circle(Circle::new(6.0, -6.0, 1.0)), None);
+    quadtree.insert(
+        4,
+        ShapeEnum::Rectangle(Rectangle {
+            x: -6.0,
+            y: 6.0,
+            width: 2.0,
+            height: 2.0,
+        }),
+        None,
+    );
+
+    hits.clear();
+    quadtree.collisions(ShapeEnum::Circle(Circle::new(6.0, -6.0, 1.0)), &mut hits);
+    assert!(hits.contains(&2));
+    hits.clear();
+    quadtree.collisions(ShapeEnum::Circle(Circle::new(-6.0, 6.0, 1.0)), &mut hits);
+    assert!(hits.contains(&4));
 }
 
 #[test]
