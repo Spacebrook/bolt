@@ -187,7 +187,6 @@ impl Node {
     }
 }
 
-
 #[derive(Default)]
 pub(crate) struct NodeCentersSoa {
     x: Vec<f32>,
@@ -196,7 +195,10 @@ pub(crate) struct NodeCentersSoa {
 
 impl NodeCentersSoa {
     pub(crate) fn new() -> Self {
-        Self { x: Vec::new(), y: Vec::new() }
+        Self {
+            x: Vec::new(),
+            y: Vec::new(),
+        }
     }
 
     pub(crate) fn clear(&mut self) {
@@ -417,12 +419,7 @@ impl PairDedupe {
         self.stamps = vec![0; size];
         self.generation = 1;
         for (idx, key) in old_table.into_iter().enumerate() {
-            if old_stamps
-                .get(idx)
-                .copied()
-                .unwrap_or(0)
-                == old_generation
-            {
+            if old_stamps.get(idx).copied().unwrap_or(0) == old_generation {
                 let _ = self.insert(key);
             }
         }

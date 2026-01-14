@@ -75,7 +75,6 @@ impl QuadTreeInner {
             let mut touched_node_entities: Vec<u32> = Vec::new();
             let mut touched_nodes: Vec<u32> = Vec::new();
 
-
             for entity_idx in reinsertions.iter().copied() {
                 touched_node_entities.clear();
                 touched_nodes.clear();
@@ -163,8 +162,11 @@ impl QuadTreeInner {
                         node_entities[node_entity_idx as usize].set_index(entity_idx);
                         node_entity_extents.set(node_entity_idx as usize, extent);
                         node_entity_values[node_entity_idx as usize] = value;
-                        node_entity_packed[node_entity_idx as usize] =
-                            NodeEntityPacked::from_parts(extent, value, node_entities[node_entity_idx as usize]);
+                        node_entity_packed[node_entity_idx as usize] = NodeEntityPacked::from_parts(
+                            extent,
+                            value,
+                            node_entities[node_entity_idx as usize],
+                        );
                         node_entities_last[node_entity_idx as usize] = (head == 0) as u8;
                         node_entities_flags[node_entity_idx as usize] =
                             Self::compute_node_entity_flags(node_extent, position_flags, extent);
@@ -176,8 +178,11 @@ impl QuadTreeInner {
                     } else {
                         node_entity_extents.set(node_entity_idx as usize, extent);
                         node_entity_values[node_entity_idx as usize] = value;
-                        node_entity_packed[node_entity_idx as usize] =
-                            NodeEntityPacked::from_parts(extent, value, node_entities[node_entity_idx as usize]);
+                        node_entity_packed[node_entity_idx as usize] = NodeEntityPacked::from_parts(
+                            extent,
+                            value,
+                            node_entities[node_entity_idx as usize],
+                        );
                         node_entities_flags[node_entity_idx as usize] =
                             Self::compute_node_entity_flags(node_extent, position_flags, extent);
                         touched_node_entities.push(node_entity_idx);
@@ -295,6 +300,4 @@ impl QuadTreeInner {
             );
         }
     }
-
-
 }

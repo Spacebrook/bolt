@@ -55,10 +55,12 @@ impl QuadTreeInner {
                 let node = unsafe { &*nodes_ptr.add(info.node_idx as usize) };
                 let children = node.children;
                 if children[3] != 0 {
-                    if let QueryKind::Circle { x, y, radius_sq, .. } = query_kind {
-                        let node_extent = unsafe {
-                            *node_extents_loose_ptr.add(info.node_idx as usize)
-                        };
+                    if let QueryKind::Circle {
+                        x, y, radius_sq, ..
+                    } = query_kind
+                    {
+                        let node_extent =
+                            unsafe { *node_extents_loose_ptr.add(info.node_idx as usize) };
                         let distance = point_to_extent_distance_sq(x, y, node_extent);
                         if distance > radius_sq {
                             continue;
@@ -118,9 +120,8 @@ impl QuadTreeInner {
                             if child == 0 {
                                 continue;
                             }
-                            let node_extent = unsafe {
-                                *node_extents_loose_ptr.add(child as usize)
-                            };
+                            let node_extent =
+                                unsafe { *node_extents_loose_ptr.add(child as usize) };
                             if query_extent.min_x <= node_extent.max_x
                                 && query_extent.max_x >= node_extent.min_x
                                 && query_extent.min_y <= node_extent.max_y
@@ -212,10 +213,12 @@ impl QuadTreeInner {
             let node = unsafe { &*nodes_ptr.add(info.node_idx as usize) };
             let children = node.children;
             if children[3] != 0 {
-                if let QueryKind::Circle { x, y, radius_sq, .. } = query_kind {
-                    let node_extent = unsafe {
-                        *node_extents_loose_ptr.add(info.node_idx as usize)
-                    };
+                if let QueryKind::Circle {
+                    x, y, radius_sq, ..
+                } = query_kind
+                {
+                    let node_extent =
+                        unsafe { *node_extents_loose_ptr.add(info.node_idx as usize) };
                     let distance = point_to_extent_distance_sq(x, y, node_extent);
                     if distance > radius_sq {
                         continue;
@@ -417,7 +420,12 @@ impl QuadTreeInner {
             } else {
                 let extent = *extents_ptr.add(entity_idx as usize);
                 match query_kind {
-                    QueryKind::Circle { x, y, radius, radius_sq } => {
+                    QueryKind::Circle {
+                        x,
+                        y,
+                        radius,
+                        radius_sq,
+                    } => {
                         if circle_extent_raw(x, y, radius, radius_sq, extent) {
                             f(*values_ptr.add(entity_idx as usize));
                         }

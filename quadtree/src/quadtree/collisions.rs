@@ -226,7 +226,10 @@ impl QuadTreeInner {
 
         while let Some((node_idx, half)) = stack.pop() {
             let node = &nodes[node_idx as usize];
-            if let QueryKind::Circle { x, y, radius_sq, .. } = query_kind {
+            if let QueryKind::Circle {
+                x, y, radius_sq, ..
+            } = query_kind
+            {
                 let node_extent = loose_extent_from_half(half, self.looseness);
                 let distance = point_to_extent_distance_sq(x, y, node_extent);
                 if distance > radius_sq {
@@ -238,7 +241,14 @@ impl QuadTreeInner {
             let count = node.count() as usize;
             if count == 0 {
                 if !node.is_leaf() {
-                    Self::descend(nodes, node_idx, half, query_extent, self.looseness, &mut stack);
+                    Self::descend(
+                        nodes,
+                        node_idx,
+                        half,
+                        query_extent,
+                        self.looseness,
+                        &mut stack,
+                    );
                 }
                 continue;
             }
@@ -267,8 +277,8 @@ impl QuadTreeInner {
                     .unwrap_or(default_circle);
 
                 if let Some(filter) = filter_entity_types {
-                    let entity_type = entity_types
-                        .expect("entity types missing for type filter")[entity_idx_usize];
+                    let entity_type = entity_types.expect("entity types missing for type filter")
+                        [entity_idx_usize];
                     if entity_type == u32::MAX || !filter.contains(entity_type) {
                         current += 1;
                         continue;
@@ -315,14 +325,7 @@ impl QuadTreeInner {
                                 RectExtent::from_min_max(min_x, min_y, max_x, max_y),
                             )
                         } else {
-                            circle_circle_raw(
-                                x,
-                                y,
-                                radius,
-                                circle.x,
-                                circle.y,
-                                circle.radius,
-                            )
+                            circle_circle_raw(x, y, radius, circle.x, circle.y, circle.radius)
                         }
                     }
                 };
@@ -351,8 +354,8 @@ impl QuadTreeInner {
                     .unwrap_or(default_circle);
 
                 if let Some(filter) = filter_entity_types {
-                    let entity_type = entity_types
-                        .expect("entity types missing for type filter")[entity_idx_usize];
+                    let entity_type = entity_types.expect("entity types missing for type filter")
+                        [entity_idx_usize];
                     if entity_type == u32::MAX || !filter.contains(entity_type) {
                         current += 1;
                         continue;
@@ -405,14 +408,7 @@ impl QuadTreeInner {
                                 RectExtent::from_min_max(min_x, min_y, max_x, max_y),
                             )
                         } else {
-                            circle_circle_raw(
-                                x,
-                                y,
-                                radius,
-                                circle.x,
-                                circle.y,
-                                circle.radius,
-                            )
+                            circle_circle_raw(x, y, radius, circle.x, circle.y, circle.radius)
                         }
                     }
                 };
@@ -427,7 +423,14 @@ impl QuadTreeInner {
                 current += 1;
             }
             if !node.is_leaf() {
-                Self::descend(nodes, node_idx, half, query_extent, self.looseness, &mut stack);
+                Self::descend(
+                    nodes,
+                    node_idx,
+                    half,
+                    query_extent,
+                    self.looseness,
+                    &mut stack,
+                );
             }
         }
 

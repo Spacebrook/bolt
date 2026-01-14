@@ -54,9 +54,12 @@ impl QuadTreeInner {
                     half_w,
                     half_h,
                 ),
-                QueryKind::Circle { x, y, radius, radius_sq: _ } => {
-                    circle_circle_raw(x, y, radius, circle.x, circle.y, circle.radius)
-                }
+                QueryKind::Circle {
+                    x,
+                    y,
+                    radius,
+                    radius_sq: _,
+                } => circle_circle_raw(x, y, radius, circle.x, circle.y, circle.radius),
             };
             if hit {
                 if entity.has_dedupe() {
@@ -111,9 +114,12 @@ impl QuadTreeInner {
                     half_w,
                     half_h,
                 ),
-                QueryKind::Circle { x, y, radius, radius_sq: _ } => {
-                    circle_circle_raw(x, y, radius, circle.x, circle.y, circle.radius)
-                }
+                QueryKind::Circle {
+                    x,
+                    y,
+                    radius,
+                    radius_sq: _,
+                } => circle_circle_raw(x, y, radius, circle.x, circle.y, circle.radius),
             };
             if hit {
                 f(packed.value());

@@ -1,6 +1,6 @@
+use super::QuadTreeInner;
 use common::shapes::{Rectangle, ShapeEnum};
 use smallvec::SmallVec;
-use super::QuadTreeInner;
 
 pub(crate) const FLAG_LEFT: u8 = 0b0001;
 pub(crate) const FLAG_BOTTOM: u8 = 0b0010;
@@ -44,7 +44,6 @@ impl RectExtent {
             max_y,
         }
     }
-
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -185,14 +184,7 @@ pub(crate) fn point_to_extent_distance_sq(x: f32, y: f32, extent: RectExtent) ->
 }
 
 #[inline(always)]
-pub(crate) fn circle_circle_raw(
-    x1: f32,
-    y1: f32,
-    r1: f32,
-    x2: f32,
-    y2: f32,
-    r2: f32,
-) -> bool {
+pub(crate) fn circle_circle_raw(x1: f32, y1: f32, r1: f32, x2: f32, y2: f32, r2: f32) -> bool {
     let dx = x1 - x2;
     let dy = y1 - y2;
     let r = r1 + r2;
@@ -310,17 +302,15 @@ pub(crate) struct Query {
 impl Query {
     pub(crate) fn from_shape(shape: &ShapeEnum) -> Self {
         match shape {
-            ShapeEnum::Rectangle(rect) => {
-                Self {
-                    extent: RectExtent::from_rect(rect),
-                    kind: QueryKind::Rect {
-                        x: rect.x,
-                        y: rect.y,
-                        half_w: rect.width * 0.5,
-                        half_h: rect.height * 0.5,
-                    },
-                }
-            }
+            ShapeEnum::Rectangle(rect) => Self {
+                extent: RectExtent::from_rect(rect),
+                kind: QueryKind::Rect {
+                    x: rect.x,
+                    y: rect.y,
+                    half_w: rect.width * 0.5,
+                    half_h: rect.height * 0.5,
+                },
+            },
             ShapeEnum::Circle(circle) => {
                 let radius = circle.radius;
                 validate_circle_radius(radius);
@@ -495,7 +485,6 @@ pub(crate) struct EntityReorder {
     pub(crate) has_entity_types: bool,
 }
 
-
 pub(crate) trait EntityMapper {
     fn map_entity(&mut self, old_idx: u32, in_nodes_minus_one: u32) -> u32;
     fn update_in_nodes_if_mapped(&mut self, old_idx: u32, in_nodes_minus_one: u32);
@@ -529,12 +518,7 @@ pub(crate) fn validate_circle_radius(radius: f32) {
     assert!(radius >= 0.0, "circle radius must be non-negative");
 }
 
-pub(crate) fn validate_rect_extent_bounds(
-    min_x: f32,
-    min_y: f32,
-    max_x: f32,
-    max_y: f32,
-) {
+pub(crate) fn validate_rect_extent_bounds(min_x: f32, min_y: f32, max_x: f32, max_y: f32) {
     assert!(
         min_x.is_finite() && min_y.is_finite() && max_x.is_finite() && max_y.is_finite(),
         "rectangle extents must be finite"

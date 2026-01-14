@@ -128,10 +128,8 @@ impl QuadTreeInner {
 
                     let mut needs_removal = crossed_new_boundary || flags != 0;
                     if (max_x < node_extent.min_x && (position_flags & FLAG_LEFT) == 0)
-                        || (max_y < node_extent.min_y
-                            && (position_flags & FLAG_BOTTOM) == 0)
-                        || (node_extent.max_x < min_x
-                            && (position_flags & FLAG_RIGHT) == 0)
+                        || (max_y < node_extent.min_y && (position_flags & FLAG_BOTTOM) == 0)
+                        || (node_extent.max_x < min_x && (position_flags & FLAG_RIGHT) == 0)
                         || (node_extent.max_y < min_y && (position_flags & FLAG_TOP) == 0)
                     {
                         needs_removal = true;
@@ -209,11 +207,11 @@ impl QuadTreeInner {
                     if !extent_fits_in_loose_half(child_half, extent, self.looseness) {
                         // Extent does not fit in the child, keep it in the current node.
                     } else {
-                    let child = nodes[node_idx_usize].child(targets[0]);
-                    if child != 0 {
-                        stack.push((child, child_half));
-                        continue;
-                    }
+                        let child = nodes[node_idx_usize].child(targets[0]);
+                        if child != 0 {
+                            stack.push((child, child_half));
+                            continue;
+                        }
                     }
                 }
                 // Multi-child extents stay in this node to avoid duplication.
@@ -244,8 +242,11 @@ impl QuadTreeInner {
             node_entity_extents.set(node_entity_idx as usize, extent);
             let value = self.entity_values[entity_idx as usize];
             node_entity_values[node_entity_idx as usize] = value;
-            node_entity_packed[node_entity_idx as usize] =
-                NodeEntityPacked::from_parts(extent, value, node_entities[node_entity_idx as usize]);
+            node_entity_packed[node_entity_idx as usize] = NodeEntityPacked::from_parts(
+                extent,
+                value,
+                node_entities[node_entity_idx as usize],
+            );
             node_entities_last[node_entity_idx as usize] = (head == 0) as u8;
             node_entities_flags[node_entity_idx as usize] =
                 Self::compute_node_entity_flags(node_extent, position_flags, extent);

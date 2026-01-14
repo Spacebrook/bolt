@@ -105,9 +105,8 @@ impl QuadTreeInner {
                             if child == 0 {
                                 continue;
                             }
-                            let child_extent = unsafe {
-                                *node_extents_loose_ptr.add(child as usize)
-                            };
+                            let child_extent =
+                                unsafe { *node_extents_loose_ptr.add(child as usize) };
                             if q_min_x <= child_extent.max_x
                                 && q_max_x >= child_extent.min_x
                                 && q_min_y <= child_extent.max_y
@@ -126,9 +125,8 @@ impl QuadTreeInner {
                 Self::bump_query_node_ptr(stats);
                 let count = node.count as usize;
                 if count != 0 {
-                    let node_extent = unsafe {
-                        *node_extents_tight_ptr.add(info.node_idx as usize)
-                    };
+                    let node_extent =
+                        unsafe { *node_extents_tight_ptr.add(info.node_idx as usize) };
                     let contained = q_min_x <= node_extent.min_x
                         && q_max_x >= node_extent.max_x
                         && q_min_y <= node_extent.min_y

@@ -92,7 +92,6 @@ impl QuadTreeInner {
             }
         }
 
-
         #[cfg(target_arch = "x86_64")]
         let (qminx, qmaxx, qminy, qmaxy) = {
             use std::arch::x86_64::*;

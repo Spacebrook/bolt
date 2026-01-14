@@ -31,7 +31,6 @@ impl QuadTreeInner {
                 let end = start + count;
                 debug_assert!(end <= node_entities_len);
 
-
                 let mut i = start;
                 while i + 1 < end {
                     let a_idx = unsafe { (*node_entities_ptr.add(i)).index() };
@@ -137,7 +136,6 @@ impl QuadTreeInner {
                 let end = start + count;
                 debug_assert!(end <= node_entities_len);
 
-
                 let mut i = start;
                 while i + 1 < end {
                     let a_idx = unsafe { (*node_entities_ptr.add(i)).index() };
@@ -237,7 +235,6 @@ impl QuadTreeInner {
                 let start = node.head() as usize;
                 let end = start + count;
                 debug_assert!(end <= node_entities.len());
-
 
                 let mut i = start;
                 while i + 1 < end {
@@ -485,7 +482,11 @@ impl QuadTreeInner {
                     };
 
                     if hits {
-                        let (min, max) = if a_idx < b_idx { (a_idx, b_idx) } else { (b_idx, a_idx) };
+                        let (min, max) = if a_idx < b_idx {
+                            (a_idx, b_idx)
+                        } else {
+                            (b_idx, a_idx)
+                        };
                         let key = (u64::from(min) << 32) | u64::from(max);
                         if !self.pair_dedupe.insert(key) {
                             continue;

@@ -154,10 +154,8 @@ impl QuadTreeInner {
             let mut new_node_centers = std::mem::take(&mut self.node_centers_scratch);
             new_node_centers.clear();
             new_node_centers.reserve(old_nodes.len().max(1));
-            let mut new_node_extents_tight =
-                std::mem::take(&mut self.node_extents_tight_scratch);
-            let mut new_node_extents_loose =
-                std::mem::take(&mut self.node_extents_loose_scratch);
+            let mut new_node_extents_tight = std::mem::take(&mut self.node_extents_tight_scratch);
+            let mut new_node_extents_loose = std::mem::take(&mut self.node_extents_loose_scratch);
             new_node_extents_tight.clear();
             new_node_extents_loose.clear();
             new_node_extents_tight.reserve(old_nodes.len().max(1));
@@ -166,31 +164,25 @@ impl QuadTreeInner {
             new_node_entities.clear();
             new_node_entities.reserve(old_node_entities.len().max(1));
 
-            let mut new_node_entity_extents =
-                std::mem::take(&mut self.node_entity_extents_scratch);
-            let mut new_node_entity_packed =
-                std::mem::take(&mut self.node_entity_packed_scratch);
+            let mut new_node_entity_extents = std::mem::take(&mut self.node_entity_extents_scratch);
+            let mut new_node_entity_packed = std::mem::take(&mut self.node_entity_packed_scratch);
             new_node_entity_extents.clear();
             new_node_entity_packed.clear();
             new_node_entity_extents.reserve(old_node_entities.len().max(1));
             new_node_entity_packed.reserve(old_node_entities.len().max(1));
 
-            let mut new_node_entities_next =
-                std::mem::take(&mut self.node_entities_next_scratch);
-            let mut new_node_entity_values =
-                std::mem::take(&mut self.node_entity_values_scratch);
+            let mut new_node_entities_next = std::mem::take(&mut self.node_entities_next_scratch);
+            let mut new_node_entity_values = std::mem::take(&mut self.node_entity_values_scratch);
             new_node_entity_values.clear();
             new_node_entity_values.reserve(old_node_entity_values.len().max(1));
             new_node_entities_next.clear();
             new_node_entities_next.reserve(old_node_entities_next.len().max(1));
 
-            let mut new_node_entities_flags =
-                std::mem::take(&mut self.node_entities_flags_scratch);
+            let mut new_node_entities_flags = std::mem::take(&mut self.node_entities_flags_scratch);
             new_node_entities_flags.clear();
             new_node_entities_flags.reserve(old_node_entities_flags.len().max(1));
 
-            let mut new_node_entities_last =
-                std::mem::take(&mut self.node_entities_last_scratch);
+            let mut new_node_entities_last = std::mem::take(&mut self.node_entities_last_scratch);
             new_node_entities_last.clear();
             new_node_entities_last.reserve(old_node_entities_last.len().max(1));
 
@@ -370,7 +362,7 @@ impl QuadTreeInner {
             self.large_entity_slots.clear();
             self.large_entity_slots.push(0);
         }
-    
+
         *did_merge
     }
 }

@@ -150,9 +150,8 @@ impl QuadTreeInner {
                 entity_values.reserve(reserve - entity_values.len());
             }
         }
-        let rebuild_stack = Vec::with_capacity(
-            (max_depth as usize).saturating_mul(3).saturating_add(1),
-        );
+        let rebuild_stack =
+            Vec::with_capacity((max_depth as usize).saturating_mul(3).saturating_add(1));
         let profile_summary = config.profile_summary;
         let profile_detail = config.profile_detail;
         let use_avx2 = {
@@ -251,9 +250,7 @@ impl QuadTreeInner {
                 (max_depth as usize).saturating_mul(3).saturating_add(1),
             ),
             update_stack: NodeStack::with_capacity(
-                (max_depth as usize)
-                    .saturating_mul(3)
-                    .saturating_add(1),
+                (max_depth as usize).saturating_mul(3).saturating_add(1),
             ),
             circle_count: 0,
             typed_count: 0,
@@ -467,10 +464,7 @@ impl QuadTreeInner {
                 data[idx as usize] = circle_value;
             } else if let Some(data) = self.circle_data.as_mut() {
                 if data.len() < self.entities.len() {
-                    data.resize(
-                        self.entities.len(),
-                        CircleData::new(0.0, 0.0, 0.0),
-                    );
+                    data.resize(self.entities.len(), CircleData::new(0.0, 0.0, 0.0));
                 }
             }
             idx
@@ -479,7 +473,8 @@ impl QuadTreeInner {
         if shape_kind == SHAPE_CIRCLE {
             self.circle_count = self.circle_count.saturating_add(1);
         }
-        if self.large_entity_threshold > 0.0 && self.large_entity_slots.len() < self.entities.len() {
+        if self.large_entity_threshold > 0.0 && self.large_entity_slots.len() < self.entities.len()
+        {
             self.large_entity_slots.resize(self.entities.len(), 0);
         }
         self.update_large_entity_state(idx, extent);
@@ -567,29 +562,27 @@ impl QuadTreeInner {
                 types.resize(self.entities.len(), u32::MAX);
             }
         }
-        self.entity_types.as_mut().expect("entity types not initialized")
+        self.entity_types
+            .as_mut()
+            .expect("entity types not initialized")
     }
 
     pub(crate) fn ensure_circle_data(&mut self) -> &mut Vec<CircleData> {
         if self.circle_data.is_none() {
             let mut data = Vec::new();
-            data.resize(
-                self.entities.len().max(1),
-                CircleData::new(0.0, 0.0, 0.0),
-            );
+            data.resize(self.entities.len().max(1), CircleData::new(0.0, 0.0, 0.0));
             self.circle_data = Some(data);
             if self.circle_data_scratch.is_none() {
                 self.circle_data_scratch = Some(Vec::new());
             }
         } else if let Some(data) = self.circle_data.as_mut() {
             if data.len() < self.entities.len() {
-                data.resize(
-                    self.entities.len(),
-                    CircleData::new(0.0, 0.0, 0.0),
-                );
+                data.resize(self.entities.len(), CircleData::new(0.0, 0.0, 0.0));
             }
         }
-        self.circle_data.as_mut().expect("circle data not initialized")
+        self.circle_data
+            .as_mut()
+            .expect("circle data not initialized")
     }
 
     pub fn insert(&mut self, value: u32, shape: ShapeEnum, entity_type: Option<u32>) {
@@ -651,6 +644,4 @@ impl QuadTreeInner {
         self.removals.push(entity_idx);
         self.normalization = Normalization::Hard;
     }
-
-
 }

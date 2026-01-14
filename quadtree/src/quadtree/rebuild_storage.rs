@@ -17,11 +17,10 @@ impl QuadTreeInner {
         let total_entities = self.entities.len().saturating_sub(1);
         let dead_entities = total_entities.saturating_sub(self.alive_count as usize);
         let reorder_dead_threshold = (total_entities / 8).max(1);
-        let reorder_due =
-            (self.reorder_counter & (ENTITY_REORDER_INTERVAL - 1)) == 0;
+        let reorder_due = (self.reorder_counter & (ENTITY_REORDER_INTERVAL - 1)) == 0;
         self.reorder_counter = self.reorder_counter.wrapping_add(1);
-        let do_entity_reorder = total_entities > 0
-            && (dead_entities >= reorder_dead_threshold || reorder_due);
+        let do_entity_reorder =
+            total_entities > 0 && (dead_entities >= reorder_dead_threshold || reorder_due);
         if do_entity_reorder {
             return self.rebuild_storage_with_reorder(did_merge, profile);
         } else {
@@ -44,10 +43,8 @@ impl QuadTreeInner {
             new_node_centers.clear();
             new_node_centers.reserve(old_nodes.len().max(1));
 
-            let mut new_node_extents_tight =
-                std::mem::take(&mut self.node_extents_tight_scratch);
-            let mut new_node_extents_loose =
-                std::mem::take(&mut self.node_extents_loose_scratch);
+            let mut new_node_extents_tight = std::mem::take(&mut self.node_extents_tight_scratch);
+            let mut new_node_extents_loose = std::mem::take(&mut self.node_extents_loose_scratch);
             new_node_extents_tight.clear();
             new_node_extents_loose.clear();
             new_node_extents_tight.reserve(old_nodes.len().max(1));
@@ -57,10 +54,8 @@ impl QuadTreeInner {
             new_node_entities.clear();
             new_node_entities.reserve(old_node_entities.len().max(1));
 
-            let mut new_node_entity_extents =
-                std::mem::take(&mut self.node_entity_extents_scratch);
-            let mut new_node_entity_packed =
-                std::mem::take(&mut self.node_entity_packed_scratch);
+            let mut new_node_entity_extents = std::mem::take(&mut self.node_entity_extents_scratch);
+            let mut new_node_entity_packed = std::mem::take(&mut self.node_entity_packed_scratch);
             new_node_entity_extents.clear();
             new_node_entity_packed.clear();
             new_node_entity_extents.reserve(old_node_entities.len().max(1));
@@ -176,5 +171,4 @@ impl QuadTreeInner {
 
         *did_merge
     }
-
 }

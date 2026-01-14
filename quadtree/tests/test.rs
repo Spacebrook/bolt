@@ -2,8 +2,8 @@ use common::shapes::{Circle, Rectangle, ShapeEnum};
 use quadtree::collision_detection::shape_shape;
 use quadtree::quadtree::{Config, QuadTree, RelocationRequest};
 
-use rand::{Rng, SeedableRng};
 use rand::rngs::StdRng;
+use rand::{Rng, SeedableRng};
 use std::collections::HashSet;
 
 fn assert_collisions_with_expected<F>(
@@ -30,7 +30,12 @@ fn assert_collisions_with_expected<F>(
     assert_eq!(hit_set, *expected, "{}", label);
 }
 
-fn assert_tree_contents(label: &str, tree: &mut QuadTree, query: &ShapeEnum, expected: &HashSet<u32>) {
+fn assert_tree_contents(
+    label: &str,
+    tree: &mut QuadTree,
+    query: &ShapeEnum,
+    expected: &HashSet<u32>,
+) {
     let mut hits = Vec::new();
     tree.collisions(query.clone(), &mut hits);
     let hit_set: HashSet<u32> = hits.iter().copied().collect();

@@ -349,6 +349,4 @@ ops(i={}, r={}, nr={}, re={})",
             self.normalize();
         }
     }
-
-
 }

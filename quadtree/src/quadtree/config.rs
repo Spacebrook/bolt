@@ -1,4 +1,3 @@
-
 #[derive(Debug, Clone)]
 pub struct Config {
     /// Pre-allocate storage sized for about this many entities.
