@@ -164,7 +164,7 @@ fn collisions_benchmark(c: &mut Criterion) {
 
 fn collisions_filter_large_filter_benchmark(c: &mut Criterion) {
     let mut rng = StdRng::seed_from_u64(42);
-    let (quadtree, _) = build_tree(&mut rng, 5000, 512, None);
+    let (mut quadtree, _) = build_tree(&mut rng, 5000, 512, None);
     let filter: Vec<u32> = (0..512).collect();
 
     let query_shape = ShapeEnum::Rectangle(Rectangle {
@@ -189,7 +189,7 @@ fn collisions_filter_large_filter_benchmark(c: &mut Criterion) {
 
 fn collisions_batch_filter_large_filter_benchmark(c: &mut Criterion) {
     let mut rng = StdRng::seed_from_u64(43);
-    let (quadtree, _) = build_tree(&mut rng, 5000, 512, None);
+    let (mut quadtree, _) = build_tree(&mut rng, 5000, 512, None);
     let filter: Vec<u32> = (0..512).collect();
     let mut shapes = Vec::with_capacity(128);
     for _ in 0..128 {
@@ -219,6 +219,9 @@ fn cleanup_merge_benchmark(c: &mut Criterion) {
         min_size: 1.0,
         looseness: 1.0,
         large_entity_threshold_factor: 0.0,
+        profile_summary: false,
+        profile_detail: false,
+        profile_limit: 5,
     };
 
     c.bench_function("quadtree_cleanup_merge", |b| {

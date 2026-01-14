@@ -1,3 +1,7 @@
+use super::*;
+use fxhash::{FxHashMap, FxHashSet};
+use std::cell::RefCell;
+
 impl EntityReorder {
     #[inline(always)]
     fn map_entity(&mut self, old_idx: u32, in_nodes_minus_one: u32) -> u32 {
@@ -97,18 +101,18 @@ impl EntityMapper for EntityReorder {
     }
 }
 
-struct Node {
-    head: u32,
-    count: u32,
-    position_flags: u8,
-    node_flags: u8,
-    dedupe_start: u32,
-    children: [u32; 4],
+pub(crate) struct Node {
+    pub(crate) head: u32,
+    pub(crate) count: u32,
+    pub(crate) position_flags: u8,
+    pub(crate) node_flags: u8,
+    pub(crate) dedupe_start: u32,
+    pub(crate) children: [u32; 4],
 }
 
 impl Node {
     #[inline(always)]
-    fn new_leaf(position_flags: u8) -> Self {
+    pub(crate) fn new_leaf(position_flags: u8) -> Self {
         Self {
             head: 0,
             count: 0,
@@ -120,36 +124,36 @@ impl Node {
     }
 
     #[inline(always)]
-    fn head(&self) -> u32 {
+    pub(crate) fn head(&self) -> u32 {
         self.head
     }
 
     #[inline(always)]
-    fn set_head(&mut self, head: u32) {
+    pub(crate) fn set_head(&mut self, head: u32) {
         self.head = head;
     }
 
     #[inline(always)]
-    fn dedupe_start(&self) -> u32 {
+    pub(crate) fn dedupe_start(&self) -> u32 {
         self.dedupe_start
     }
 
     #[inline(always)]
-    fn set_dedupe_start(&mut self, dedupe_start: u32) {
+    pub(crate) fn set_dedupe_start(&mut self, dedupe_start: u32) {
         self.dedupe_start = dedupe_start;
     }
     #[inline(always)]
-    fn position_flags(&self) -> u8 {
+    pub(crate) fn position_flags(&self) -> u8 {
         self.position_flags
     }
 
     #[inline(always)]
-    fn has_dedupe(&self) -> bool {
+    pub(crate) fn has_dedupe(&self) -> bool {
         self.node_flags & NODE_FLAG_HAS_DEDUPE != 0
     }
 
     #[inline(always)]
-    fn set_has_dedupe(&mut self, has_dedupe: bool) {
+    pub(crate) fn set_has_dedupe(&mut self, has_dedupe: bool) {
         if has_dedupe {
             self.node_flags |= NODE_FLAG_HAS_DEDUPE;
         } else {
@@ -158,104 +162,104 @@ impl Node {
     }
 
     #[inline(always)]
-    fn count(&self) -> u32 {
+    pub(crate) fn count(&self) -> u32 {
         self.count
     }
 
     #[inline(always)]
-    fn set_count(&mut self, count: u32) {
+    pub(crate) fn set_count(&mut self, count: u32) {
         self.count = count;
     }
 
     #[inline(always)]
-    fn is_leaf(&self) -> bool {
+    pub(crate) fn is_leaf(&self) -> bool {
         self.children[3] == 0
     }
 
     #[inline(always)]
-    fn set_children(&mut self, children: [u32; 4]) {
+    pub(crate) fn set_children(&mut self, children: [u32; 4]) {
         self.children = children;
     }
 
     #[inline(always)]
-    fn child(&self, index: usize) -> u32 {
+    pub(crate) fn child(&self, index: usize) -> u32 {
         self.children[index]
     }
 }
 
 
 #[derive(Default)]
-struct NodeCentersSoa {
+pub(crate) struct NodeCentersSoa {
     x: Vec<f32>,
     y: Vec<f32>,
 }
 
 impl NodeCentersSoa {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self { x: Vec::new(), y: Vec::new() }
     }
 
-    fn clear(&mut self) {
+    pub(crate) fn clear(&mut self) {
         self.x.clear();
         self.y.clear();
     }
 
-    fn reserve(&mut self, additional: usize) {
+    pub(crate) fn reserve(&mut self, additional: usize) {
         self.x.reserve(additional);
         self.y.reserve(additional);
     }
 
-    fn push(&mut self, x: f32, y: f32) {
+    pub(crate) fn push(&mut self, x: f32, y: f32) {
         self.x.push(x);
         self.y.push(y);
     }
 
     #[inline(always)]
-    fn x_ptr(&self) -> *const f32 {
+    pub(crate) fn x_ptr(&self) -> *const f32 {
         self.x.as_ptr()
     }
 
     #[inline(always)]
-    fn y_ptr(&self) -> *const f32 {
+    pub(crate) fn y_ptr(&self) -> *const f32 {
         self.y.as_ptr()
     }
 }
 
 #[derive(Clone, Copy)]
-struct NodeReorderInfo {
-    node_idx: u32,
-    half: HalfExtent,
-    parent_idx: u32,
-    child_slot: u8,
-    depth: u32,
+pub(crate) struct NodeReorderInfo {
+    pub(crate) node_idx: u32,
+    pub(crate) half: HalfExtent,
+    pub(crate) parent_idx: u32,
+    pub(crate) child_slot: u8,
+    pub(crate) depth: u32,
 }
 
 #[derive(Clone, Copy)]
-struct NodeQueryInfo {
-    node_idx: u32,
+pub(crate) struct NodeQueryInfo {
+    pub(crate) node_idx: u32,
 }
 
-const QUERY_STACK_INLINE: usize = 64;
-const ENTITY_REORDER_INTERVAL: u32 = 16;
-const NODE_FLAG_HAS_DEDUPE: u8 = 0b0000_0001;
+pub(crate) const QUERY_STACK_INLINE: usize = 64;
+pub(crate) const ENTITY_REORDER_INTERVAL: u32 = 16;
+pub(crate) const NODE_FLAG_HAS_DEDUPE: u8 = 0b0000_0001;
 
-struct EntityExtents<'a> {
-    extents: &'a [RectExtent],
+pub(crate) struct EntityExtents<'a> {
+    pub(crate) extents: &'a [RectExtent],
 }
 
 impl<'a> EntityExtents<'a> {
     #[inline(always)]
-    fn extent(&self, idx: usize) -> RectExtent {
+    pub(crate) fn extent(&self, idx: usize) -> RectExtent {
         self.extents[idx]
     }
 }
 
 #[derive(Clone, Copy)]
-struct NodeRemoval {
-    node_idx: u32,
-    prev_idx: u32,
-    node_entity_idx: u32,
-    entity_idx: u32,
+pub(crate) struct NodeRemoval {
+    pub(crate) node_idx: u32,
+    pub(crate) prev_idx: u32,
+    pub(crate) node_entity_idx: u32,
+    pub(crate) entity_idx: u32,
 }
 
 #[cfg(feature = "query_stats")]
@@ -271,20 +275,20 @@ pub struct QueryStats {
 pub struct QueryStats;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum Normalization {
+pub(crate) enum Normalization {
     Normal,
     Soft,
     Hard,
 }
 
-struct EntityTypeFilter {
+pub(crate) struct EntityTypeFilter {
     small: Option<Vec<u32>>,
     bitset: Option<Vec<bool>>,
     set: Option<FxHashSet<u32>>,
 }
 
 impl EntityTypeFilter {
-    fn from_vec(values: Vec<u32>) -> Self {
+    pub(crate) fn from_vec(values: Vec<u32>) -> Self {
         const SMALL_LIMIT: usize = 16;
         const BITSET_MAX: usize = 4096;
         const BITSET_DENSITY_NUM: usize = 1;
@@ -320,7 +324,7 @@ impl EntityTypeFilter {
         }
     }
 
-    fn is_universal_for(&self, max_value: u32) -> bool {
+    pub(crate) fn is_universal_for(&self, max_value: u32) -> bool {
         const UNIVERSAL_MAX: u32 = 4096;
         if max_value > UNIVERSAL_MAX {
             return false;
@@ -359,7 +363,7 @@ impl EntityTypeFilter {
         }
     }
 
-    fn contains(&self, value: u32) -> bool {
+    pub(crate) fn contains(&self, value: u32) -> bool {
         if let Some(list) = &self.small {
             list.contains(&value)
         } else if let Some(bitset) = &self.bitset {
@@ -372,14 +376,14 @@ impl EntityTypeFilter {
     }
 }
 
-struct PairDedupe {
+pub(crate) struct PairDedupe {
     table: Vec<u64>,
     stamps: Vec<u32>,
     generation: u32,
 }
 
 impl PairDedupe {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             table: Vec::new(),
             stamps: Vec::new(),
@@ -387,7 +391,7 @@ impl PairDedupe {
         }
     }
 
-    fn ensure_capacity(&mut self, desired: usize) {
+    pub(crate) fn ensure_capacity(&mut self, desired: usize) {
         let mut size = desired.next_power_of_two();
         if size < 1024 {
             size = 1024;
@@ -398,7 +402,7 @@ impl PairDedupe {
         }
     }
 
-    fn rehash(&mut self, desired: usize) {
+    pub(crate) fn rehash(&mut self, desired: usize) {
         let mut size = desired.next_power_of_two();
         if size < 1024 {
             size = 1024;
@@ -424,7 +428,7 @@ impl PairDedupe {
         }
     }
 
-    fn clear(&mut self) {
+    pub(crate) fn clear(&mut self) {
         self.generation = self.generation.wrapping_add(1);
         if self.generation == 0 {
             self.generation = 1;
@@ -432,7 +436,7 @@ impl PairDedupe {
         }
     }
 
-    fn insert(&mut self, key: u64) -> bool {
+    pub(crate) fn insert(&mut self, key: u64) -> bool {
         if self.table.is_empty() {
             self.ensure_capacity(1024);
         }
@@ -484,87 +488,87 @@ mod tests {
 }
 
 pub struct QuadTree {
-    inner: RefCell<QuadTreeInner>,
+    pub(crate) inner: RefCell<QuadTreeInner>,
 }
 
-struct QuadTreeInner {
-    root_half: HalfExtent,
-    nodes: Vec<Node>,
-    nodes_scratch: Vec<Node>,
-    node_centers: NodeCentersSoa,
-    node_centers_scratch: NodeCentersSoa,
-    node_extents_tight: ExtentAos,
-    node_extents_tight_scratch: ExtentAos,
-    node_extents_loose: ExtentAos,
-    node_extents_loose_scratch: ExtentAos,
-    free_node: u32,
-    node_entities: Vec<NodeEntity>,
-    node_entities_scratch: Vec<NodeEntity>,
-    node_entity_extents: NodeEntityExtentsSoa,
-    node_entity_extents_scratch: NodeEntityExtentsSoa,
-    node_entity_packed: Vec<NodeEntityPacked>,
-    node_entity_packed_scratch: Vec<NodeEntityPacked>,
-    node_entities_next: Vec<u32>,
-    node_entities_next_scratch: Vec<u32>,
-    node_entity_values: Vec<u32>,
-    node_entity_values_scratch: Vec<u32>,
-    node_entities_flags: Vec<u8>,
-    node_entities_flags_scratch: Vec<u8>,
-    node_entities_last: Vec<u8>,
-    node_entities_last_scratch: Vec<u8>,
-    free_node_entity: u32,
-    entities: Vec<Entity>,
-    entities_scratch: Vec<Entity>,
-    entity_extents: ExtentAos,
-    entity_extents_scratch: ExtentAos,
-    query_marks: Vec<u32>,
-    query_marks_scratch: Vec<u32>,
-    entity_values: Vec<u32>,
-    entity_values_scratch: Vec<u32>,
-    entity_types: Option<Vec<u32>>,
-    entity_types_scratch: Option<Vec<u32>>,
-    circle_data: Option<Vec<CircleData>>,
-    circle_data_scratch: Option<Vec<CircleData>>,
-    free_entity: u32,
-    insertions: Vec<u32>,
-    removals: Vec<u32>,
-    node_removals: Vec<NodeRemoval>,
-    reinsertions: Vec<u32>,
-    rebuild_stack: Vec<NodeReorderInfo>,
-    merge_ht: Vec<u32>,
-    normalization: Normalization,
-    update_tick: u8,
-    status_tick: u8,
-    query_tick: u32,
+pub(crate) struct QuadTreeInner {
+    pub(crate) root_half: HalfExtent,
+    pub(crate) nodes: Vec<Node>,
+    pub(crate) nodes_scratch: Vec<Node>,
+    pub(crate) node_centers: NodeCentersSoa,
+    pub(crate) node_centers_scratch: NodeCentersSoa,
+    pub(crate) node_extents_tight: ExtentAos,
+    pub(crate) node_extents_tight_scratch: ExtentAos,
+    pub(crate) node_extents_loose: ExtentAos,
+    pub(crate) node_extents_loose_scratch: ExtentAos,
+    pub(crate) free_node: u32,
+    pub(crate) node_entities: Vec<NodeEntity>,
+    pub(crate) node_entities_scratch: Vec<NodeEntity>,
+    pub(crate) node_entity_extents: NodeEntityExtentsSoa,
+    pub(crate) node_entity_extents_scratch: NodeEntityExtentsSoa,
+    pub(crate) node_entity_packed: Vec<NodeEntityPacked>,
+    pub(crate) node_entity_packed_scratch: Vec<NodeEntityPacked>,
+    pub(crate) node_entities_next: Vec<u32>,
+    pub(crate) node_entities_next_scratch: Vec<u32>,
+    pub(crate) node_entity_values: Vec<u32>,
+    pub(crate) node_entity_values_scratch: Vec<u32>,
+    pub(crate) node_entities_flags: Vec<u8>,
+    pub(crate) node_entities_flags_scratch: Vec<u8>,
+    pub(crate) node_entities_last: Vec<u8>,
+    pub(crate) node_entities_last_scratch: Vec<u8>,
+    pub(crate) free_node_entity: u32,
+    pub(crate) entities: Vec<Entity>,
+    pub(crate) entities_scratch: Vec<Entity>,
+    pub(crate) entity_extents: ExtentAos,
+    pub(crate) entity_extents_scratch: ExtentAos,
+    pub(crate) query_marks: Vec<u32>,
+    pub(crate) query_marks_scratch: Vec<u32>,
+    pub(crate) entity_values: Vec<u32>,
+    pub(crate) entity_values_scratch: Vec<u32>,
+    pub(crate) entity_types: Option<Vec<u32>>,
+    pub(crate) entity_types_scratch: Option<Vec<u32>>,
+    pub(crate) circle_data: Option<Vec<CircleData>>,
+    pub(crate) circle_data_scratch: Option<Vec<CircleData>>,
+    pub(crate) free_entity: u32,
+    pub(crate) insertions: Vec<u32>,
+    pub(crate) removals: Vec<u32>,
+    pub(crate) node_removals: Vec<NodeRemoval>,
+    pub(crate) reinsertions: Vec<u32>,
+    pub(crate) rebuild_stack: Vec<NodeReorderInfo>,
+    pub(crate) merge_ht: Vec<u32>,
+    pub(crate) normalization: Normalization,
+    pub(crate) update_tick: u8,
+    pub(crate) status_tick: u8,
+    pub(crate) query_tick: u32,
     #[allow(dead_code)]
-    query_stats: QueryStats,
-    profile_remaining: u32,
-    profile_summary: bool,
-    profile_detail: bool,
-    reorder_counter: u32,
-    allow_duplicates: bool,
-    update_pending: bool,
-    use_avx2: bool,
-    large_entity_threshold: f32,
-    large_entities: Vec<u32>,
-    large_entity_slots: Vec<u32>,
-    split_threshold: u32,
-    merge_threshold: u32,
-    max_depth: u32,
-    min_size: f32,
-    looseness: f32,
-    owner_map: FxHashMap<u32, u32>,
-    dense_owner: Vec<u32>,
-    pair_dedupe: PairDedupe,
-    insert_stack: NodeStack,
-    remove_stack: NodeStack,
-    query_stack: NodeStack,
-    query_info_stack: Vec<NodeQueryInfo>,
-    update_stack: NodeStack,
-    circle_count: u32,
-    typed_count: u32,
-    alive_count: u32,
-    max_entity_type: u32,
-    max_entity_type_dirty: bool,
-    entity_reorder_map: Vec<u32>,
+    pub(crate) query_stats: QueryStats,
+    pub(crate) profile_remaining: u32,
+    pub(crate) profile_summary: bool,
+    pub(crate) profile_detail: bool,
+    pub(crate) reorder_counter: u32,
+    pub(crate) allow_duplicates: bool,
+    pub(crate) update_pending: bool,
+    pub(crate) use_avx2: bool,
+    pub(crate) large_entity_threshold: f32,
+    pub(crate) large_entities: Vec<u32>,
+    pub(crate) large_entity_slots: Vec<u32>,
+    pub(crate) split_threshold: u32,
+    pub(crate) merge_threshold: u32,
+    pub(crate) max_depth: u32,
+    pub(crate) min_size: f32,
+    pub(crate) looseness: f32,
+    pub(crate) owner_map: FxHashMap<u32, u32>,
+    pub(crate) dense_owner: Vec<u32>,
+    pub(crate) pair_dedupe: PairDedupe,
+    pub(crate) insert_stack: NodeStack,
+    pub(crate) remove_stack: NodeStack,
+    pub(crate) query_stack: NodeStack,
+    pub(crate) query_info_stack: Vec<NodeQueryInfo>,
+    pub(crate) update_stack: NodeStack,
+    pub(crate) circle_count: u32,
+    pub(crate) typed_count: u32,
+    pub(crate) alive_count: u32,
+    pub(crate) max_entity_type: u32,
+    pub(crate) max_entity_type_dirty: bool,
+    pub(crate) entity_reorder_map: Vec<u32>,
 }

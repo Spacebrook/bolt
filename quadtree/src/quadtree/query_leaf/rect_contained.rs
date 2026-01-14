@@ -1,9 +1,11 @@
+use super::super::*;
+
 impl QuadTreeInner {
     #[allow(dead_code)]
     #[inline(always)]
     // Safety: caller must ensure pointers are valid for `start..start+count` and `query_marks_ptr`
     // is at least `max_entity_index + 1` long; `stats` may be null when query_stats is disabled.
-    unsafe fn query_rect_leaf_contained_raw<F>(
+    pub(crate) unsafe fn query_rect_leaf_contained_raw<F>(
         node_entity_packed_ptr: *const NodeEntityPacked,
         start: u32,
         count: usize,

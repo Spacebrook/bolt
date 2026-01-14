@@ -1,5 +1,7 @@
+use super::*;
+
 impl QuadTreeInner {
-    fn rebuild_storage(&mut self, did_merge: &mut bool) -> bool {
+    pub(crate) fn rebuild_storage(&mut self, did_merge: &mut bool) -> bool {
         if self.nodes.is_empty() {
             return false;
         }

@@ -1,5 +1,7 @@
+use super::*;
+
 impl QuadTreeInner {
-    fn next_query_tick(&mut self) -> u32 {
+    pub(crate) fn next_query_tick(&mut self) -> u32 {
         self.query_tick = self.query_tick.wrapping_add(1);
         if self.query_tick == 0 {
             self.query_tick = 1;
@@ -9,7 +11,7 @@ impl QuadTreeInner {
     }
 
     #[inline(always)]
-    fn collisions_circle_fast_with<F>(&mut self, query: Query, tick: u32, f: &mut F)
+    pub(crate) fn collisions_circle_fast_with<F>(&mut self, query: Query, tick: u32, f: &mut F)
     where
         F: FnMut(u32),
     {

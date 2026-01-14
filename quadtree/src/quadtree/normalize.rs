@@ -1,5 +1,7 @@
+use super::*;
+
 impl QuadTreeInner {
-    fn normalize(&mut self) {
+    pub(crate) fn normalize(&mut self) {
         if self.normalization == Normalization::Normal {
             return;
         }

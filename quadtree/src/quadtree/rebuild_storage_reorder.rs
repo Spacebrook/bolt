@@ -1,5 +1,7 @@
+use super::*;
+
 impl QuadTreeInner {
-    fn rebuild_storage_with_reorder(
+    pub(crate) fn rebuild_storage_with_reorder(
         &mut self,
         did_merge: &mut bool,
         profile: bool,

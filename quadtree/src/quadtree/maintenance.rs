@@ -1,3 +1,6 @@
+use super::*;
+use common::shapes::ShapeEnum;
+
 impl QuadTreeInner {
     pub fn relocate_batch(&mut self, relocation_requests: Vec<RelocationRequest>) {
         for request in relocation_requests {
@@ -31,6 +34,7 @@ impl QuadTreeInner {
         radius: f32,
         entity_type: Option<u32>,
     ) {
+        validate_circle_radius(radius);
         let extent = RectExtent::from_min_max(x - radius, y - radius, x + radius, y + radius);
         let circle = CircleData::new(x, y, radius);
         self.relocate_with_metadata(value, SHAPE_CIRCLE, extent, Some(circle), entity_type);
@@ -173,7 +177,7 @@ impl QuadTreeInner {
         self.normalize_full();
     }
 
-    fn take_profile_summary(&mut self) -> bool {
+    pub(crate) fn take_profile_summary(&mut self) -> bool {
         if self.profile_remaining == 0 {
             return false;
         }
@@ -184,7 +188,7 @@ impl QuadTreeInner {
         summary
     }
 
-    fn take_query_stats_inner(&mut self) -> QueryStats {
+    pub(crate) fn take_query_stats_inner(&mut self) -> QueryStats {
         std::mem::take(&mut self.query_stats)
     }
 
@@ -212,7 +216,7 @@ impl QuadTreeInner {
         (avg, max_nodes)
     }
 
-    fn normalize_hard(&mut self) {
+    pub(crate) fn normalize_hard(&mut self) {
         if matches!(
             self.normalization,
             Normalization::Normal | Normalization::Soft

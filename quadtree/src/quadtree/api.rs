@@ -1,3 +1,7 @@
+use super::{Config, QuadTree, QuadTreeInner, QueryStats, RelocationRequest};
+use common::shapes::{Rectangle, ShapeEnum};
+use std::cell::RefCell;
+
 impl QuadTree {
     pub fn new_with_config(bounding_box: Rectangle, config: Config) -> Self {
         Self {
@@ -90,30 +94,30 @@ impl QuadTree {
             .relocate_circle_raw(value, x, y, radius, entity_type);
     }
 
-    pub fn update(&self) {
-        self.inner.borrow_mut().update();
+    pub fn update(&mut self) {
+        self.inner.get_mut().update();
     }
 
-    pub fn collisions_batch(&self, shapes: Vec<ShapeEnum>) -> Vec<Vec<u32>> {
-        self.inner.borrow_mut().collisions_batch(shapes)
+    pub fn collisions_batch(&mut self, shapes: Vec<ShapeEnum>) -> Vec<Vec<u32>> {
+        self.inner.get_mut().collisions_batch(shapes)
     }
 
     pub fn collisions_batch_filter(
-        &self,
+        &mut self,
         shapes: Vec<ShapeEnum>,
         filter_entity_types: Option<Vec<u32>>,
     ) -> Vec<Vec<u32>> {
         self.inner
-            .borrow_mut()
+            .get_mut()
             .collisions_batch_filter(shapes, filter_entity_types)
     }
 
-    pub fn collisions(&self, shape: ShapeEnum, collisions: &mut Vec<u32>) {
-        self.inner.borrow_mut().collisions(shape, collisions);
+    pub fn collisions(&mut self, shape: ShapeEnum, collisions: &mut Vec<u32>) {
+        self.inner.get_mut().collisions(shape, collisions);
     }
 
     pub fn collisions_rect_extent(
-        &self,
+        &mut self,
         min_x: f32,
         min_y: f32,
         max_x: f32,
@@ -121,35 +125,35 @@ impl QuadTree {
         collisions: &mut Vec<u32>,
     ) {
         self.inner
-            .borrow_mut()
+            .get_mut()
             .collisions_rect_extent(min_x, min_y, max_x, max_y, collisions);
     }
 
     pub fn collisions_circle_raw(
-        &self,
+        &mut self,
         x: f32,
         y: f32,
         radius: f32,
         collisions: &mut Vec<u32>,
     ) {
         self.inner
-            .borrow_mut()
+            .get_mut()
             .collisions_circle_raw(x, y, radius, collisions);
     }
 
     pub fn collisions_filter(
-        &self,
+        &mut self,
         shape: ShapeEnum,
         filter_entity_types: Option<Vec<u32>>,
         collisions: &mut Vec<u32>,
     ) {
         self.inner
-            .borrow_mut()
+            .get_mut()
             .collisions_filter(shape, filter_entity_types, collisions);
     }
 
-    pub fn take_query_stats(&self) -> QueryStats {
-        self.inner.borrow_mut().take_query_stats_inner()
+    pub fn take_query_stats(&mut self) -> QueryStats {
+        self.inner.get_mut().take_query_stats_inner()
     }
 
     #[cfg(feature = "query_stats")]
@@ -157,15 +161,15 @@ impl QuadTree {
         self.inner.borrow().entity_node_stats()
     }
 
-    pub fn collisions_with<F>(&self, shape: ShapeEnum, f: F)
+    pub fn collisions_with<F>(&mut self, shape: ShapeEnum, f: F)
     where
         F: FnMut(u32),
     {
-        self.inner.borrow_mut().collisions_with(shape, f);
+        self.inner.get_mut().collisions_with(shape, f);
     }
 
     pub fn collisions_rect_extent_with<F>(
-        &self,
+        &mut self,
         min_x: f32,
         min_y: f32,
         max_x: f32,
@@ -175,7 +179,7 @@ impl QuadTree {
         F: FnMut(u32),
     {
         self.inner
-            .borrow_mut()
+            .get_mut()
             .collisions_rect_extent_with(min_x, min_y, max_x, max_y, f);
     }
 
@@ -195,17 +199,17 @@ impl QuadTree {
             .collisions_rect_extent_with(min_x, min_y, max_x, max_y, f);
     }
 
-    pub fn collisions_circle_raw_with<F>(&self, x: f32, y: f32, radius: f32, f: F)
+    pub fn collisions_circle_raw_with<F>(&mut self, x: f32, y: f32, radius: f32, f: F)
     where
         F: FnMut(u32),
     {
         self.inner
-            .borrow_mut()
+            .get_mut()
             .collisions_circle_raw_with(x, y, radius, f);
     }
 
     pub fn collisions_with_filter<F>(
-        &self,
+        &mut self,
         shape: ShapeEnum,
         filter_entity_types: Option<Vec<u32>>,
         f: F,
@@ -213,19 +217,19 @@ impl QuadTree {
         F: FnMut(u32),
     {
         self.inner
-            .borrow_mut()
+            .get_mut()
             .collisions_with_filter(shape, filter_entity_types, f);
     }
 
-    pub fn for_each_collision_pair<F>(&self, f: F)
+    pub fn for_each_collision_pair<F>(&mut self, f: F)
     where
         F: FnMut(u32, u32),
     {
-        self.inner.borrow_mut().for_each_collision_pair(f);
+        self.inner.get_mut().for_each_collision_pair(f);
     }
 
-    pub fn all_node_bounding_boxes(&self, bounding_boxes: &mut Vec<Rectangle>) {
-        self.inner.borrow_mut().all_node_bounding_boxes(bounding_boxes);
+    pub fn all_node_bounding_boxes(&mut self, bounding_boxes: &mut Vec<Rectangle>) {
+        self.inner.get_mut().all_node_bounding_boxes(bounding_boxes);
     }
 
     pub fn all_shapes(&self, shapes: &mut Vec<ShapeEnum>) {

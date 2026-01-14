@@ -1,3 +1,7 @@
+use super::*;
+use common::shapes::{Rectangle, ShapeEnum};
+use fxhash::FxHashMap;
+
 impl QuadTreeInner {
     const DENSE_OWNER_LIMIT: usize = 1_000_000;
     #[allow(dead_code)]
@@ -149,12 +153,8 @@ impl QuadTreeInner {
         let rebuild_stack = Vec::with_capacity(
             (max_depth as usize).saturating_mul(3).saturating_add(1),
         );
-        let profile_enabled = std::env::var("BOLT_QT_PROFILE").ok().as_deref() == Some("1");
-        let profile_summary =
-            std::env::var("BOLT_QT_PROFILE_SUMMARY").ok().as_deref() == Some("1")
-                || profile_enabled;
-        let profile_detail =
-            std::env::var("BOLT_QT_PROFILE_DETAIL").ok().as_deref() == Some("1");
+        let profile_summary = config.profile_summary;
+        let profile_detail = config.profile_detail;
         let use_avx2 = {
             #[cfg(target_arch = "x86_64")]
             {
@@ -165,11 +165,8 @@ impl QuadTreeInner {
                 false
             }
         };
-        let profile_remaining = if profile_enabled || profile_summary || profile_detail {
-            std::env::var("BOLT_QT_PROFILE_LIMIT")
-                .ok()
-                .and_then(|value| value.parse::<u32>().ok())
-                .unwrap_or(5)
+        let profile_remaining = if profile_summary || profile_detail {
+            config.profile_limit.max(1)
         } else {
             0
         };
@@ -269,7 +266,7 @@ impl QuadTreeInner {
     pub fn new(bounding_box: Rectangle) -> Self {
         Self::new_with_config(bounding_box, Config::default())
     }
-    fn owner_lookup(&self, value: u32) -> Option<u32> {
+    pub(crate) fn owner_lookup(&self, value: u32) -> Option<u32> {
         let idx = value as usize;
         if idx < self.dense_owner.len() {
             let stored = self.dense_owner[idx];
@@ -279,7 +276,7 @@ impl QuadTreeInner {
         }
         self.owner_map.get(&value).copied()
     }
-    fn owner_insert(&mut self, value: u32, entity_idx: u32) {
+    pub(crate) fn owner_insert(&mut self, value: u32, entity_idx: u32) {
         let idx = value as usize;
         if idx <= Self::DENSE_OWNER_LIMIT {
             if idx >= self.dense_owner.len() {
@@ -290,7 +287,7 @@ impl QuadTreeInner {
             self.owner_map.insert(value, entity_idx);
         }
     }
-    fn owner_remove(&mut self, value: u32) -> Option<u32> {
+    pub(crate) fn owner_remove(&mut self, value: u32) -> Option<u32> {
         let idx = value as usize;
         if idx < self.dense_owner.len() {
             let stored = self.dense_owner[idx];
@@ -301,7 +298,7 @@ impl QuadTreeInner {
         }
         self.owner_map.remove(&value)
     }
-    fn remap_owner_indices(
+    pub(crate) fn remap_owner_indices(
         entity_map: &[u32],
         dense_owner: &mut Vec<u32>,
         owner_map: &mut FxHashMap<u32, u32>,
@@ -329,7 +326,7 @@ impl QuadTreeInner {
     }
 
     #[inline(always)]
-    fn is_large_extent(&self, extent: RectExtent) -> bool {
+    pub(crate) fn is_large_extent(&self, extent: RectExtent) -> bool {
         if self.large_entity_threshold <= 0.0 {
             return false;
         }
@@ -339,7 +336,7 @@ impl QuadTreeInner {
     }
 
     #[inline(always)]
-    fn is_entity_large(&self, entity_idx: u32) -> bool {
+    pub(crate) fn is_entity_large(&self, entity_idx: u32) -> bool {
         if self.large_entity_threshold <= 0.0 {
             return false;
         }
@@ -347,7 +344,7 @@ impl QuadTreeInner {
         idx < self.large_entity_slots.len() && self.large_entity_slots[idx] != 0
     }
 
-    fn set_large_entity(&mut self, entity_idx: u32, is_large: bool) -> bool {
+    pub(crate) fn set_large_entity(&mut self, entity_idx: u32, is_large: bool) -> bool {
         if self.large_entity_threshold <= 0.0 {
             return false;
         }
@@ -378,7 +375,11 @@ impl QuadTreeInner {
         }
     }
 
-    fn update_large_entity_state(&mut self, entity_idx: u32, extent: RectExtent) -> (bool, bool) {
+    pub(crate) fn update_large_entity_state(
+        &mut self,
+        entity_idx: u32,
+        extent: RectExtent,
+    ) -> (bool, bool) {
         let was_large = self.is_entity_large(entity_idx);
         let is_large = self.is_large_extent(extent);
         if was_large != is_large {
@@ -390,7 +391,7 @@ impl QuadTreeInner {
         (was_large, is_large)
     }
 
-    fn remove_large_entity(&mut self, entity_idx: u32) {
+    pub(crate) fn remove_large_entity(&mut self, entity_idx: u32) {
         if self.large_entity_threshold <= 0.0 {
             return;
         }
@@ -398,7 +399,7 @@ impl QuadTreeInner {
     }
 
     #[inline(always)]
-    fn alloc_entity_with_metadata(
+    pub(crate) fn alloc_entity_with_metadata(
         &mut self,
         value: u32,
         shape_kind: u8,
@@ -489,7 +490,7 @@ impl QuadTreeInner {
     }
 
     #[inline(always)]
-    fn update_max_entity_type_on_insert(&mut self, stored_type: u32) {
+    pub(crate) fn update_max_entity_type_on_insert(&mut self, stored_type: u32) {
         if stored_type == u32::MAX {
             return;
         }
@@ -511,18 +512,19 @@ impl QuadTreeInner {
     }
 
     #[inline(always)]
-    fn mark_max_entity_type_dirty_if_needed(&mut self, stored_type: u32) {
+    pub(crate) fn mark_max_entity_type_dirty_if_needed(&mut self, stored_type: u32) {
         if stored_type != u32::MAX && stored_type == self.max_entity_type {
             self.max_entity_type_dirty = true;
         }
     }
-    fn entity_extent(&self, entity_idx: u32) -> RectExtent {
+    pub(crate) fn entity_extent(&self, entity_idx: u32) -> RectExtent {
         let idx = entity_idx as usize;
         self.entity_extents.extent(idx)
     }
-    fn shape_metadata(shape: &ShapeEnum) -> (u8, RectExtent, Option<CircleData>) {
+    pub(crate) fn shape_metadata(shape: &ShapeEnum) -> (u8, RectExtent, Option<CircleData>) {
         match shape {
             ShapeEnum::Rectangle(rect) => {
+                validate_rect_dims(rect.width, rect.height);
                 let half_w = rect.width * 0.5;
                 let half_h = rect.height * 0.5;
                 (
@@ -538,6 +540,7 @@ impl QuadTreeInner {
             }
             ShapeEnum::Circle(circle) => {
                 let radius = circle.radius;
+                validate_circle_radius(radius);
                 (
                     SHAPE_CIRCLE,
                     RectExtent::from_min_max(
@@ -551,7 +554,7 @@ impl QuadTreeInner {
             }
         }
     }
-    fn ensure_entity_types(&mut self) -> &mut Vec<u32> {
+    pub(crate) fn ensure_entity_types(&mut self) -> &mut Vec<u32> {
         if self.entity_types.is_none() {
             let mut types = Vec::new();
             types.resize(self.entities.len().max(1), u32::MAX);
@@ -567,7 +570,7 @@ impl QuadTreeInner {
         self.entity_types.as_mut().expect("entity types not initialized")
     }
 
-    fn ensure_circle_data(&mut self) -> &mut Vec<CircleData> {
+    pub(crate) fn ensure_circle_data(&mut self) -> &mut Vec<CircleData> {
         if self.circle_data.is_none() {
             let mut data = Vec::new();
             data.resize(
@@ -615,6 +618,7 @@ impl QuadTreeInner {
         radius: f32,
         entity_type: Option<u32>,
     ) {
+        validate_circle_radius(radius);
         let extent = RectExtent::from_min_max(x - radius, y - radius, x + radius, y + radius);
         let circle = CircleData::new(x, y, radius);
         self.insert_with_metadata(value, SHAPE_CIRCLE, extent, Some(circle), entity_type);

@@ -80,6 +80,9 @@ impl QuadTreeWrapper {
             min_size: config.min_size,
             looseness: config.looseness,
             large_entity_threshold_factor: config.large_entity_threshold_factor,
+            profile_summary: false,
+            profile_detail: false,
+            profile_limit: 5,
         };
         QuadTreeWrapper {
             quadtree: QuadTree::new_with_config(bounding_rect, rust_config),
@@ -103,13 +106,13 @@ impl QuadTreeWrapper {
         self.quadtree.delete(value);
     }
 
-    pub fn collisions(&self, py: Python, shape: Py<PyAny>) -> PyResult<Vec<u32>> {
+    pub fn collisions(&mut self, py: Python, shape: Py<PyAny>) -> PyResult<Vec<u32>> {
         return self.collisions_filter(py, shape, None);
     }
 
     #[pyo3(signature = (shape, entity_types=None))]
     pub fn collisions_filter(
-        &self,
+        &mut self,
         py: Python,
         shape: Py<PyAny>,
         entity_types: Option<&Bound<'_, PyList>>,
@@ -125,7 +128,7 @@ impl QuadTreeWrapper {
     }
 
     pub fn collisions_batch(
-        &self,
+        &mut self,
         py: Python,
         shapes: &Bound<'_, PyList>,
     ) -> PyResult<Vec<Vec<u32>>> {
@@ -134,7 +137,7 @@ impl QuadTreeWrapper {
 
     #[pyo3(signature = (shapes, entity_types=None))]
     pub fn collisions_batch_filter(
-        &self,
+        &mut self,
         py: Python,
         shapes: &Bound<'_, PyList>,
         entity_types: Option<&Bound<'_, PyList>>,

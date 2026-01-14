@@ -237,6 +237,9 @@ fn main() {
         min_size: MIN_SIZE,
         looseness: 1.0,
         large_entity_threshold_factor: 0.0,
+        profile_summary: false,
+        profile_detail: false,
+        profile_limit: 5,
     };
 
     let ticks = env::var("BOLT_BENCH_TICKS")

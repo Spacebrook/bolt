@@ -1,6 +1,8 @@
+use super::*;
+
 impl QuadTreeInner {
     #[allow(clippy::too_many_arguments)]
-    fn rebuild_nodes_iterative<M: EntityMapper>(
+    pub(crate) fn rebuild_nodes_iterative<M: EntityMapper>(
         &mut self,
         old_nodes: &mut Vec<Node>,
         old_node_entities: &mut Vec<NodeEntity>,

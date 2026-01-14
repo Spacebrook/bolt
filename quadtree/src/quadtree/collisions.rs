@@ -1,3 +1,6 @@
+use super::*;
+use common::shapes::ShapeEnum;
+
 impl QuadTreeInner {
     pub fn collisions_batch(&mut self, shapes: Vec<ShapeEnum>) -> Vec<Vec<u32>> {
         self.normalize_hard();

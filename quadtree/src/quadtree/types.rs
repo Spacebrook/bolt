@@ -1,31 +1,31 @@
-use common::shapes::{Circle, Rectangle, ShapeEnum};
-use fxhash::{FxHashMap, FxHashSet};
+use common::shapes::{Rectangle, ShapeEnum};
 use smallvec::SmallVec;
-use std::cell::RefCell;
+use super::QuadTreeInner;
 
-const FLAG_LEFT: u8 = 0b0001;
-const FLAG_BOTTOM: u8 = 0b0010;
-const FLAG_RIGHT: u8 = 0b0100;
-const FLAG_TOP: u8 = 0b1000;
-const NODE_ENTITY_DEDUPE_MASK: u32 = 0x8000_0000;
-const NODE_ENTITY_INDEX_MASK: u32 = 0x7FFF_FFFF;
-const SHAPE_RECT: u8 = 0;
-const SHAPE_CIRCLE: u8 = 1;
+pub(crate) const FLAG_LEFT: u8 = 0b0001;
+pub(crate) const FLAG_BOTTOM: u8 = 0b0010;
+pub(crate) const FLAG_RIGHT: u8 = 0b0100;
+pub(crate) const FLAG_TOP: u8 = 0b1000;
+pub(crate) const NODE_ENTITY_DEDUPE_MASK: u32 = 0x8000_0000;
+pub(crate) const NODE_ENTITY_INDEX_MASK: u32 = 0x7FFF_FFFF;
+pub(crate) const SHAPE_RECT: u8 = 0;
+pub(crate) const SHAPE_CIRCLE: u8 = 1;
 
 #[derive(Clone, Copy, Debug)]
 #[repr(C, align(16))]
-struct RectExtent {
-    min_x: f32,
-    min_y: f32,
-    max_x: f32,
-    max_y: f32,
+pub(crate) struct RectExtent {
+    pub(crate) min_x: f32,
+    pub(crate) min_y: f32,
+    pub(crate) max_x: f32,
+    pub(crate) max_y: f32,
 }
 
 impl RectExtent {
     #[inline(always)]
-    fn from_rect(rect: &Rectangle) -> Self {
-        let half_w = rect.width.abs() * 0.5;
-        let half_h = rect.height.abs() * 0.5;
+    pub(crate) fn from_rect(rect: &Rectangle) -> Self {
+        validate_rect_dims(rect.width, rect.height);
+        let half_w = rect.width * 0.5;
+        let half_h = rect.height * 0.5;
         Self {
             min_x: rect.x - half_w,
             min_y: rect.y - half_h,
@@ -35,17 +35,8 @@ impl RectExtent {
     }
 
     #[inline(always)]
-    fn from_min_max(min_x: f32, min_y: f32, max_x: f32, max_y: f32) -> Self {
-        let (min_x, max_x) = if min_x <= max_x {
-            (min_x, max_x)
-        } else {
-            (max_x, min_x)
-        };
-        let (min_y, max_y) = if min_y <= max_y {
-            (min_y, max_y)
-        } else {
-            (max_y, min_y)
-        };
+    pub(crate) fn from_min_max(min_x: f32, min_y: f32, max_x: f32, max_y: f32) -> Self {
+        validate_rect_extent_bounds(min_x, min_y, max_x, max_y);
         Self {
             min_x,
             min_y,
@@ -57,16 +48,16 @@ impl RectExtent {
 }
 
 #[derive(Clone, Copy, Debug)]
-struct HalfExtent {
-    x: f32,
-    y: f32,
-    w: f32,
-    h: f32,
+pub(crate) struct HalfExtent {
+    pub(crate) x: f32,
+    pub(crate) y: f32,
+    pub(crate) w: f32,
+    pub(crate) h: f32,
 }
 
 impl HalfExtent {
     #[inline(always)]
-    fn from_rect_extent(extent: RectExtent) -> Self {
+    pub(crate) fn from_rect_extent(extent: RectExtent) -> Self {
         let half_w = (extent.max_x - extent.min_x) * 0.5;
         let half_h = (extent.max_y - extent.min_y) * 0.5;
         Self {
@@ -78,7 +69,7 @@ impl HalfExtent {
     }
 
     #[inline(always)]
-    fn to_rect_extent(self) -> RectExtent {
+    pub(crate) fn to_rect_extent(self) -> RectExtent {
         RectExtent {
             min_x: self.x - self.w,
             min_y: self.y - self.h,
@@ -89,7 +80,7 @@ impl HalfExtent {
 }
 
 #[inline(always)]
-fn loose_half_extent(half: HalfExtent, looseness: f32) -> HalfExtent {
+pub(crate) fn loose_half_extent(half: HalfExtent, looseness: f32) -> HalfExtent {
     if looseness <= 1.0 {
         half
     } else {
@@ -103,12 +94,16 @@ fn loose_half_extent(half: HalfExtent, looseness: f32) -> HalfExtent {
 }
 
 #[inline(always)]
-fn loose_extent_from_half(half: HalfExtent, looseness: f32) -> RectExtent {
+pub(crate) fn loose_extent_from_half(half: HalfExtent, looseness: f32) -> RectExtent {
     loose_half_extent(half, looseness).to_rect_extent()
 }
 
 #[inline(always)]
-fn extent_fits_in_loose_half(half: HalfExtent, extent: RectExtent, looseness: f32) -> bool {
+pub(crate) fn extent_fits_in_loose_half(
+    half: HalfExtent,
+    extent: RectExtent,
+    looseness: f32,
+) -> bool {
     let loose = loose_half_extent(half, looseness);
     extent.min_x >= loose.x - loose.w
         && extent.max_x <= loose.x + loose.w
@@ -117,7 +112,7 @@ fn extent_fits_in_loose_half(half: HalfExtent, extent: RectExtent, looseness: f3
 }
 
 #[inline(always)]
-fn child_targets_for_extent(
+pub(crate) fn child_targets_for_extent(
     half: HalfExtent,
     extent: RectExtent,
     looseness: f32,
@@ -166,10 +161,10 @@ fn child_targets_for_extent(
     targets_len
 }
 
-type NodeStack = SmallVec<[(u32, HalfExtent); 64]>;
+pub(crate) type NodeStack = SmallVec<[(u32, HalfExtent); 64]>;
 
 #[inline(always)]
-fn point_to_extent_distance_sq(x: f32, y: f32, extent: RectExtent) -> f32 {
+pub(crate) fn point_to_extent_distance_sq(x: f32, y: f32, extent: RectExtent) -> f32 {
     let dx = if x < extent.min_x {
         extent.min_x - x
     } else if x > extent.max_x {
@@ -190,7 +185,14 @@ fn point_to_extent_distance_sq(x: f32, y: f32, extent: RectExtent) -> f32 {
 }
 
 #[inline(always)]
-fn circle_circle_raw(x1: f32, y1: f32, r1: f32, x2: f32, y2: f32, r2: f32) -> bool {
+pub(crate) fn circle_circle_raw(
+    x1: f32,
+    y1: f32,
+    r1: f32,
+    x2: f32,
+    y2: f32,
+    r2: f32,
+) -> bool {
     let dx = x1 - x2;
     let dy = y1 - y2;
     let r = r1 + r2;
@@ -198,7 +200,7 @@ fn circle_circle_raw(x1: f32, y1: f32, r1: f32, x2: f32, y2: f32, r2: f32) -> bo
 }
 
 #[inline(always)]
-fn circle_rect_raw(
+pub(crate) fn circle_rect_raw(
     cx: f32,
     cy: f32,
     radius: f32,
@@ -222,7 +224,13 @@ fn circle_rect_raw(
 }
 
 #[inline(always)]
-fn circle_extent_raw(cx: f32, cy: f32, radius: f32, radius_sq: f32, extent: RectExtent) -> bool {
+pub(crate) fn circle_extent_raw(
+    cx: f32,
+    cy: f32,
+    radius: f32,
+    radius_sq: f32,
+    extent: RectExtent,
+) -> bool {
     let rect_x = (extent.min_x + extent.max_x) * 0.5;
     let rect_y = (extent.min_y + extent.max_y) * 0.5;
     let half_w = (extent.max_x - extent.min_x) * 0.5;
@@ -231,15 +239,15 @@ fn circle_extent_raw(cx: f32, cy: f32, radius: f32, radius_sq: f32, extent: Rect
 }
 
 #[derive(Clone, Copy)]
-struct CircleData {
-    x: f32,
-    y: f32,
-    radius: f32,
-    radius_sq: f32,
+pub(crate) struct CircleData {
+    pub(crate) x: f32,
+    pub(crate) y: f32,
+    pub(crate) radius: f32,
+    pub(crate) radius_sq: f32,
 }
 
 impl CircleData {
-    fn new(x: f32, y: f32, radius: f32) -> Self {
+    pub(crate) fn new(x: f32, y: f32, radius: f32) -> Self {
         Self {
             x,
             y,
@@ -251,19 +259,19 @@ impl CircleData {
 
 #[derive(Clone, Copy)]
 #[repr(C)]
-struct Entity {
-    next_free: u32,
-    in_nodes_minus_one: u32,
-    update_tick: u8,
-    reinsertion_tick: u8,
-    status_changed: u8,
-    alive: u8,
-    shape_kind: u8,
-    _padding: [u8; 3],
+pub(crate) struct Entity {
+    pub(crate) next_free: u32,
+    pub(crate) in_nodes_minus_one: u32,
+    pub(crate) update_tick: u8,
+    pub(crate) reinsertion_tick: u8,
+    pub(crate) status_changed: u8,
+    pub(crate) alive: u8,
+    pub(crate) shape_kind: u8,
+    pub(crate) _padding: [u8; 3],
 }
 
 impl Entity {
-    fn sentinel() -> Self {
+    pub(crate) fn sentinel() -> Self {
         Self {
             next_free: 0,
             in_nodes_minus_one: 0,
@@ -278,7 +286,7 @@ impl Entity {
 }
 
 #[derive(Clone, Copy)]
-enum QueryKind {
+pub(crate) enum QueryKind {
     Rect {
         x: f32,
         y: f32,
@@ -294,25 +302,28 @@ enum QueryKind {
 }
 
 #[derive(Clone, Copy)]
-struct Query {
-    extent: RectExtent,
-    kind: QueryKind,
+pub(crate) struct Query {
+    pub(crate) extent: RectExtent,
+    pub(crate) kind: QueryKind,
 }
 
 impl Query {
-    fn from_shape(shape: &ShapeEnum) -> Self {
+    pub(crate) fn from_shape(shape: &ShapeEnum) -> Self {
         match shape {
-            ShapeEnum::Rectangle(rect) => Self {
-                extent: RectExtent::from_rect(rect),
-                kind: QueryKind::Rect {
-                    x: rect.x,
-                    y: rect.y,
-                    half_w: rect.width * 0.5,
-                    half_h: rect.height * 0.5,
-                },
-            },
+            ShapeEnum::Rectangle(rect) => {
+                Self {
+                    extent: RectExtent::from_rect(rect),
+                    kind: QueryKind::Rect {
+                        x: rect.x,
+                        y: rect.y,
+                        half_w: rect.width * 0.5,
+                        half_h: rect.height * 0.5,
+                    },
+                }
+            }
             ShapeEnum::Circle(circle) => {
                 let radius = circle.radius;
+                validate_circle_radius(radius);
                 Self {
                     extent: RectExtent::from_min_max(
                         circle.x - radius,
@@ -332,7 +343,7 @@ impl Query {
     }
 
     #[inline(always)]
-    fn from_rect_extent(extent: RectExtent) -> Self {
+    pub(crate) fn from_rect_extent(extent: RectExtent) -> Self {
         Self {
             extent,
             kind: QueryKind::Rect {
@@ -345,7 +356,8 @@ impl Query {
     }
 
     #[inline(always)]
-    fn from_circle_raw(x: f32, y: f32, radius: f32) -> Self {
+    pub(crate) fn from_circle_raw(x: f32, y: f32, radius: f32) -> Self {
+        validate_circle_radius(radius);
         Self {
             extent: RectExtent::from_min_max(x - radius, y - radius, x + radius, y + radius),
             kind: QueryKind::Circle {
@@ -360,41 +372,53 @@ impl Query {
 
 #[derive(Clone, Copy)]
 #[repr(transparent)]
-struct NodeEntity(u32);
+pub(crate) struct NodeEntity(u32);
 
 impl NodeEntity {
     #[inline(always)]
-    fn new(index: u32) -> Self {
+    pub(crate) fn new(index: u32) -> Self {
+        assert!(
+            index <= NODE_ENTITY_INDEX_MASK,
+            "entity index {} exceeds max {}",
+            index,
+            NODE_ENTITY_INDEX_MASK
+        );
         NodeEntity(index & NODE_ENTITY_INDEX_MASK)
     }
 
     #[inline(always)]
-    fn index(self) -> u32 {
+    pub(crate) fn index(self) -> u32 {
         self.0 & NODE_ENTITY_INDEX_MASK
     }
 
     #[inline(always)]
-    fn raw(self) -> u32 {
+    pub(crate) fn raw(self) -> u32 {
         self.0
     }
 
     #[inline(always)]
-    fn from_raw(raw: u32) -> Self {
+    pub(crate) fn from_raw(raw: u32) -> Self {
         NodeEntity(raw)
     }
 
     #[inline(always)]
-    fn has_dedupe(self) -> bool {
+    pub(crate) fn has_dedupe(self) -> bool {
         (self.0 & NODE_ENTITY_DEDUPE_MASK) != 0
     }
 
     #[inline(always)]
-    fn set_index(&mut self, index: u32) {
+    pub(crate) fn set_index(&mut self, index: u32) {
+        assert!(
+            index <= NODE_ENTITY_INDEX_MASK,
+            "entity index {} exceeds max {}",
+            index,
+            NODE_ENTITY_INDEX_MASK
+        );
         self.0 = (self.0 & NODE_ENTITY_DEDUPE_MASK) | (index & NODE_ENTITY_INDEX_MASK);
     }
 
     #[inline(always)]
-    fn set_dedupe(&mut self, dedupe: bool) {
+    pub(crate) fn set_dedupe(&mut self, dedupe: bool) {
         if dedupe {
             self.0 |= NODE_ENTITY_DEDUPE_MASK;
         } else {
@@ -402,22 +426,20 @@ impl NodeEntity {
         }
     }
 }
-
-
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
-struct NodeEntityPacked {
-    min_x: f32,
-    min_y: f32,
-    max_x: f32,
-    max_y: f32,
-    value: u32,
-    entity_raw: u32,
+pub(crate) struct NodeEntityPacked {
+    pub(crate) min_x: f32,
+    pub(crate) min_y: f32,
+    pub(crate) max_x: f32,
+    pub(crate) max_y: f32,
+    pub(crate) value: u32,
+    pub(crate) entity_raw: u32,
 }
 
 impl NodeEntityPacked {
     #[inline(always)]
-    fn from_parts(extent: RectExtent, value: u32, entity: NodeEntity) -> Self {
+    pub(crate) fn from_parts(extent: RectExtent, value: u32, entity: NodeEntity) -> Self {
         Self {
             min_x: extent.min_x,
             min_y: extent.min_y,
@@ -429,7 +451,7 @@ impl NodeEntityPacked {
     }
 
     #[inline(always)]
-    fn set_extent(&mut self, extent: RectExtent) {
+    pub(crate) fn set_extent(&mut self, extent: RectExtent) {
         self.min_x = extent.min_x;
         self.min_y = extent.min_y;
         self.max_x = extent.max_x;
@@ -437,49 +459,49 @@ impl NodeEntityPacked {
     }
 
     #[inline(always)]
-    fn set_entity(&mut self, entity: NodeEntity) {
+    pub(crate) fn set_entity(&mut self, entity: NodeEntity) {
         self.entity_raw = entity.raw();
     }
 
     #[inline(always)]
-    fn entity(self) -> NodeEntity {
+    pub(crate) fn entity(self) -> NodeEntity {
         NodeEntity::from_raw(self.entity_raw)
     }
 
     #[inline(always)]
-    fn value(self) -> u32 {
+    pub(crate) fn value(self) -> u32 {
         self.value
     }
 }
 
-struct EntityReorder {
-    old_entities: *const Entity,
-    new_entities: *mut Entity,
-    old_extents: *const RectExtent,
-    new_extents: *mut RectExtent,
-    old_values: *const u32,
-    new_values: *mut u32,
-    old_types: *const u32,
-    new_types: *mut u32,
-    old_circle_data: *const CircleData,
-    new_circle_data: *mut CircleData,
-    entity_map: *mut u32,
-    entity_map_len: usize,
-    new_len: usize,
-    circle_count: u32,
-    alive_count: u32,
-    all_rectangles: bool,
-    all_circles: bool,
-    has_entity_types: bool,
+pub(crate) struct EntityReorder {
+    pub(crate) old_entities: *const Entity,
+    pub(crate) new_entities: *mut Entity,
+    pub(crate) old_extents: *const RectExtent,
+    pub(crate) new_extents: *mut RectExtent,
+    pub(crate) old_values: *const u32,
+    pub(crate) new_values: *mut u32,
+    pub(crate) old_types: *const u32,
+    pub(crate) new_types: *mut u32,
+    pub(crate) old_circle_data: *const CircleData,
+    pub(crate) new_circle_data: *mut CircleData,
+    pub(crate) entity_map: *mut u32,
+    pub(crate) entity_map_len: usize,
+    pub(crate) new_len: usize,
+    pub(crate) circle_count: u32,
+    pub(crate) alive_count: u32,
+    pub(crate) all_rectangles: bool,
+    pub(crate) all_circles: bool,
+    pub(crate) has_entity_types: bool,
 }
 
 
-trait EntityMapper {
+pub(crate) trait EntityMapper {
     fn map_entity(&mut self, old_idx: u32, in_nodes_minus_one: u32) -> u32;
     fn update_in_nodes_if_mapped(&mut self, old_idx: u32, in_nodes_minus_one: u32);
 }
 
-struct IdentityMapper;
+pub(crate) struct IdentityMapper;
 
 impl EntityMapper for IdentityMapper {
     #[inline(always)]
@@ -489,4 +511,36 @@ impl EntityMapper for IdentityMapper {
 
     #[inline(always)]
     fn update_in_nodes_if_mapped(&mut self, _old_idx: u32, _in_nodes_minus_one: u32) {}
+}
+
+pub(crate) fn validate_rect_dims(width: f32, height: f32) {
+    assert!(
+        width.is_finite() && height.is_finite(),
+        "rectangle width/height must be finite"
+    );
+    assert!(
+        width >= 0.0 && height >= 0.0,
+        "rectangle width/height must be non-negative"
+    );
+}
+
+pub(crate) fn validate_circle_radius(radius: f32) {
+    assert!(radius.is_finite(), "circle radius must be finite");
+    assert!(radius >= 0.0, "circle radius must be non-negative");
+}
+
+pub(crate) fn validate_rect_extent_bounds(
+    min_x: f32,
+    min_y: f32,
+    max_x: f32,
+    max_y: f32,
+) {
+    assert!(
+        min_x.is_finite() && min_y.is_finite() && max_x.is_finite() && max_y.is_finite(),
+        "rectangle extents must be finite"
+    );
+    assert!(
+        min_x <= max_x && min_y <= max_y,
+        "rectangle extents must have min <= max"
+    );
 }

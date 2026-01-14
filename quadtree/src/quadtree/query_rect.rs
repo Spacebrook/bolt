@@ -1,6 +1,8 @@
+use super::*;
+
 impl QuadTreeInner {
     #[inline(always)]
-    fn collisions_rect_fast_with<F>(
+    pub(crate) fn collisions_rect_fast_with<F>(
         &mut self,
         query_extent: RectExtent,
         tick: u32,

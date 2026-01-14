@@ -8,7 +8,7 @@ use std::collections::HashSet;
 
 fn assert_collisions_with_expected<F>(
     label: &str,
-    tree: &QuadTree,
+    tree: &mut QuadTree,
     query: &ShapeEnum,
     hits: &mut Vec<u32>,
     expected: &mut HashSet<u32>,
@@ -30,7 +30,7 @@ fn assert_collisions_with_expected<F>(
     assert_eq!(hit_set, *expected, "{}", label);
 }
 
-fn assert_tree_contents(label: &str, tree: &QuadTree, query: &ShapeEnum, expected: &HashSet<u32>) {
+fn assert_tree_contents(label: &str, tree: &mut QuadTree, query: &ShapeEnum, expected: &HashSet<u32>) {
     let mut hits = Vec::new();
     tree.collisions(query.clone(), &mut hits);
     let hit_set: HashSet<u32> = hits.iter().copied().collect();
@@ -125,6 +125,9 @@ fn delete_after_relocate_before_update_clears_nodes() {
         min_size: 1.0,
         looseness: 1.0,
         large_entity_threshold_factor: 0.0,
+        profile_summary: false,
+        profile_detail: false,
+        profile_limit: 5,
     };
     let mut qt = QuadTree::new_with_config(bounds, config);
 
@@ -390,7 +393,7 @@ fn test_object_out_of_bounds() {
 #[test]
 fn test_empty_quad_tree() {
     // Test case where the quadtree is empty
-    let qt = QuadTree::new(Rectangle::new(0.0, 0.0, 100.0, 100.0));
+    let mut qt = QuadTree::new(Rectangle::new(0.0, 0.0, 100.0, 100.0));
     let mut collisions: Vec<u32> = Vec::new();
     qt.collisions(
         ShapeEnum::Rectangle(Rectangle::new(10.0, 10.0, 10.0, 10.0)),
@@ -535,6 +538,9 @@ fn test_no_multiple_subdivision() {
         min_size: 1.0,
         looseness: 1.0,
         large_entity_threshold_factor: 0.0,
+        profile_summary: false,
+        profile_detail: false,
+        profile_limit: 5,
     };
 
     // Create a QuadTree with the custom config
@@ -686,6 +692,9 @@ fn stress_multi_tree_collision_queries() {
         min_size: 1.0,
         looseness: 1.0,
         large_entity_threshold_factor: 0.0,
+        profile_summary: false,
+        profile_detail: false,
+        profile_limit: 5,
     };
     let mut group_a_quadtree = QuadTree::new_with_config(bounds, config.clone());
     let mut group_a_active_quadtree = QuadTree::new_with_config(bounds, config.clone());
@@ -947,31 +956,31 @@ fn stress_multi_tree_collision_queries() {
         }
         assert_tree_contents(
             &format!("tick {} group A contents", tick),
-            &group_a_quadtree,
+            &mut group_a_quadtree,
             &world_query,
             &expected_all,
         );
         assert_tree_contents(
             &format!("tick {} active subset contents", tick),
-            &group_a_active_quadtree,
+            &mut group_a_active_quadtree,
             &world_query,
             &expected_active,
         );
         assert_tree_contents(
             &format!("tick {} inactive subset contents", tick),
-            &group_a_inactive_quadtree,
+            &mut group_a_inactive_quadtree,
             &world_query,
             &expected_inactive,
         );
         assert_tree_contents(
             &format!("tick {} group B contents", tick),
-            &group_b_quadtree,
+            &mut group_b_quadtree,
             &world_query,
             &expected_b,
         );
         assert_tree_contents(
             &format!("tick {} group C contents", tick),
-            &group_c_quadtree,
+            &mut group_c_quadtree,
             &world_query,
             &expected_c,
         );
@@ -997,7 +1006,7 @@ fn stress_multi_tree_collision_queries() {
             let query = ShapeEnum::Circle(Circle::new(*x, *y, *radius));
             assert_collisions_with_expected(
                 &format!("tick {} group A {} vs group A", tick, idx),
-                &group_a_quadtree,
+                &mut group_a_quadtree,
                 &query,
                 &mut hits,
                 &mut expected,
@@ -1014,7 +1023,7 @@ fn stress_multi_tree_collision_queries() {
 
             assert_collisions_with_expected(
                 &format!("tick {} group A {} vs group B", tick, idx),
-                &group_b_quadtree,
+                &mut group_b_quadtree,
                 &query,
                 &mut hits,
                 &mut expected,
@@ -1041,7 +1050,7 @@ fn stress_multi_tree_collision_queries() {
             let query_c = ShapeEnum::Circle(Circle::new(*x, *y, *radius * 1.5));
             assert_collisions_with_expected(
                 &format!("tick {} group A {} vs group C", tick, idx),
-                &group_c_quadtree,
+                &mut group_c_quadtree,
                 &query_c,
                 &mut hits,
                 &mut expected,
@@ -1058,7 +1067,7 @@ fn stress_multi_tree_collision_queries() {
 
             assert_collisions_with_expected(
                 &format!("tick {} group A {} vs active subset", tick, idx),
-                &group_a_active_quadtree,
+                &mut group_a_active_quadtree,
                 &query,
                 &mut hits,
                 &mut expected,
@@ -1078,7 +1087,7 @@ fn stress_multi_tree_collision_queries() {
 
             assert_collisions_with_expected(
                 &format!("tick {} group A {} vs inactive subset", tick, idx),
-                &group_a_inactive_quadtree,
+                &mut group_a_inactive_quadtree,
                 &query,
                 &mut hits,
                 &mut expected,
@@ -1114,7 +1123,7 @@ fn stress_multi_tree_collision_queries() {
 
             assert_collisions_with_expected(
                 &format!("tick {} group B {} vs group A", tick, idx),
-                &group_a_quadtree,
+                &mut group_a_quadtree,
                 &query,
                 &mut hits,
                 &mut expected,
@@ -1131,7 +1140,7 @@ fn stress_multi_tree_collision_queries() {
 
             assert_collisions_with_expected(
                 &format!("tick {} group B {} vs active subset", tick, idx),
-                &group_a_active_quadtree,
+                &mut group_a_active_quadtree,
                 &query,
                 &mut hits,
                 &mut expected,
@@ -1151,7 +1160,7 @@ fn stress_multi_tree_collision_queries() {
 
             assert_collisions_with_expected(
                 &format!("tick {} group B {} vs inactive subset", tick, idx),
-                &group_a_inactive_quadtree,
+                &mut group_a_inactive_quadtree,
                 &query,
                 &mut hits,
                 &mut expected,
@@ -1171,7 +1180,7 @@ fn stress_multi_tree_collision_queries() {
 
             assert_collisions_with_expected(
                 &format!("tick {} group B {} vs group B", tick, idx),
-                &group_b_quadtree,
+                &mut group_b_quadtree,
                 &query,
                 &mut hits,
                 &mut expected,
@@ -1197,7 +1206,7 @@ fn stress_multi_tree_collision_queries() {
 
             assert_collisions_with_expected(
                 &format!("tick {} group B {} vs group C", tick, idx),
-                &group_c_quadtree,
+                &mut group_c_quadtree,
                 &query,
                 &mut hits,
                 &mut expected,
@@ -1221,7 +1230,7 @@ fn stress_multi_tree_collision_queries() {
 
             assert_collisions_with_expected(
                 &format!("tick {} group C {} vs group A", tick, idx),
-                &group_a_quadtree,
+                &mut group_a_quadtree,
                 &query,
                 &mut hits,
                 &mut expected,
@@ -1238,7 +1247,7 @@ fn stress_multi_tree_collision_queries() {
 
             assert_collisions_with_expected(
                 &format!("tick {} group C {} vs active subset", tick, idx),
-                &group_a_active_quadtree,
+                &mut group_a_active_quadtree,
                 &query,
                 &mut hits,
                 &mut expected,
@@ -1258,7 +1267,7 @@ fn stress_multi_tree_collision_queries() {
 
             assert_collisions_with_expected(
                 &format!("tick {} group C {} vs inactive subset", tick, idx),
-                &group_a_inactive_quadtree,
+                &mut group_a_inactive_quadtree,
                 &query,
                 &mut hits,
                 &mut expected,
@@ -1278,7 +1287,7 @@ fn stress_multi_tree_collision_queries() {
 
             assert_collisions_with_expected(
                 &format!("tick {} group C {} vs group B", tick, idx),
-                &group_b_quadtree,
+                &mut group_b_quadtree,
                 &query,
                 &mut hits,
                 &mut expected,
@@ -1304,7 +1313,7 @@ fn stress_multi_tree_collision_queries() {
 
             assert_collisions_with_expected(
                 &format!("tick {} group C {} vs group C", tick, idx),
-                &group_c_quadtree,
+                &mut group_c_quadtree,
                 &query,
                 &mut hits,
                 &mut expected,

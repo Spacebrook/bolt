@@ -1,5 +1,8 @@
+use super::*;
+use smallvec::SmallVec;
+
 impl QuadTreeInner {
-    fn update_entities(&mut self) {
+    pub(crate) fn update_entities(&mut self) {
         self.update_pending = false;
         self.update_tick ^= 1;
         let update_tick = self.update_tick;
@@ -164,7 +167,7 @@ impl QuadTreeInner {
         self.status_tick ^= 1;
     }
 
-    fn insert_entity_new(&mut self, entity_idx: u32) {
+    pub(crate) fn insert_entity_new(&mut self, entity_idx: u32) {
         self.insert_entity_inner(entity_idx);
     }
 
@@ -267,7 +270,7 @@ impl QuadTreeInner {
         self.free_node_entity = free_node_entity;
     }
 
-    fn remove_entity(&mut self, entity_idx: u32) {
+    pub(crate) fn remove_entity(&mut self, entity_idx: u32) {
         self.remove_large_entity(entity_idx);
         let remove_all = self.entities[entity_idx as usize].status_changed == self.status_tick;
         let extent = self.entity_extent(entity_idx);
@@ -382,7 +385,7 @@ impl QuadTreeInner {
     }
 
     #[inline(always)]
-    fn compute_node_entity_flags(
+    pub(crate) fn compute_node_entity_flags(
         node_extent: RectExtent,
         position_flags: u8,
         entity_extent: RectExtent,
@@ -406,7 +409,7 @@ impl QuadTreeInner {
     }
 
     #[inline(always)]
-    fn child_half_extent(half: HalfExtent, index: usize) -> HalfExtent {
+    pub(crate) fn child_half_extent(half: HalfExtent, index: usize) -> HalfExtent {
         let half_w = half.w * 0.5;
         let half_h = half.h * 0.5;
         match index {
@@ -438,7 +441,7 @@ impl QuadTreeInner {
     }
 
     #[inline(always)]
-    fn descend(
+    pub(crate) fn descend(
         nodes: &[Node],
         node_idx: u32,
         half: HalfExtent,

@@ -380,6 +380,9 @@ fn bench_bolt(entities_seed: &[Entity], bounds: Bounds, ticks: usize) -> BenchRe
         min_size: bench_min_size(),
         looseness: bench_looseness(),
         large_entity_threshold_factor: 0.0,
+        profile_summary: false,
+        profile_detail: false,
+        profile_limit: 5,
     };
     let no_collide = env::var("BOLT_BENCH_NO_COLLIDE")
         .ok()
