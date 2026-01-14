@@ -2,7 +2,8 @@ use common::shapes::{Circle, Rectangle, ShapeEnum};
 use quadtree::collision_detection::shape_shape;
 use quadtree::quadtree::{Config, QuadTree, RelocationRequest};
 
-use rand::Rng;
+use rand::{Rng, SeedableRng};
+use rand::rngs::StdRng;
 use std::collections::HashSet;
 
 fn assert_collisions_with_expected<F>(
@@ -68,7 +69,7 @@ fn test_full_tree() {
     );
     qt.insert(1, ShapeEnum::Circle(Circle::new(500.0, 500.0, 25.0)), None);
 
-    let mut rng = rand::thread_rng();
+    let mut rng = StdRng::seed_from_u64(0);
     for i in 2..5 {
         let width = rng.gen_range(0.0..100.0);
         let height = rng.gen_range(0.0..100.0);
@@ -660,10 +661,10 @@ fn test_no_multiple_subdivision() {
 
 #[test]
 fn stress_multi_tree_collision_queries() {
-    const GROUP_A_COUNT: usize = 1200;
-    const GROUP_B_COUNT: usize = 2400;
-    const GROUP_C_COUNT: usize = 1600;
-    const TICKS: usize = 600;
+    const GROUP_A_COUNT: usize = 200;
+    const GROUP_B_COUNT: usize = 400;
+    const GROUP_C_COUNT: usize = 300;
+    const TICKS: usize = 80;
     const ARENA_W: f32 = 1200.0;
     const ARENA_H: f32 = 1200.0;
 

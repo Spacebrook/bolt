@@ -1,5 +1,7 @@
 impl QuadTreeInner {
     #[inline(always)]
+    // Safety: caller must ensure pointers are valid for `start..start+count` and `query_marks_ptr`
+    // is at least `max_entity_index + 1` long; `stats` may be null when query_stats is disabled.
     unsafe fn query_rect_leaf_raw_dedupe_soa<F>(
         node_entity_min_x_ptr: *const f32,
         node_entity_min_y_ptr: *const f32,
@@ -210,6 +212,8 @@ impl QuadTreeInner {
     }
 
     #[inline(always)]
+    // Safety: caller must ensure pointers are valid for `start..start+count` and `query_marks_ptr`
+    // is at least `max_entity_index + 1` long; `stats` may be null when query_stats is disabled.
     unsafe fn query_rect_leaf_contained_raw_dedupe_soa<F>(
         node_entities_ptr: *const NodeEntity,
         node_entity_values_ptr: *const u32,

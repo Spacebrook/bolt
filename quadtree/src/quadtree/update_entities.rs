@@ -4,6 +4,7 @@ impl QuadTreeInner {
         self.update_tick ^= 1;
         let update_tick = self.update_tick;
 
+        // Safety: raw pointers below are derived from live Vecs and indices are bounded by node lists.
         let nodes_ptr = self.nodes.as_ptr();
         let node_entities_ptr = self.node_entities.as_ptr();
         let node_entities_next_ptr = self.node_entities_next.as_ptr();

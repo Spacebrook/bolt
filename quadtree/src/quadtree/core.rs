@@ -39,7 +39,7 @@ impl QuadTreeInner {
     pub fn new_with_config(bounding_box: Rectangle, config: Config) -> Self {
         let root_extent = RectExtent::from_rect(&bounding_box);
         let root_half = HalfExtent::from_rect_extent(root_extent);
-        let split_threshold = config.node_capacity as u32;
+        let split_threshold = config.node_capacity.max(1) as u32;
         let merge_threshold = split_threshold.saturating_sub(1).max(1);
         let max_depth = config.max_depth as u32;
         let min_size = if config.min_size > 0.0 {

@@ -152,7 +152,7 @@ fn main() {
         let start = Instant::now();
         for entity in entities.iter().take(query_count) {
             let (min_x, min_y, max_x, max_y) = entity.query_rect_extent();
-            quadtree.collisions_rect_extent_fast_with_mut(min_x, min_y, max_x, max_y, |_| {});
+            quadtree.collisions_rect_extent_with_mut(min_x, min_y, max_x, max_y, |_| {});
         }
         query_total += start.elapsed();
     }

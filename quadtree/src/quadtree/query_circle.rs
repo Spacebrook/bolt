@@ -13,6 +13,7 @@ impl QuadTreeInner {
     where
         F: FnMut(u32),
     {
+        // Safety: raw pointers below are derived from live Vecs and indices are bounded by node counts.
         // Keep in sync with collisions_rect_fast_with; duplicated for perf.
         let query_extent = query.extent;
         let query_kind = query.kind;
@@ -349,6 +350,8 @@ impl QuadTreeInner {
     }
 
     #[inline(always)]
+    // Safety: caller must ensure `entities`, `entity_extents`, `circle_data`, and `entity_values`
+    // are valid for indices in `large_entities`, and that `stats` is either valid or null when disabled.
     unsafe fn query_large_entities_circle<F>(
         &mut self,
         query_extent: RectExtent,

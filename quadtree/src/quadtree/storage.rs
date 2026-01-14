@@ -1,6 +1,7 @@
 impl EntityReorder {
     #[inline(always)]
     fn map_entity(&mut self, old_idx: u32, in_nodes_minus_one: u32) -> u32 {
+        // Safety: pointers in EntityReorder point to allocated buffers sized for entity_map_len.
         if old_idx == 0 {
             return 0;
         }
@@ -69,6 +70,7 @@ impl EntityReorder {
     }
     #[inline(always)]
     fn update_in_nodes_if_mapped(&mut self, old_idx: u32, in_nodes_minus_one: u32) {
+        // Safety: pointers in EntityReorder point to allocated buffers sized for entity_map_len.
         if old_idx == 0 {
             return;
         }

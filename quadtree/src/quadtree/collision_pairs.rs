@@ -3,6 +3,7 @@ impl QuadTreeInner {
     where
         F: FnMut(u32, u32),
     {
+        // Safety: raw pointers below are derived from live Vecs and indices are bounded by node counts.
         let node_entities_ptr = self.node_entities.as_ptr();
         let node_entities_len = self.node_entities.len();
         if node_entities_len <= 1 {
@@ -104,6 +105,7 @@ impl QuadTreeInner {
     where
         F: FnMut(u32, u32),
     {
+        // Safety: raw pointers below are derived from live Vecs and indices are bounded by node counts.
         let node_entities_ptr = self.node_entities.as_ptr();
         let node_entities_len = self.node_entities.len();
         if node_entities_len <= 1 {
@@ -204,6 +206,7 @@ impl QuadTreeInner {
     where
         F: FnMut(u32, u32),
     {
+        // Safety: raw pointers below are derived from live Vecs and indices are bounded by node counts.
         let node_entities = &self.node_entities;
         if node_entities.len() <= 1 {
             return;

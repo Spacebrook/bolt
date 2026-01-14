@@ -195,22 +195,6 @@ impl QuadTree {
             .collisions_rect_extent_with(min_x, min_y, max_x, max_y, f);
     }
 
-    #[inline(always)]
-    pub fn collisions_rect_extent_fast_with_mut<F>(
-        &mut self,
-        min_x: f32,
-        min_y: f32,
-        max_x: f32,
-        max_y: f32,
-        f: F,
-    ) where
-        F: FnMut(u32),
-    {
-        self.inner
-            .get_mut()
-            .collisions_rect_extent_fast_with(min_x, min_y, max_x, max_y, f);
-    }
-
     pub fn collisions_circle_raw_with<F>(&self, x: f32, y: f32, radius: f32, f: F)
     where
         F: FnMut(u32),

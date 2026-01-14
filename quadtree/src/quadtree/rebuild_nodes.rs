@@ -35,6 +35,7 @@ impl QuadTreeInner {
         if stack.capacity() < stack_cap {
             stack.reserve(stack_cap - stack.capacity());
         }
+        // Safety: we reserve enough capacity and only write within `stack_cap`.
         let stack_ptr = stack.as_mut_ptr();
         let mut stack_len = 0usize;
         unsafe {

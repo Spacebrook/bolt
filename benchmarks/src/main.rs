@@ -473,7 +473,7 @@ fn bench_bolt(entities_seed: &[Entity], bounds: Bounds, ticks: usize) -> BenchRe
             let q_half_h = QUERY_HEIGHT * 0.5;
             for i in 0..query_count {
                 let entity = unsafe { *entities_ptr.add(i) };
-                quadtree.collisions_rect_extent_fast_with_mut(
+                quadtree.collisions_rect_extent_with_mut(
                     entity.min_x - q_half_w,
                     entity.min_y - q_half_h,
                     entity.max_x + q_half_w,

@@ -24,8 +24,8 @@ struct RectExtent {
 impl RectExtent {
     #[inline(always)]
     fn from_rect(rect: &Rectangle) -> Self {
-        let half_w = rect.width * 0.5;
-        let half_h = rect.height * 0.5;
+        let half_w = rect.width.abs() * 0.5;
+        let half_h = rect.height.abs() * 0.5;
         Self {
             min_x: rect.x - half_w,
             min_y: rect.y - half_h,
@@ -36,6 +36,16 @@ impl RectExtent {
 
     #[inline(always)]
     fn from_min_max(min_x: f32, min_y: f32, max_x: f32, max_y: f32) -> Self {
+        let (min_x, max_x) = if min_x <= max_x {
+            (min_x, max_x)
+        } else {
+            (max_x, min_x)
+        };
+        let (min_y, max_y) = if min_y <= max_y {
+            (min_y, max_y)
+        } else {
+            (max_y, min_y)
+        };
         Self {
             min_x,
             min_y,

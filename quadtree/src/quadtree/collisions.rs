@@ -108,31 +108,6 @@ impl QuadTreeInner {
         self.collisions_inner_with(query, None, &mut f);
     }
 
-    /// Fast path: requires rectangle-only storage and no pending updates.
-    #[inline(always)]
-    pub fn collisions_rect_extent_fast_with<F>(
-        &mut self,
-        min_x: f32,
-        min_y: f32,
-        max_x: f32,
-        max_y: f32,
-        mut f: F,
-    ) where
-        F: FnMut(u32),
-    {
-        debug_assert!(self.circle_count == 0);
-        debug_assert!(!self.update_pending);
-        debug_assert!(self.normalization == Normalization::Normal);
-        let extent = RectExtent::from_min_max(min_x, min_y, max_x, max_y);
-        let tick = self.next_query_tick();
-        #[cfg(feature = "query_stats")]
-        {
-            let stats = &mut self.query_stats as *mut QueryStats;
-            Self::bump_query_calls_ptr(stats);
-        }
-        self.collisions_rect_fast_with(extent, tick, &mut f);
-    }
-
     pub fn collisions_circle_raw(
         &mut self,
         x: f32,

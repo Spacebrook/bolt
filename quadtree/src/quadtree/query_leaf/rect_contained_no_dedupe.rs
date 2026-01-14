@@ -1,5 +1,6 @@
 impl QuadTreeInner {
     #[inline(always)]
+    // Safety: caller must ensure pointers are valid for `start..start+count`.
     unsafe fn query_rect_leaf_contained_raw_no_dedupe<F>(
         node_entity_values_ptr: *const u32,
         start: u32,
