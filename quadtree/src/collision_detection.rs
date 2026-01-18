@@ -1,20 +1,11 @@
-use crate::error::{QuadtreeError, QuadtreeResult};
+use crate::error::QuadtreeResult;
+use crate::quadtree::{validate_circle_radius, validate_rect_dims};
 use common::shapes::{Circle, Rectangle, ShapeEnum};
 
 // Check that Rectangle inner is fully contained in Rectangle outer, including on the boundary
 pub fn rectangle_contains_rectangle(outer: &Rectangle, inner: &Rectangle) -> QuadtreeResult<bool> {
-    if !(outer.width.is_finite() && outer.height.is_finite()) || outer.width < 0.0 || outer.height < 0.0 {
-        return Err(QuadtreeError::InvalidRectangleDims {
-            width: outer.width,
-            height: outer.height,
-        });
-    }
-    if !(inner.width.is_finite() && inner.height.is_finite()) || inner.width < 0.0 || inner.height < 0.0 {
-        return Err(QuadtreeError::InvalidRectangleDims {
-            width: inner.width,
-            height: inner.height,
-        });
-    }
+    validate_rect_dims(outer.width, outer.height)?;
+    validate_rect_dims(inner.width, inner.height)?;
     Ok(outer.left() <= inner.left()
         && outer.right() >= inner.right()
         && outer.top() <= inner.top()
@@ -23,29 +14,15 @@ pub fn rectangle_contains_rectangle(outer: &Rectangle, inner: &Rectangle) -> Qua
 
 /// Note: touching edges are not treated as collisions.
 pub fn rectangle_rectangle(a: &Rectangle, b: &Rectangle) -> QuadtreeResult<bool> {
-    if !(a.width.is_finite() && a.height.is_finite()) || a.width < 0.0 || a.height < 0.0 {
-        return Err(QuadtreeError::InvalidRectangleDims {
-            width: a.width,
-            height: a.height,
-        });
-    }
-    if !(b.width.is_finite() && b.height.is_finite()) || b.width < 0.0 || b.height < 0.0 {
-        return Err(QuadtreeError::InvalidRectangleDims {
-            width: b.width,
-            height: b.height,
-        });
-    }
+    validate_rect_dims(a.width, a.height)?;
+    validate_rect_dims(b.width, b.height)?;
     Ok(a.left() < b.right() && a.right() > b.left() && a.top() < b.bottom() && a.bottom() > b.top())
 }
 
 /// Note: touching edges are not treated as collisions.
 pub fn circle_circle(a: &Circle, b: &Circle) -> QuadtreeResult<bool> {
-    if !(a.radius.is_finite() && a.radius >= 0.0) {
-        return Err(QuadtreeError::InvalidCircleRadius { radius: a.radius });
-    }
-    if !(b.radius.is_finite() && b.radius >= 0.0) {
-        return Err(QuadtreeError::InvalidCircleRadius { radius: b.radius });
-    }
+    validate_circle_radius(a.radius)?;
+    validate_circle_radius(b.radius)?;
     let dx = a.x - b.x;
     let dy = a.y - b.y;
     let distance_sq = dx * dx + dy * dy;
@@ -55,20 +32,8 @@ pub fn circle_circle(a: &Circle, b: &Circle) -> QuadtreeResult<bool> {
 
 /// Note: touching edges are not treated as collisions.
 pub fn circle_rectangle(circle: &Circle, rectangle: &Rectangle) -> QuadtreeResult<bool> {
-    if !(circle.radius.is_finite() && circle.radius >= 0.0) {
-        return Err(QuadtreeError::InvalidCircleRadius {
-            radius: circle.radius,
-        });
-    }
-    if !(rectangle.width.is_finite() && rectangle.height.is_finite())
-        || rectangle.width < 0.0
-        || rectangle.height < 0.0
-    {
-        return Err(QuadtreeError::InvalidRectangleDims {
-            width: rectangle.width,
-            height: rectangle.height,
-        });
-    }
+    validate_circle_radius(circle.radius)?;
+    validate_rect_dims(rectangle.width, rectangle.height)?;
     let dx = (circle.x - rectangle.x).abs();
     let dy = (circle.y - rectangle.y).abs();
 

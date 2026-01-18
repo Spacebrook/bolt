@@ -3,6 +3,8 @@ use criterion::{black_box, criterion_group, criterion_main, BatchSize, Criterion
 use quadtree::quadtree::{Config, EntityTypeUpdate, QuadTree, RelocationRequest};
 use rand::prelude::*;
 
+const BOUNDS: f32 = 220.0;
+
 fn build_tree(
     rng: &mut impl Rng,
     num_items: usize,
@@ -14,8 +16,8 @@ fn build_tree(
             Rectangle {
                 x: 0.0,
                 y: 0.0,
-                width: 100.0,
-                height: 100.0,
+                width: BOUNDS,
+                height: BOUNDS,
             },
             config,
         )
@@ -23,8 +25,8 @@ fn build_tree(
         None => QuadTree::new(Rectangle {
             x: 0.0,
             y: 0.0,
-            width: 100.0,
-            height: 100.0,
+            width: BOUNDS,
+            height: BOUNDS,
         })
         .unwrap(),
     };
@@ -51,8 +53,8 @@ fn insert_benchmark(c: &mut Criterion) {
     let mut quadtree = QuadTree::new(Rectangle {
         x: 0.0,
         y: 0.0,
-        width: 100.0,
-        height: 100.0,
+        width: BOUNDS,
+        height: BOUNDS,
     }).unwrap();
 
     c.bench_function("quadtree_insert", |b| {
@@ -73,8 +75,8 @@ fn delete_benchmark(c: &mut Criterion) {
     let mut quadtree = QuadTree::new(Rectangle {
         x: 0.0,
         y: 0.0,
-        width: 100.0,
-        height: 100.0,
+        width: BOUNDS,
+        height: BOUNDS,
     }).unwrap();
     let mut items = Vec::new();
     for _ in 0..1000 {
@@ -102,8 +104,8 @@ fn relocate_benchmark(c: &mut Criterion) {
     let mut quadtree = QuadTree::new(Rectangle {
         x: 0.0,
         y: 0.0,
-        width: 100.0,
-        height: 100.0,
+        width: BOUNDS,
+        height: BOUNDS,
     }).unwrap();
     let mut relocation_requests = Vec::new();
     for _ in 0..1000 {
@@ -134,8 +136,8 @@ fn collisions_benchmark(c: &mut Criterion) {
     let mut quadtree = QuadTree::new(Rectangle {
         x: 0.0,
         y: 0.0,
-        width: 100.0,
-        height: 100.0,
+        width: BOUNDS,
+        height: BOUNDS,
     }).unwrap();
     // Insert random items into the quadtree
     for _ in 0..1000 {
@@ -250,8 +252,8 @@ fn comprehensive_benchmark(c: &mut Criterion) {
             let quadtree = QuadTree::new(Rectangle {
                 x: 0.0,
                 y: 0.0,
-                width: 100.0,
-                height: 100.0,
+                width: BOUNDS,
+                height: BOUNDS,
             }).unwrap();
             quadtree_group.push(quadtree);
         }

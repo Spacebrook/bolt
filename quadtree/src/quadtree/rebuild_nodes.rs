@@ -8,7 +8,6 @@ impl QuadTreeInner {
         old_node_entities: &mut Vec<NodeEntity>,
         old_node_entities_next: &mut Vec<u32>,
         old_node_entities_flags: &mut Vec<u8>,
-        old_node_entities_last: &mut Vec<u8>,
         large_entity_slots: &[u32],
         new_node_extents_tight: &mut ExtentAos,
         new_node_extents_loose: &mut ExtentAos,
@@ -24,7 +23,6 @@ impl QuadTreeInner {
         new_node_entities: &mut Vec<NodeEntity>,
         new_node_entities_next: &mut Vec<u32>,
         new_node_entities_flags: &mut Vec<u8>,
-        new_node_entities_last: &mut Vec<u8>,
         did_merge: &mut bool,
     ) {
         let mut free_node = 0u32;
@@ -113,7 +111,6 @@ impl QuadTreeInner {
                                 old_node_entities_flags[current as usize] = flags;
                                 old_node_entities[current as usize].set_dedupe(dedupe);
                                 old_node_entities_next[current as usize] = head;
-                                old_node_entities_last[current as usize] = (head == 0) as u8;
                                 head = current;
                                 count += 1;
                                 break;
@@ -161,7 +158,6 @@ impl QuadTreeInner {
                                     old_node_entities_flags[current as usize] = flags;
                                     old_node_entities[current as usize].set_dedupe(dedupe);
                                     old_node_entities_next[current as usize] = head;
-                                    old_node_entities_last[current as usize] = (head == 0) as u8;
                                     head = current;
                                     count += 1;
                                     break;
@@ -248,16 +244,12 @@ impl QuadTreeInner {
                                 let child_idx = child_indices[targets[0]];
                                 let child_head = old_nodes[child_idx as usize].head();
                                 old_node_entities_next[node_entity_idx as usize] = child_head;
-                                old_node_entities_last[node_entity_idx as usize] =
-                                    (child_head == 0) as u8;
                                 old_nodes[child_idx as usize].set_head(node_entity_idx);
                                 let child_count = old_nodes[child_idx as usize].count();
                                 old_nodes[child_idx as usize].set_count(child_count + 1);
                             } else {
                                 let parent_head = old_nodes[node_idx].head();
                                 old_node_entities_next[node_entity_idx as usize] = parent_head;
-                                old_node_entities_last[node_entity_idx as usize] =
-                                    (parent_head == 0) as u8;
                                 old_nodes[node_idx].set_head(node_entity_idx);
                                 let parent_count = old_nodes[node_idx].count();
                                 old_nodes[node_idx].set_count(parent_count + 1);
@@ -265,8 +257,6 @@ impl QuadTreeInner {
                         } else {
                             let parent_head = old_nodes[node_idx].head();
                             old_node_entities_next[node_entity_idx as usize] = parent_head;
-                            old_node_entities_last[node_entity_idx as usize] =
-                                (parent_head == 0) as u8;
                             old_nodes[node_idx].set_head(node_entity_idx);
                             let parent_count = old_nodes[node_idx].count();
                             old_nodes[node_idx].set_count(parent_count + 1);
@@ -303,7 +293,6 @@ impl QuadTreeInner {
                                 new_node_entities.reserve(total_count);
                                 new_node_entities_next.reserve(total_count);
                                 new_node_entities_flags.reserve(total_count);
-                                new_node_entities_last.reserve(total_count);
                                 new_head = start as u32;
                                 new_count = total_count as u32;
 
@@ -320,10 +309,6 @@ impl QuadTreeInner {
                                     new_node_entities_flags
                                         .reserve(needed - new_node_entities_flags.capacity());
                                 }
-                                if new_node_entities_last.capacity() < needed {
-                                    new_node_entities_last
-                                        .reserve(needed - new_node_entities_last.capacity());
-                                }
                                 if new_node_entity_values.len() < needed {
                                     new_node_entity_values.resize(needed, 0);
                                 }
@@ -338,7 +323,6 @@ impl QuadTreeInner {
                                 new_node_entities.set_len(start + total_count);
                                 new_node_entities_next.set_len(start + total_count);
                                 new_node_entities_flags.set_len(start + total_count);
-                                new_node_entities_last.set_len(start + total_count);
 
                                 let node_entities_ptr = new_node_entities.as_mut_ptr().add(start);
                                 let node_entities_min_x_ptr =
@@ -357,8 +341,6 @@ impl QuadTreeInner {
                                     new_node_entity_packed.as_mut_ptr().add(start);
                                 let node_entities_next_ptr =
                                     new_node_entities_next.as_mut_ptr().add(start);
-                                let node_entities_last_ptr =
-                                    new_node_entities_last.as_mut_ptr().add(start);
 
                                 let mut write_offset = 0usize;
                                 let mut current = head;
@@ -401,8 +383,6 @@ impl QuadTreeInner {
                                         } else {
                                             (start + offset + 1) as u32
                                         };
-                                    *node_entities_last_ptr.add(offset) =
-                                        (offset + 1 == total_count) as u8;
                                     offset += 1;
                                 }
 
@@ -436,7 +416,6 @@ impl QuadTreeInner {
                                 new_node_entities.reserve(total_count);
                                 new_node_entities_next.reserve(total_count);
                                 new_node_entities_flags.reserve(total_count);
-                                new_node_entities_last.reserve(total_count);
                                 new_head = start as u32;
                                 new_count = total_count as u32;
 
@@ -453,10 +432,6 @@ impl QuadTreeInner {
                                     new_node_entities_flags
                                         .reserve(needed - new_node_entities_flags.capacity());
                                 }
-                                if new_node_entities_last.capacity() < needed {
-                                    new_node_entities_last
-                                        .reserve(needed - new_node_entities_last.capacity());
-                                }
                                 if new_node_entity_values.len() < needed {
                                     new_node_entity_values.resize(needed, 0);
                                 }
@@ -471,7 +446,6 @@ impl QuadTreeInner {
                                 new_node_entities.set_len(start + total_count);
                                 new_node_entities_next.set_len(start + total_count);
                                 new_node_entities_flags.set_len(start + total_count);
-                                new_node_entities_last.set_len(start + total_count);
 
                                 let node_entities_ptr = new_node_entities.as_mut_ptr().add(start);
                                 let node_entities_min_x_ptr =
@@ -490,8 +464,6 @@ impl QuadTreeInner {
                                     new_node_entity_packed.as_mut_ptr().add(start);
                                 let node_entities_next_ptr =
                                     new_node_entities_next.as_mut_ptr().add(start);
-                                let node_entities_last_ptr =
-                                    new_node_entities_last.as_mut_ptr().add(start);
 
                                 let mut write_offset = 0usize;
                                 current = head;
@@ -586,8 +558,6 @@ impl QuadTreeInner {
                                         } else {
                                             (start + offset + 1) as u32
                                         };
-                                    *node_entities_last_ptr.add(offset) =
-                                        (offset + 1 == total_count) as u8;
                                     offset += 1;
                                 }
 

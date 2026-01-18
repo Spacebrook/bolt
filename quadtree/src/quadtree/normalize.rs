@@ -20,14 +20,10 @@ impl QuadTreeInner {
                 let node_idx = removal.node_idx;
                 let node_entity_idx = removal.node_entity_idx;
                 let next = self.node_entities_next[node_entity_idx as usize];
-                let was_last = next == 0;
                 let node = &mut self.nodes[node_idx as usize];
 
                 if removal.prev_idx != 0 {
                     self.node_entities_next[removal.prev_idx as usize] = next;
-                    if was_last {
-                        self.node_entities_last[removal.prev_idx as usize] = 1;
-                    }
                 } else {
                     node.set_head(next);
                 }
@@ -105,7 +101,6 @@ impl QuadTreeInner {
                 let node_entity_values = &mut self.node_entity_values;
                 let node_entities_next = &mut self.node_entities_next;
                 let node_entities_flags = &mut self.node_entities_flags;
-                let node_entities_last = &mut self.node_entities_last;
                 let entities = &mut self.entities;
 
                 let mut in_nodes = 0u32;
@@ -155,7 +150,6 @@ impl QuadTreeInner {
                             node_entity_values.push(0);
                             node_entities_next.push(0);
                             node_entities_flags.push(0);
-                            node_entities_last.push(0);
                             (node_entities.len() - 1) as u32
                         };
                         let head = nodes[node_idx_usize].head();
@@ -168,7 +162,6 @@ impl QuadTreeInner {
                             value,
                             node_entities[node_entity_idx as usize],
                         );
-                        node_entities_last[node_entity_idx as usize] = (head == 0) as u8;
                         node_entities_flags[node_entity_idx as usize] =
                             Self::compute_node_entity_flags(node_extent, position_flags, extent);
                         touched_node_entities.push(node_entity_idx);

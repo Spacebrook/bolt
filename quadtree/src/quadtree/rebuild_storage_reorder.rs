@@ -147,7 +147,6 @@ impl QuadTreeInner {
             let mut old_node_entities_next = std::mem::take(&mut self.node_entities_next);
             let old_node_entity_values = std::mem::take(&mut self.node_entity_values);
             let mut old_node_entities_flags = std::mem::take(&mut self.node_entities_flags);
-            let mut old_node_entities_last = std::mem::take(&mut self.node_entities_last);
             let mut new_nodes = std::mem::take(&mut self.nodes_scratch);
             new_nodes.clear();
             new_nodes.reserve(old_nodes.len().max(1));
@@ -182,9 +181,6 @@ impl QuadTreeInner {
             new_node_entities_flags.clear();
             new_node_entities_flags.reserve(old_node_entities_flags.len().max(1));
 
-            let mut new_node_entities_last = std::mem::take(&mut self.node_entities_last_scratch);
-            new_node_entities_last.clear();
-            new_node_entities_last.reserve(old_node_entities_last.len().max(1));
 
             new_node_entities.push(NodeEntity::new(0));
             new_node_entity_extents
@@ -193,7 +189,6 @@ impl QuadTreeInner {
             new_node_entities_next.push(0);
             new_node_entity_values.push(0);
             new_node_entities_flags.push(0);
-            new_node_entities_last.push(0);
 
             let start_rebuild = if profile {
                 Some(std::time::Instant::now())
@@ -208,7 +203,6 @@ impl QuadTreeInner {
                 &mut old_node_entities,
                 &mut old_node_entities_next,
                 &mut old_node_entities_flags,
-                &mut old_node_entities_last,
                 &old_large_entity_slots,
                 &mut new_node_extents_tight,
                 &mut new_node_extents_loose,
@@ -224,7 +218,6 @@ impl QuadTreeInner {
                 &mut new_node_entities,
                 &mut new_node_entities_next,
                 &mut new_node_entities_flags,
-                &mut new_node_entities_last,
                 did_merge,
             );
             if let Some(start) = start_rebuild {
@@ -244,7 +237,6 @@ impl QuadTreeInner {
             self.node_entities_next_scratch = old_node_entities_next;
             self.node_entity_values_scratch = old_node_entity_values;
             self.node_entities_flags_scratch = old_node_entities_flags;
-            self.node_entities_last_scratch = old_node_entities_last;
 
             self.nodes = new_nodes;
             self.node_centers = new_node_centers;
@@ -256,7 +248,6 @@ impl QuadTreeInner {
             self.node_entities_next = new_node_entities_next;
             self.node_entity_values = new_node_entity_values;
             self.node_entities_flags = new_node_entities_flags;
-            self.node_entities_last = new_node_entities_last;
             self.free_node = 0;
             self.free_node_entity = 0;
 

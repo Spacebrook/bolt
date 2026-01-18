@@ -10,6 +10,16 @@ pub enum QuadtreeError {
         max_x: f32,
         max_y: f32,
     },
+    RectExtentOutOfBounds {
+        min_x: f32,
+        min_y: f32,
+        max_x: f32,
+        max_y: f32,
+        bounds_min_x: f32,
+        bounds_min_y: f32,
+        bounds_max_x: f32,
+        bounds_max_y: f32,
+    },
 }
 
 pub type QuadtreeResult<T> = Result<T, QuadtreeError>;
@@ -41,6 +51,29 @@ impl fmt::Display for QuadtreeError {
                     f,
                     "rectangle extents must be finite with min <= max (min_x: {}, min_y: {}, max_x: {}, max_y: {})",
                     min_x, min_y, max_x, max_y
+                )
+            }
+            QuadtreeError::RectExtentOutOfBounds {
+                min_x,
+                min_y,
+                max_x,
+                max_y,
+                bounds_min_x,
+                bounds_min_y,
+                bounds_max_x,
+                bounds_max_y,
+            } => {
+                write!(
+                    f,
+                    "rectangle extents must be within quadtree bounds (min_x: {}, min_y: {}, max_x: {}, max_y: {}, bounds_min_x: {}, bounds_min_y: {}, bounds_max_x: {}, bounds_max_y: {})",
+                    min_x,
+                    min_y,
+                    max_x,
+                    max_y,
+                    bounds_min_x,
+                    bounds_min_y,
+                    bounds_max_x,
+                    bounds_max_y
                 )
             }
         }

@@ -24,6 +24,9 @@ impl QuadTreeInner {
         let filter = filter_entity_types.map(EntityTypeFilter::from_vec);
         let filter = self.resolve_filter(filter.as_ref());
         self.normalize_hard();
+        if filter.is_some() && self.entity_types.is_none() {
+            return Ok(vec![Vec::new(); shapes.len()]);
+        }
         let mut results = Vec::with_capacity(shapes.len());
         for shape in shapes {
             let mut collisions = Vec::new();
@@ -47,6 +50,10 @@ impl QuadTreeInner {
     ) -> QuadtreeResult<()> {
         let filter = filter_entity_types.map(EntityTypeFilter::from_vec);
         let filter = self.resolve_filter(filter.as_ref());
+        if filter.is_some() && self.entity_types.is_none() {
+            collisions.clear();
+            return Ok(());
+        }
         self.collisions_from(&shape, filter, collisions)
     }
 
@@ -68,6 +75,9 @@ impl QuadTreeInner {
     {
         let filter = filter_entity_types.map(EntityTypeFilter::from_vec);
         let filter = self.resolve_filter(filter.as_ref());
+        if filter.is_some() && self.entity_types.is_none() {
+            return Ok(());
+        }
         self.collisions_from_with(&shape, filter, &mut f)
     }
 

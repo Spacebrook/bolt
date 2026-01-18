@@ -17,6 +17,7 @@ impl QuadTreeInner {
         entity_type: EntityTypeUpdate,
     ) -> QuadtreeResult<()> {
         let (shape_kind, extent, circle_data) = Self::shape_metadata(&shape)?;
+        self.ensure_extent_in_bounds(extent)?;
         self.relocate_with_metadata(value, shape_kind, extent, circle_data, entity_type);
         Ok(())
     }
@@ -31,6 +32,7 @@ impl QuadTreeInner {
         entity_type: EntityTypeUpdate,
     ) -> QuadtreeResult<()> {
         let extent = RectExtent::from_min_max(min_x, min_y, max_x, max_y)?;
+        self.ensure_extent_in_bounds(extent)?;
         self.relocate_with_metadata(value, SHAPE_RECT, extent, None, entity_type);
         Ok(())
     }
@@ -45,6 +47,7 @@ impl QuadTreeInner {
     ) -> QuadtreeResult<()> {
         validate_circle_radius(radius)?;
         let extent = RectExtent::from_min_max(x - radius, y - radius, x + radius, y + radius)?;
+        self.ensure_extent_in_bounds(extent)?;
         let circle = CircleData::new(x, y, radius);
         self.relocate_with_metadata(value, SHAPE_CIRCLE, extent, Some(circle), entity_type);
         Ok(())

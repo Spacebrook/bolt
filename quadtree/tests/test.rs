@@ -191,7 +191,7 @@ fn test_huge_bounds() {
 #[test]
 fn test_no_collision() {
     // Test case where there are no collisions
-    let mut qt = QuadTree::new(Rectangle::new(0.0, 0.0, 100.0, 100.0)).unwrap();
+    let mut qt = QuadTree::new(Rectangle::new(0.0, 0.0, 200.0, 200.0)).unwrap();
     qt.insert(
         0,
         ShapeEnum::Rectangle(Rectangle::new(10.0, 10.0, 20.0, 20.0)),
@@ -212,7 +212,7 @@ fn test_no_collision() {
 
 #[test]
 fn test_edge_touching_exclusive_collisions() {
-    let mut qt = QuadTree::new(Rectangle::new(0.0, 0.0, 100.0, 100.0)).unwrap();
+    let mut qt = QuadTree::new(Rectangle::new(0.0, 0.0, 200.0, 200.0)).unwrap();
     qt.insert(
         1,
         ShapeEnum::Rectangle(Rectangle::new(0.0, 0.0, 10.0, 10.0)),
@@ -249,7 +249,7 @@ fn test_edge_touching_exclusive_collisions() {
 #[test]
 fn test_multiple_collisions() {
     // Test case where a query shape collides with multiple objects in the quadtree
-    let mut qt = QuadTree::new(Rectangle::new(0.0, 0.0, 100.0, 100.0)).unwrap();
+    let mut qt = QuadTree::new(Rectangle::new(0.0, 0.0, 200.0, 200.0)).unwrap();
     qt.insert(
         0,
         ShapeEnum::Rectangle(Rectangle::new(10.0, 10.0, 20.0, 20.0)),
@@ -280,7 +280,7 @@ fn test_multiple_collisions() {
 #[test]
 fn test_object_relocation() {
     // Test case where an object is relocated within the quadtree
-    let mut qt = QuadTree::new(Rectangle::new(0.0, 0.0, 100.0, 100.0)).unwrap();
+    let mut qt = QuadTree::new(Rectangle::new(0.0, 0.0, 200.0, 200.0)).unwrap();
     qt.insert(
         0,
         ShapeEnum::Rectangle(Rectangle::new(10.0, 10.0, 10.0, 10.0)),
@@ -302,7 +302,7 @@ fn test_object_relocation() {
 #[test]
 fn test_object_relocation_initial() {
     // Test case where an object is relocated without ever being inserted
-    let mut qt = QuadTree::new(Rectangle::new(0.0, 0.0, 100.0, 100.0)).unwrap();
+    let mut qt = QuadTree::new(Rectangle::new(0.0, 0.0, 200.0, 200.0)).unwrap();
     qt.relocate(
         0,
         ShapeEnum::Rectangle(Rectangle::new(10.0, 10.0, 10.0, 10.0)),
@@ -326,7 +326,7 @@ fn test_object_relocation_multiple_times() {
     use rand::Rng;
 
     // Test case where 1,000 objects are created and each relocated 10 times at random locations
-    let mut qt = QuadTree::new(Rectangle::new(0.0, 0.0, 100.0, 100.0)).unwrap();
+    let mut qt = QuadTree::new(Rectangle::new(0.0, 0.0, 200.0, 200.0)).unwrap();
     let num_objects = 1_000;
     let relocation_count = 10;
     let mut rng = rand::thread_rng();
@@ -358,7 +358,7 @@ fn test_object_relocation_multiple_times() {
 #[test]
 fn test_object_deletion() {
     // Test case where an object is deleted from the quadtree
-    let mut qt = QuadTree::new(Rectangle::new(0.0, 0.0, 100.0, 100.0)).unwrap();
+    let mut qt = QuadTree::new(Rectangle::new(0.0, 0.0, 200.0, 200.0)).unwrap();
     qt.insert(
         0,
         ShapeEnum::Rectangle(Rectangle::new(10.0, 10.0, 10.0, 10.0)),
@@ -381,24 +381,26 @@ fn test_object_deletion() {
 #[test]
 fn test_object_out_of_bounds() {
     // Test case where an object is outside the bounds of the quadtree
-    let mut qt = QuadTree::new(Rectangle::new(0.0, 0.0, 100.0, 100.0)).unwrap();
-    qt.insert(
-        0,
-        ShapeEnum::Rectangle(Rectangle::new(150.0, 150.0, 10.0, 10.0)),
-        None,
-    ).unwrap();
+    let mut qt = QuadTree::new(Rectangle::new(0.0, 0.0, 200.0, 200.0)).unwrap();
+    assert!(qt
+        .insert(
+            0,
+            ShapeEnum::Rectangle(Rectangle::new(150.0, 150.0, 10.0, 10.0)),
+            None,
+        )
+        .is_err());
     let mut collisions: Vec<u32> = Vec::new();
     qt.collisions(
         ShapeEnum::Rectangle(Rectangle::new(150.0, 150.0, 10.0, 10.0)),
         &mut collisions,
     ).unwrap();
-    assert_eq!(collisions, vec![0]);
+    assert!(collisions.is_empty());
 }
 
 #[test]
 fn test_empty_quad_tree() {
     // Test case where the quadtree is empty
-    let mut qt = QuadTree::new(Rectangle::new(0.0, 0.0, 100.0, 100.0)).unwrap();
+    let mut qt = QuadTree::new(Rectangle::new(0.0, 0.0, 200.0, 200.0)).unwrap();
     let mut collisions: Vec<u32> = Vec::new();
     qt.collisions(
         ShapeEnum::Rectangle(Rectangle::new(10.0, 10.0, 10.0, 10.0)),
@@ -441,7 +443,7 @@ fn test_query_with_large_shape() {
 #[test]
 fn test_boundary_collision() {
     // Test case where a query shape is positioned on the boundary of another shape
-    let mut qt = QuadTree::new(Rectangle::new(0.0, 0.0, 100.0, 100.0)).unwrap();
+    let mut qt = QuadTree::new(Rectangle::new(0.0, 0.0, 200.0, 200.0)).unwrap();
     qt.insert(
         0,
         ShapeEnum::Rectangle(Rectangle::new(10.0, 10.0, 20.0, 20.0)),
@@ -458,7 +460,7 @@ fn test_boundary_collision() {
 #[test]
 fn test_shape_spanning_multiple_quadrants() {
     // Test case where a shape spans multiple quadrants
-    let mut qt = QuadTree::new(Rectangle::new(0.0, 0.0, 100.0, 100.0)).unwrap();
+    let mut qt = QuadTree::new(Rectangle::new(0.0, 0.0, 200.0, 200.0)).unwrap();
     qt.insert(
         0,
         ShapeEnum::Rectangle(Rectangle::new(45.0, 45.0, 10.0, 10.0)),
@@ -475,7 +477,7 @@ fn test_shape_spanning_multiple_quadrants() {
 #[test]
 fn test_object_insertion_with_same_key() {
     // Test case where an object is inserted with the same key as an existing object
-    let mut qt = QuadTree::new(Rectangle::new(0.0, 0.0, 100.0, 100.0)).unwrap();
+    let mut qt = QuadTree::new(Rectangle::new(0.0, 0.0, 200.0, 200.0)).unwrap();
     qt.insert(
         0,
         ShapeEnum::Rectangle(Rectangle::new(10.0, 10.0, 10.0, 10.0)),
@@ -512,16 +514,18 @@ fn test_relocation_outside_quadtree_bounds() {
         None,
     ).unwrap();
     // Attempt to relocate the object to a position outside the bounds of the quadtree
-    qt.relocate(
-        0,
-        ShapeEnum::Rectangle(Rectangle::new(200.0, 200.0, 10.0, 10.0)),
-        EntityTypeUpdate::Preserve,
-    ).unwrap();
+    assert!(qt
+        .relocate(
+            0,
+            ShapeEnum::Rectangle(Rectangle::new(200.0, 200.0, 10.0, 10.0)),
+            EntityTypeUpdate::Preserve,
+        )
+        .is_err());
 
     // Verify that the object is still in the quadtree
     let mut collisions: Vec<u32> = Vec::new();
     qt.collisions(
-        ShapeEnum::Rectangle(Rectangle::new(200.0, 200.0, 10.0, 10.0)),
+        ShapeEnum::Rectangle(Rectangle::new(10.0, 10.0, 10.0, 10.0)),
         &mut collisions,
     ).unwrap();
     assert_eq!(collisions, vec![0]);
@@ -1347,8 +1351,8 @@ fn test_collisions_batch() {
     let bounding_box = Rectangle {
         x: 0.0,
         y: 0.0,
-        width: 10.0,
-        height: 10.0,
+        width: 20.0,
+        height: 20.0,
     };
 
     // Initialize the quadtree.
@@ -1464,8 +1468,8 @@ fn test_collisions_with_entity_type_filter() {
     let mut qt = QuadTree::new(Rectangle {
         x: 0.0,
         y: 0.0,
-        width: 10.0,
-        height: 10.0,
+        width: 20.0,
+        height: 20.0,
     }).unwrap();
 
     // Insert entities into the QuadTree

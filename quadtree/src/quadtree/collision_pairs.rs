@@ -13,10 +13,7 @@ impl QuadTreeInner {
             return;
         }
 
-        let pair_dedupe = &mut self.pair_dedupe;
-        let allow_duplicates = self.allow_duplicates;
         let nodes = &self.nodes;
-        let entities_ptr = self.entities.as_ptr();
         let entity_extents_ptr = self.entity_extents.ptr();
         let entity_values_ptr = self.entity_values.as_ptr();
         let mut stack = std::mem::take(&mut self.query_stack);
@@ -35,12 +32,6 @@ impl QuadTreeInner {
                 while i + 1 < end {
                     let a_idx = unsafe { (*node_entities_ptr.add(i)).index() };
                     let a_idx_usize = a_idx as usize;
-                    let a_entity = unsafe { &*entities_ptr.add(a_idx_usize) };
-                    let a_in_nodes = if allow_duplicates {
-                        a_entity.in_nodes_minus_one
-                    } else {
-                        0
-                    };
                     let a_extent = unsafe { *entity_extents_ptr.add(a_idx_usize) };
                     let a_min_x = a_extent.min_x;
                     let a_min_y = a_extent.min_y;
@@ -51,7 +42,6 @@ impl QuadTreeInner {
                     while j < end {
                         let b_idx = unsafe { (*node_entities_ptr.add(j)).index() };
                         let b_idx_usize = b_idx as usize;
-                        let b_entity = unsafe { &*entities_ptr.add(b_idx_usize) };
                         let b_extent = unsafe { *entity_extents_ptr.add(b_idx_usize) };
                         let b_min_x = b_extent.min_x;
                         let b_min_y = b_extent.min_y;
@@ -63,23 +53,6 @@ impl QuadTreeInner {
                             && b_max_x > a_min_x
                             && b_max_y > a_min_y
                         {
-                            if allow_duplicates {
-                                let b_in_nodes = b_entity.in_nodes_minus_one;
-                                let needs_dedupe = a_in_nodes > 0 || b_in_nodes > 0;
-                                if needs_dedupe {
-                                    let (min, max) = if a_idx < b_idx {
-                                        (a_idx, b_idx)
-                                    } else {
-                                        (b_idx, a_idx)
-                                    };
-                                    let key = (u64::from(min) << 32) | u64::from(max);
-                                    if !pair_dedupe.insert(key) {
-                                        j += 1;
-                                        continue;
-                                    }
-                                }
-                            }
-
                             let a_value = unsafe { *entity_values_ptr.add(a_idx_usize) };
                             let b_value = unsafe { *entity_values_ptr.add(b_idx_usize) };
                             f(a_value, b_value);
@@ -114,10 +87,7 @@ impl QuadTreeInner {
             return;
         }
 
-        let pair_dedupe = &mut self.pair_dedupe;
-        let allow_duplicates = self.allow_duplicates;
         let nodes = &self.nodes;
-        let entities_ptr = self.entities.as_ptr();
         let entity_values_ptr = self.entity_values.as_ptr();
         let circle_data_ptr = self
             .circle_data
@@ -140,19 +110,12 @@ impl QuadTreeInner {
                 while i + 1 < end {
                     let a_idx = unsafe { (*node_entities_ptr.add(i)).index() };
                     let a_idx_usize = a_idx as usize;
-                    let a_entity = unsafe { &*entities_ptr.add(a_idx_usize) };
-                    let a_in_nodes = if allow_duplicates {
-                        a_entity.in_nodes_minus_one
-                    } else {
-                        0
-                    };
                     let a_circle = unsafe { *circle_data_ptr.add(a_idx_usize) };
 
                     let mut j = i + 1;
                     while j < end {
                         let b_idx = unsafe { (*node_entities_ptr.add(j)).index() };
                         let b_idx_usize = b_idx as usize;
-                        let b_entity = unsafe { &*entities_ptr.add(b_idx_usize) };
                         let b_circle = unsafe { *circle_data_ptr.add(b_idx_usize) };
 
                         if circle_circle_raw(
@@ -163,23 +126,6 @@ impl QuadTreeInner {
                             b_circle.y,
                             b_circle.radius,
                         ) {
-                            if allow_duplicates {
-                                let b_in_nodes = b_entity.in_nodes_minus_one;
-                                let needs_dedupe = a_in_nodes > 0 || b_in_nodes > 0;
-                                if needs_dedupe {
-                                    let (min, max) = if a_idx < b_idx {
-                                        (a_idx, b_idx)
-                                    } else {
-                                        (b_idx, a_idx)
-                                    };
-                                    let key = (u64::from(min) << 32) | u64::from(max);
-                                    if !pair_dedupe.insert(key) {
-                                        j += 1;
-                                        continue;
-                                    }
-                                }
-                            }
-
                             let a_value = unsafe { *entity_values_ptr.add(a_idx_usize) };
                             let b_value = unsafe { *entity_values_ptr.add(b_idx_usize) };
                             f(a_value, b_value);
@@ -213,8 +159,6 @@ impl QuadTreeInner {
             return;
         }
 
-        let pair_dedupe = &mut self.pair_dedupe;
-        let allow_duplicates = self.allow_duplicates;
         let nodes = &self.nodes;
         let entities = &self.entities;
         let entity_extents_ptr = self.entity_extents.ptr();
@@ -300,23 +244,6 @@ impl QuadTreeInner {
                             )
                         };
                         if hit {
-                            if allow_duplicates {
-                                let needs_dedupe =
-                                    a.in_nodes_minus_one > 0 || b.in_nodes_minus_one > 0;
-                                if needs_dedupe {
-                                    let (min, max) = if a_idx < b_idx {
-                                        (a_idx, b_idx)
-                                    } else {
-                                        (b_idx, a_idx)
-                                    };
-                                    let key = (u64::from(min) << 32) | u64::from(max);
-                                    if !pair_dedupe.insert(key) {
-                                        j += 1;
-                                        continue;
-                                    }
-                                }
-                            }
-
                             let a_value = unsafe { *entity_values_ptr.add(a_idx_usize) };
                             let b_value = unsafe { *entity_values_ptr.add(b_idx_usize) };
                             f(a_value, b_value);

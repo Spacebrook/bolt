@@ -1,5 +1,5 @@
 use super::*;
-use crate::error::QuadtreeResult;
+use crate::error::{QuadtreeError, QuadtreeResult};
 use common::shapes::{Rectangle, ShapeEnum};
 use fxhash::FxHashMap;
 
@@ -96,9 +96,6 @@ impl QuadTreeInner {
         let mut node_entities_flags = Vec::new();
         node_entities_flags.push(0);
         let node_entities_flags_scratch = Vec::new();
-        let mut node_entities_last = Vec::new();
-        node_entities_last.push(0);
-        let node_entities_last_scratch = Vec::new();
         let mut entities = Vec::new();
         entities.push(Entity::sentinel());
         let entities_scratch = Vec::new();
@@ -134,9 +131,6 @@ impl QuadTreeInner {
             }
             if node_entities_flags.len() < reserve {
                 node_entities_flags.reserve(reserve - node_entities_flags.len());
-            }
-            if node_entities_last.len() < reserve {
-                node_entities_last.reserve(reserve - node_entities_last.len());
             }
             if entities.len() < reserve {
                 entities.reserve(reserve - entities.len());
@@ -193,8 +187,6 @@ impl QuadTreeInner {
             node_entity_values_scratch,
             node_entities_flags,
             node_entities_flags_scratch,
-            node_entities_last,
-            node_entities_last_scratch,
             free_node_entity: 0,
             entities,
             entities_scratch,
@@ -224,7 +216,6 @@ impl QuadTreeInner {
             profile_summary,
             profile_detail,
             reorder_counter: 0,
-            allow_duplicates: false,
             update_pending: false,
             use_avx2,
             large_entity_threshold,
@@ -321,6 +312,28 @@ impl QuadTreeInner {
                 true
             }
         });
+    }
+
+    #[inline(always)]
+    pub(crate) fn ensure_extent_in_bounds(&self, extent: RectExtent) -> QuadtreeResult<()> {
+        let bounds = self.root_half.to_rect_extent();
+        if extent.min_x < bounds.min_x
+            || extent.min_y < bounds.min_y
+            || extent.max_x > bounds.max_x
+            || extent.max_y > bounds.max_y
+        {
+            return Err(QuadtreeError::RectExtentOutOfBounds {
+                min_x: extent.min_x,
+                min_y: extent.min_y,
+                max_x: extent.max_x,
+                max_y: extent.max_y,
+                bounds_min_x: bounds.min_x,
+                bounds_min_y: bounds.min_y,
+                bounds_max_x: bounds.max_x,
+                bounds_max_y: bounds.max_y,
+            });
+        }
+        Ok(())
     }
 
     #[inline(always)]
@@ -595,6 +608,7 @@ impl QuadTreeInner {
         entity_type: Option<u32>,
     ) -> QuadtreeResult<()> {
         let (shape_kind, extent, circle_data) = Self::shape_metadata(&shape)?;
+        self.ensure_extent_in_bounds(extent)?;
         self.insert_with_metadata(value, shape_kind, extent, circle_data, entity_type);
         Ok(())
     }
@@ -609,6 +623,7 @@ impl QuadTreeInner {
         entity_type: Option<u32>,
     ) -> QuadtreeResult<()> {
         let extent = RectExtent::from_min_max(min_x, min_y, max_x, max_y)?;
+        self.ensure_extent_in_bounds(extent)?;
         self.insert_with_metadata(value, SHAPE_RECT, extent, None, entity_type);
         Ok(())
     }
@@ -623,6 +638,7 @@ impl QuadTreeInner {
     ) -> QuadtreeResult<()> {
         validate_circle_radius(radius)?;
         let extent = RectExtent::from_min_max(x - radius, y - radius, x + radius, y + radius)?;
+        self.ensure_extent_in_bounds(extent)?;
         let circle = CircleData::new(x, y, radius);
         self.insert_with_metadata(value, SHAPE_CIRCLE, extent, Some(circle), entity_type);
         Ok(())

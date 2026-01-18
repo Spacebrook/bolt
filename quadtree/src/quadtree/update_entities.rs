@@ -186,7 +186,6 @@ impl QuadTreeInner {
         let node_entity_values = &mut self.node_entity_values;
         let node_entities_next = &mut self.node_entities_next;
         let node_entities_flags = &mut self.node_entities_flags;
-        let node_entities_last = &mut self.node_entities_last;
         let entities = &mut self.entities;
         let mut free_node_entity = self.free_node_entity;
 
@@ -232,7 +231,6 @@ impl QuadTreeInner {
                 node_entity_values.push(0);
                 node_entities_next.push(0);
                 node_entities_flags.push(0);
-                node_entities_last.push(0);
                 (node_entities.len() - 1) as u32
             };
             inserted.push((node_entity_idx, node_idx));
@@ -248,7 +246,6 @@ impl QuadTreeInner {
                 value,
                 node_entities[node_entity_idx as usize],
             );
-            node_entities_last[node_entity_idx as usize] = (head == 0) as u8;
             node_entities_flags[node_entity_idx as usize] =
                 Self::compute_node_entity_flags(node_extent, position_flags, extent);
             let node = &mut nodes[node_idx_usize];
@@ -287,12 +284,8 @@ impl QuadTreeInner {
             while current != 0 {
                 if self.node_entities[current as usize].index() == entity_idx {
                     let next = self.node_entities_next[current as usize];
-                    let was_last = next == 0;
                     if prev != 0 {
                         self.node_entities_next[prev as usize] = next;
-                        if was_last {
-                            self.node_entities_last[prev as usize] = 1;
-                        }
                     } else {
                         node.set_head(next);
                     }
