@@ -1,16 +1,24 @@
 use super::*;
+use crate::error::QuadtreeResult;
 use common::shapes::ShapeEnum;
 
 impl QuadTreeInner {
-    pub fn relocate_batch(&mut self, relocation_requests: Vec<RelocationRequest>) {
+    pub fn relocate_batch(&mut self, relocation_requests: Vec<RelocationRequest>) -> QuadtreeResult<()> {
         for request in relocation_requests {
-            self.relocate(request.value, request.shape, request.entity_type);
+            self.relocate(request.value, request.shape, request.entity_type)?;
         }
+        Ok(())
     }
 
-    pub fn relocate(&mut self, value: u32, shape: ShapeEnum, entity_type: Option<u32>) {
-        let (shape_kind, extent, circle_data) = Self::shape_metadata(&shape);
+    pub fn relocate(
+        &mut self,
+        value: u32,
+        shape: ShapeEnum,
+        entity_type: EntityTypeUpdate,
+    ) -> QuadtreeResult<()> {
+        let (shape_kind, extent, circle_data) = Self::shape_metadata(&shape)?;
         self.relocate_with_metadata(value, shape_kind, extent, circle_data, entity_type);
+        Ok(())
     }
 
     pub fn relocate_rect_extent(
@@ -20,10 +28,11 @@ impl QuadTreeInner {
         min_y: f32,
         max_x: f32,
         max_y: f32,
-        entity_type: Option<u32>,
-    ) {
-        let extent = RectExtent::from_min_max(min_x, min_y, max_x, max_y);
+        entity_type: EntityTypeUpdate,
+    ) -> QuadtreeResult<()> {
+        let extent = RectExtent::from_min_max(min_x, min_y, max_x, max_y)?;
         self.relocate_with_metadata(value, SHAPE_RECT, extent, None, entity_type);
+        Ok(())
     }
 
     pub fn relocate_circle_raw(
@@ -32,12 +41,13 @@ impl QuadTreeInner {
         x: f32,
         y: f32,
         radius: f32,
-        entity_type: Option<u32>,
-    ) {
-        validate_circle_radius(radius);
-        let extent = RectExtent::from_min_max(x - radius, y - radius, x + radius, y + radius);
+        entity_type: EntityTypeUpdate,
+    ) -> QuadtreeResult<()> {
+        validate_circle_radius(radius)?;
+        let extent = RectExtent::from_min_max(x - radius, y - radius, x + radius, y + radius)?;
         let circle = CircleData::new(x, y, radius);
         self.relocate_with_metadata(value, SHAPE_CIRCLE, extent, Some(circle), entity_type);
+        Ok(())
     }
 
     fn relocate_with_metadata(
@@ -46,11 +56,15 @@ impl QuadTreeInner {
         shape_kind: u8,
         extent: RectExtent,
         circle_data: Option<CircleData>,
-        entity_type: Option<u32>,
+        entity_type: EntityTypeUpdate,
     ) {
         let entity_idx = match self.owner_lookup(value) {
             Some(idx) => idx,
             None => {
+                let entity_type = match entity_type {
+                    EntityTypeUpdate::Set(value) => Some(value),
+                    EntityTypeUpdate::Clear | EntityTypeUpdate::Preserve => None,
+                };
                 let entity_idx = self.alloc_entity_with_metadata(
                     value,
                     shape_kind,
@@ -74,11 +88,14 @@ impl QuadTreeInner {
         shape_kind: u8,
         extent: RectExtent,
         circle_data: Option<CircleData>,
-        entity_type: Option<u32>,
+        entity_type: EntityTypeUpdate,
     ) {
         debug_assert!(shape_kind != SHAPE_CIRCLE || circle_data.is_some());
         let prev_kind = self.entities[entity_idx as usize].shape_kind;
-        if prev_kind == shape_kind && entity_type.is_none() && self.entity_types.is_none() {
+        if prev_kind == shape_kind
+            && matches!(entity_type, EntityTypeUpdate::Preserve)
+            && self.entity_types.is_none()
+        {
             let idx = entity_idx as usize;
             if shape_kind == SHAPE_RECT {
                 self.entity_extents.set(idx, extent);
@@ -133,29 +150,35 @@ impl QuadTreeInner {
                 circle_data[entity_idx as usize] = data;
             }
         }
-        let new_type = entity_type.unwrap_or(u32::MAX);
-        let mut old_type = u32::MAX;
-        if new_type != u32::MAX || self.entity_types.is_some() {
-            let types = self.ensure_entity_types();
-            old_type = types[entity_idx as usize];
-            types[entity_idx as usize] = new_type;
-        }
-        if old_type == u32::MAX && new_type != u32::MAX {
-            self.typed_count = self.typed_count.saturating_add(1);
-        } else if old_type != u32::MAX && new_type == u32::MAX {
-            self.typed_count = self.typed_count.saturating_sub(1);
-            self.mark_max_entity_type_dirty_if_needed(old_type);
-        } else if old_type != u32::MAX && old_type != new_type {
-            self.mark_max_entity_type_dirty_if_needed(old_type);
-        }
-        if new_type != u32::MAX {
-            self.update_max_entity_type_on_insert(new_type);
-        }
-        if self.typed_count == 0 {
-            self.entity_types = None;
-            self.entity_types_scratch = None;
-            self.max_entity_type = 0;
-            self.max_entity_type_dirty = false;
+        if !matches!(entity_type, EntityTypeUpdate::Preserve) {
+            let new_type = match entity_type {
+                EntityTypeUpdate::Clear => u32::MAX,
+                EntityTypeUpdate::Set(value) => value,
+                EntityTypeUpdate::Preserve => u32::MAX,
+            };
+            let mut old_type = u32::MAX;
+            if new_type != u32::MAX || self.entity_types.is_some() {
+                let types = self.ensure_entity_types();
+                old_type = types[entity_idx as usize];
+                types[entity_idx as usize] = new_type;
+            }
+            if old_type == u32::MAX && new_type != u32::MAX {
+                self.typed_count = self.typed_count.saturating_add(1);
+            } else if old_type != u32::MAX && new_type == u32::MAX {
+                self.typed_count = self.typed_count.saturating_sub(1);
+                self.mark_max_entity_type_dirty_if_needed(old_type);
+            } else if old_type != u32::MAX && old_type != new_type {
+                self.mark_max_entity_type_dirty_if_needed(old_type);
+            }
+            if new_type != u32::MAX {
+                self.update_max_entity_type_on_insert(new_type);
+            }
+            if self.typed_count == 0 {
+                self.entity_types = None;
+                self.entity_types_scratch = None;
+                self.max_entity_type = 0;
+                self.max_entity_type_dirty = false;
+            }
         }
         if self.circle_count == 0 {
             self.circle_data = None;

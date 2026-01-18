@@ -1,6 +1,6 @@
 use common::shapes::{Rectangle, ShapeEnum};
 use criterion::{black_box, criterion_group, criterion_main, BatchSize, Criterion};
-use quadtree::quadtree::{Config, QuadTree, RelocationRequest};
+use quadtree::quadtree::{Config, EntityTypeUpdate, QuadTree, RelocationRequest};
 use rand::prelude::*;
 
 fn build_tree(
@@ -18,13 +18,15 @@ fn build_tree(
                 height: 100.0,
             },
             config,
-        ),
+        )
+        .unwrap(),
         None => QuadTree::new(Rectangle {
             x: 0.0,
             y: 0.0,
             width: 100.0,
             height: 100.0,
-        }),
+        })
+        .unwrap(),
     };
 
     let mut ids = Vec::with_capacity(num_items);
@@ -37,7 +39,7 @@ fn build_tree(
         });
         let value = rng.gen();
         let entity_type = Some(rng.gen_range(0..entity_type_range));
-        quadtree.insert(value, shape, entity_type);
+        quadtree.insert(value, shape, entity_type).unwrap();
         ids.push(value);
     }
 
@@ -51,7 +53,7 @@ fn insert_benchmark(c: &mut Criterion) {
         y: 0.0,
         width: 100.0,
         height: 100.0,
-    });
+    }).unwrap();
 
     c.bench_function("quadtree_insert", |b| {
         b.iter(|| {
@@ -61,7 +63,7 @@ fn insert_benchmark(c: &mut Criterion) {
                 width: 5.0,
                 height: 5.0,
             });
-            quadtree.insert(black_box(rng.gen()), shape, None);
+            quadtree.insert(black_box(rng.gen()), shape, None).unwrap();
         })
     });
 }
@@ -73,7 +75,7 @@ fn delete_benchmark(c: &mut Criterion) {
         y: 0.0,
         width: 100.0,
         height: 100.0,
-    });
+    }).unwrap();
     let mut items = Vec::new();
     for _ in 0..1000 {
         let shape = ShapeEnum::Rectangle(Rectangle {
@@ -83,7 +85,7 @@ fn delete_benchmark(c: &mut Criterion) {
             height: 5.0,
         });
         let value = rng.gen();
-        quadtree.insert(value, shape, None);
+        quadtree.insert(value, shape, None).unwrap();
         items.push(value);
     }
 
@@ -102,7 +104,7 @@ fn relocate_benchmark(c: &mut Criterion) {
         y: 0.0,
         width: 100.0,
         height: 100.0,
-    });
+    }).unwrap();
     let mut relocation_requests = Vec::new();
     for _ in 0..1000 {
         let shape = ShapeEnum::Rectangle(Rectangle {
@@ -112,17 +114,17 @@ fn relocate_benchmark(c: &mut Criterion) {
             height: 5.0,
         });
         let value = rng.gen();
-        quadtree.insert(value, shape.clone(), None);
+        quadtree.insert(value, shape.clone(), None).unwrap();
         relocation_requests.push(RelocationRequest {
             value,
             shape,
-            entity_type: None,
+            entity_type: EntityTypeUpdate::Preserve,
         });
     }
 
     c.bench_function("quadtree_relocate", |b| {
         b.iter(|| {
-            quadtree.relocate_batch(black_box(relocation_requests.clone()));
+            quadtree.relocate_batch(black_box(relocation_requests.clone())).unwrap();
         })
     });
 }
@@ -134,7 +136,7 @@ fn collisions_benchmark(c: &mut Criterion) {
         y: 0.0,
         width: 100.0,
         height: 100.0,
-    });
+    }).unwrap();
     // Insert random items into the quadtree
     for _ in 0..1000 {
         let shape = ShapeEnum::Rectangle(Rectangle {
@@ -143,7 +145,7 @@ fn collisions_benchmark(c: &mut Criterion) {
             width: 5.0,
             height: 5.0,
         });
-        quadtree.insert(rng.gen(), shape, None);
+        quadtree.insert(rng.gen(), shape, None).unwrap();
     }
 
     // Define a query rectangle
@@ -157,7 +159,7 @@ fn collisions_benchmark(c: &mut Criterion) {
     c.bench_function("quadtree_collisions", |b| {
         b.iter(|| {
             let mut _collisions: Vec<u32> = Vec::new();
-            quadtree.collisions(black_box(query_shape.clone()), &mut _collisions);
+            quadtree.collisions(black_box(query_shape.clone()), &mut _collisions).unwrap();
         })
     });
 }
@@ -181,7 +183,7 @@ fn collisions_filter_large_filter_benchmark(c: &mut Criterion) {
                 black_box(query_shape.clone()),
                 Some(filter.clone()),
                 &mut collisions,
-            );
+            ).unwrap();
             black_box(collisions);
         })
     });
@@ -204,7 +206,7 @@ fn collisions_batch_filter_large_filter_benchmark(c: &mut Criterion) {
     c.bench_function("quadtree_collisions_batch_filter_large_filter", |b| {
         b.iter(|| {
             let result =
-                quadtree.collisions_batch_filter(black_box(shapes.clone()), Some(filter.clone()));
+                quadtree.collisions_batch_filter(black_box(shapes.clone()), Some(filter.clone())).unwrap();
             black_box(result);
         })
     });
@@ -250,7 +252,7 @@ fn comprehensive_benchmark(c: &mut Criterion) {
                 y: 0.0,
                 width: 100.0,
                 height: 100.0,
-            });
+            }).unwrap();
             quadtree_group.push(quadtree);
         }
         quadtree_groups.push(quadtree_group);
@@ -278,10 +280,10 @@ fn comprehensive_benchmark(c: &mut Criterion) {
                         relocation_requests.push(RelocationRequest {
                             value: i,
                             shape: shape.clone(),
-                            entity_type: None,
+                            entity_type: EntityTypeUpdate::Preserve,
                         });
                     }
-                    quadtree.relocate_batch(relocation_requests);
+                    quadtree.relocate_batch(relocation_requests).unwrap();
 
                     // Perform collision queries
                     let num_queries = match i {
@@ -300,7 +302,7 @@ fn comprehensive_benchmark(c: &mut Criterion) {
                             height: 5.0,
                         });
                         let mut collisions: Vec<u32> = Vec::new();
-                        quadtree.collisions(query_shape, &mut collisions);
+                        quadtree.collisions(query_shape, &mut collisions).unwrap();
                     }
                 }
             }

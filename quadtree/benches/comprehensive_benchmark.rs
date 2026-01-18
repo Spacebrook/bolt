@@ -1,6 +1,6 @@
 // Inspired by c_quadtree: https://github.com/supahero1/quadtree
 use common::shapes::{Rectangle, ShapeEnum};
-use quadtree::quadtree::{Config, QuadTree};
+use quadtree::quadtree::{Config, EntityTypeUpdate, QuadTree};
 use rand::prelude::*;
 use std::env;
 use std::time::{Duration, Instant};
@@ -277,7 +277,7 @@ fn main() {
             height: ARENA_HEIGHT,
         },
         config,
-    );
+    ).unwrap();
 
     let start = Instant::now();
     for i in 0..ITER {
@@ -315,7 +315,7 @@ fn main() {
             vy: (1.0 - 2.0 * randf(&mut rng)) * INITIAL_VELOCITY,
         };
 
-        quadtree.insert(i as u32, ShapeEnum::Rectangle(entity.to_rectangle()), None);
+        quadtree.insert(i as u32, ShapeEnum::Rectangle(entity.to_rectangle()), None).unwrap();
         entities.push(entity);
     }
 
@@ -345,11 +345,13 @@ fn main() {
 
         let start = Instant::now();
         for (value, entity) in entities.iter().enumerate() {
-            quadtree.relocate(
-                value as u32,
-                ShapeEnum::Rectangle(entity.to_rectangle()),
-                None,
-            );
+            quadtree
+                .relocate(
+                    value as u32,
+                    ShapeEnum::Rectangle(entity.to_rectangle()),
+                    EntityTypeUpdate::Preserve,
+                )
+                .unwrap();
         }
         relocate_total += start.elapsed();
 
@@ -364,10 +366,10 @@ fn main() {
                 quadtree.collisions(
                     ShapeEnum::Rectangle(entities[i].query_rectangle()),
                     &mut collisions,
-                );
+                ).unwrap();
             } else {
                 quadtree
-                    .collisions_with(ShapeEnum::Rectangle(entities[i].query_rectangle()), |_| {});
+                    .collisions_with(ShapeEnum::Rectangle(entities[i].query_rectangle()), |_| {}).unwrap();
             }
         }
         query_total += start.elapsed();

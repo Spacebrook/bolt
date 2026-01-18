@@ -31,10 +31,27 @@ impl Default for Config {
     }
 }
 
+use common::shapes::ShapeEnum;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum EntityTypeUpdate {
+    Preserve,
+    Clear,
+    Set(u32),
+}
+
+impl From<Option<u32>> for EntityTypeUpdate {
+    fn from(value: Option<u32>) -> Self {
+        match value {
+            Some(value) => EntityTypeUpdate::Set(value),
+            None => EntityTypeUpdate::Preserve,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct RelocationRequest {
     pub value: u32,
     pub shape: ShapeEnum,
-    pub entity_type: Option<u32>,
+    pub entity_type: EntityTypeUpdate,
 }
-use common::shapes::ShapeEnum;

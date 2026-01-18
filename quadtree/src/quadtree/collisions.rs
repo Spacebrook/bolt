@@ -1,43 +1,42 @@
 use super::*;
+use crate::error::QuadtreeResult;
 use common::shapes::ShapeEnum;
 
 impl QuadTreeInner {
-    pub fn collisions_batch(&mut self, shapes: Vec<ShapeEnum>) -> Vec<Vec<u32>> {
+    pub fn collisions_batch(&mut self, shapes: Vec<ShapeEnum>) -> QuadtreeResult<Vec<Vec<u32>>> {
         self.normalize_hard();
-        shapes
-            .into_iter()
-            .map(|shape| {
-                let mut collisions = Vec::new();
-                self.collisions_from_with_normalized(&shape, None, &mut |value| {
-                    collisions.push(value);
-                });
-                collisions
-            })
-            .collect()
+        let mut results = Vec::with_capacity(shapes.len());
+        for shape in shapes {
+            let mut collisions = Vec::new();
+            self.collisions_from_with_normalized(&shape, None, &mut |value| {
+                collisions.push(value);
+            })?;
+            results.push(collisions);
+        }
+        Ok(results)
     }
 
     pub fn collisions_batch_filter(
         &mut self,
         shapes: Vec<ShapeEnum>,
         filter_entity_types: Option<Vec<u32>>,
-    ) -> Vec<Vec<u32>> {
+    ) -> QuadtreeResult<Vec<Vec<u32>>> {
         let filter = filter_entity_types.map(EntityTypeFilter::from_vec);
         let filter = self.resolve_filter(filter.as_ref());
         self.normalize_hard();
-        shapes
-            .into_iter()
-            .map(|shape| {
-                let mut collisions = Vec::new();
-                self.collisions_from_with_normalized(&shape, filter, &mut |value| {
-                    collisions.push(value);
-                });
-                collisions
-            })
-            .collect()
+        let mut results = Vec::with_capacity(shapes.len());
+        for shape in shapes {
+            let mut collisions = Vec::new();
+            self.collisions_from_with_normalized(&shape, filter, &mut |value| {
+                collisions.push(value);
+            })?;
+            results.push(collisions);
+        }
+        Ok(results)
     }
 
-    pub fn collisions(&mut self, shape: ShapeEnum, collisions: &mut Vec<u32>) {
-        self.collisions_from(&shape, None, collisions);
+    pub fn collisions(&mut self, shape: ShapeEnum, collisions: &mut Vec<u32>) -> QuadtreeResult<()> {
+        self.collisions_from(&shape, None, collisions)
     }
 
     pub fn collisions_filter(
@@ -45,17 +44,17 @@ impl QuadTreeInner {
         shape: ShapeEnum,
         filter_entity_types: Option<Vec<u32>>,
         collisions: &mut Vec<u32>,
-    ) {
+    ) -> QuadtreeResult<()> {
         let filter = filter_entity_types.map(EntityTypeFilter::from_vec);
         let filter = self.resolve_filter(filter.as_ref());
-        self.collisions_from(&shape, filter, collisions);
+        self.collisions_from(&shape, filter, collisions)
     }
 
-    pub fn collisions_with<F>(&mut self, shape: ShapeEnum, mut f: F)
+    pub fn collisions_with<F>(&mut self, shape: ShapeEnum, mut f: F) -> QuadtreeResult<()>
     where
         F: FnMut(u32),
     {
-        self.collisions_from_with(&shape, None, &mut f);
+        self.collisions_from_with(&shape, None, &mut f)
     }
 
     pub fn collisions_with_filter<F>(
@@ -63,12 +62,13 @@ impl QuadTreeInner {
         shape: ShapeEnum,
         filter_entity_types: Option<Vec<u32>>,
         mut f: F,
-    ) where
+    ) -> QuadtreeResult<()>
+    where
         F: FnMut(u32),
     {
         let filter = filter_entity_types.map(EntityTypeFilter::from_vec);
         let filter = self.resolve_filter(filter.as_ref());
-        self.collisions_from_with(&shape, filter, &mut f);
+        self.collisions_from_with(&shape, filter, &mut f)
     }
 
     pub fn collisions_rect_extent(
@@ -78,10 +78,10 @@ impl QuadTreeInner {
         max_x: f32,
         max_y: f32,
         collisions: &mut Vec<u32>,
-    ) {
+    ) -> QuadtreeResult<()> {
         self.collisions_rect_extent_with(min_x, min_y, max_x, max_y, |value| {
             collisions.push(value);
-        });
+        })
     }
 
     #[inline(always)]
@@ -92,11 +92,12 @@ impl QuadTreeInner {
         max_x: f32,
         max_y: f32,
         mut f: F,
-    ) where
+    ) -> QuadtreeResult<()>
+    where
         F: FnMut(u32),
     {
         self.normalize_hard();
-        let extent = RectExtent::from_min_max(min_x, min_y, max_x, max_y);
+        let extent = RectExtent::from_min_max(min_x, min_y, max_x, max_y)?;
         let tick = self.next_query_tick();
         if self.circle_count == 0 {
             #[cfg(feature = "query_stats")]
@@ -105,10 +106,11 @@ impl QuadTreeInner {
                 Self::bump_query_calls_ptr(stats);
             }
             self.collisions_rect_fast_with(extent, tick, &mut f);
-            return;
+            return Ok(());
         }
         let query = Query::from_rect_extent(extent);
         self.collisions_inner_with(query, None, &mut f);
+        Ok(())
     }
 
     pub fn collisions_circle_raw(
@@ -117,19 +119,26 @@ impl QuadTreeInner {
         y: f32,
         radius: f32,
         collisions: &mut Vec<u32>,
-    ) {
+    ) -> QuadtreeResult<()> {
         self.collisions_circle_raw_with(x, y, radius, |value| {
             collisions.push(value);
-        });
+        })
     }
 
-    pub fn collisions_circle_raw_with<F>(&mut self, x: f32, y: f32, radius: f32, mut f: F)
+    pub fn collisions_circle_raw_with<F>(
+        &mut self,
+        x: f32,
+        y: f32,
+        radius: f32,
+        mut f: F,
+    ) -> QuadtreeResult<()>
     where
         F: FnMut(u32),
     {
         self.normalize_hard();
-        let query = Query::from_circle_raw(x, y, radius);
+        let query = Query::from_circle_raw(x, y, radius)?;
         self.collisions_inner_with(query, None, &mut f);
+        Ok(())
     }
 
     fn collisions_from(
@@ -137,10 +146,10 @@ impl QuadTreeInner {
         query_shape: &ShapeEnum,
         filter_entity_types: Option<&EntityTypeFilter>,
         collisions: &mut Vec<u32>,
-    ) {
+    ) -> QuadtreeResult<()> {
         self.collisions_from_with(query_shape, filter_entity_types, &mut |value| {
             collisions.push(value);
-        });
+        })
     }
 
     fn collisions_from_with<F>(
@@ -148,11 +157,12 @@ impl QuadTreeInner {
         query_shape: &ShapeEnum,
         filter_entity_types: Option<&EntityTypeFilter>,
         f: &mut F,
-    ) where
+    ) -> QuadtreeResult<()>
+    where
         F: FnMut(u32),
     {
         self.normalize_hard();
-        self.collisions_from_with_normalized(query_shape, filter_entity_types, f);
+        self.collisions_from_with_normalized(query_shape, filter_entity_types, f)
     }
 
     fn collisions_from_with_normalized<F>(
@@ -160,11 +170,13 @@ impl QuadTreeInner {
         query_shape: &ShapeEnum,
         filter_entity_types: Option<&EntityTypeFilter>,
         f: &mut F,
-    ) where
+    ) -> QuadtreeResult<()>
+    where
         F: FnMut(u32),
     {
-        let query = Query::from_shape(query_shape);
+        let query = Query::from_shape(query_shape)?;
         self.collisions_inner_with(query, filter_entity_types, f);
+        Ok(())
     }
 
     fn collisions_inner_with<F>(
@@ -322,7 +334,7 @@ impl QuadTreeInner {
                                 y,
                                 radius,
                                 radius_sq,
-                                RectExtent::from_min_max(min_x, min_y, max_x, max_y),
+                                RectExtent::from_min_max_unchecked(min_x, min_y, max_x, max_y),
                             )
                         } else {
                             circle_circle_raw(x, y, radius, circle.x, circle.y, circle.radius)
@@ -405,7 +417,7 @@ impl QuadTreeInner {
                                 y,
                                 radius,
                                 radius_sq,
-                                RectExtent::from_min_max(min_x, min_y, max_x, max_y),
+                                RectExtent::from_min_max_unchecked(min_x, min_y, max_x, max_y),
                             )
                         } else {
                             circle_circle_raw(x, y, radius, circle.x, circle.y, circle.radius)

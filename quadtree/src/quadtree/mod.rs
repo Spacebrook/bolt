@@ -16,7 +16,7 @@ mod storage;
 mod types;
 mod update_entities;
 
-pub use config::{Config, RelocationRequest};
+pub use config::{Config, EntityTypeUpdate, RelocationRequest};
 pub(crate) use extents::*;
 pub(crate) use storage::*;
 pub use storage::{QuadTree, QueryStats};

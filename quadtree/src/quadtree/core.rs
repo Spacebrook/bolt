@@ -1,4 +1,5 @@
 use super::*;
+use crate::error::QuadtreeResult;
 use common::shapes::{Rectangle, ShapeEnum};
 use fxhash::FxHashMap;
 
@@ -40,8 +41,8 @@ impl QuadTreeInner {
             let _ = stats;
         }
     }
-    pub fn new_with_config(bounding_box: Rectangle, config: Config) -> Self {
-        let root_extent = RectExtent::from_rect(&bounding_box);
+    pub fn new_with_config(bounding_box: Rectangle, config: Config) -> QuadtreeResult<Self> {
+        let root_extent = RectExtent::from_rect(&bounding_box)?;
         let root_half = HalfExtent::from_rect_extent(root_extent);
         let split_threshold = config.node_capacity.max(1) as u32;
         let merge_threshold = split_threshold.saturating_sub(1).max(1);
@@ -81,7 +82,7 @@ impl QuadTreeInner {
         node_entities.push(NodeEntity::new(0));
         let node_entities_scratch = Vec::new();
         let mut node_entity_extents = NodeEntityExtentsSoa::default();
-        node_entity_extents.push(RectExtent::from_min_max(0.0, 0.0, 0.0, 0.0));
+        node_entity_extents.push(RectExtent::from_min_max_unchecked(0.0, 0.0, 0.0, 0.0));
         let node_entity_extents_scratch = NodeEntityExtentsSoa::default();
         let mut node_entity_packed = Vec::new();
         node_entity_packed.push(NodeEntityPacked::default());
@@ -102,7 +103,7 @@ impl QuadTreeInner {
         entities.push(Entity::sentinel());
         let entities_scratch = Vec::new();
         let mut entity_extents = ExtentAos::default();
-        entity_extents.push(RectExtent::from_min_max(0.0, 0.0, 0.0, 0.0));
+        entity_extents.push(RectExtent::from_min_max_unchecked(0.0, 0.0, 0.0, 0.0));
         let entity_extents_scratch = ExtentAos::default();
         let mut query_marks = Vec::new();
         query_marks.push(0);
@@ -169,7 +170,7 @@ impl QuadTreeInner {
         } else {
             0
         };
-        Self {
+        Ok(Self {
             root_half,
             nodes,
             nodes_scratch,
@@ -258,9 +259,9 @@ impl QuadTreeInner {
             max_entity_type: 0,
             max_entity_type_dirty: false,
             entity_reorder_map: Vec::new(),
-        }
+        })
     }
-    pub fn new(bounding_box: Rectangle) -> Self {
+    pub fn new(bounding_box: Rectangle) -> QuadtreeResult<Self> {
         Self::new_with_config(bounding_box, Config::default())
     }
     pub(crate) fn owner_lookup(&self, value: u32) -> Option<u32> {
@@ -516,36 +517,38 @@ impl QuadTreeInner {
         let idx = entity_idx as usize;
         self.entity_extents.extent(idx)
     }
-    pub(crate) fn shape_metadata(shape: &ShapeEnum) -> (u8, RectExtent, Option<CircleData>) {
+    pub(crate) fn shape_metadata(
+        shape: &ShapeEnum,
+    ) -> QuadtreeResult<(u8, RectExtent, Option<CircleData>)> {
         match shape {
             ShapeEnum::Rectangle(rect) => {
-                validate_rect_dims(rect.width, rect.height);
+                validate_rect_dims(rect.width, rect.height)?;
                 let half_w = rect.width * 0.5;
                 let half_h = rect.height * 0.5;
-                (
+                Ok((
                     SHAPE_RECT,
                     RectExtent::from_min_max(
                         rect.x - half_w,
                         rect.y - half_h,
                         rect.x + half_w,
                         rect.y + half_h,
-                    ),
+                    )?,
                     None,
-                )
+                ))
             }
             ShapeEnum::Circle(circle) => {
                 let radius = circle.radius;
-                validate_circle_radius(radius);
-                (
+                validate_circle_radius(radius)?;
+                Ok((
                     SHAPE_CIRCLE,
                     RectExtent::from_min_max(
                         circle.x - radius,
                         circle.y - radius,
                         circle.x + radius,
                         circle.y + radius,
-                    ),
+                    )?,
                     Some(CircleData::new(circle.x, circle.y, radius)),
-                )
+                ))
             }
         }
     }
@@ -585,9 +588,15 @@ impl QuadTreeInner {
             .expect("circle data not initialized")
     }
 
-    pub fn insert(&mut self, value: u32, shape: ShapeEnum, entity_type: Option<u32>) {
-        let (shape_kind, extent, circle_data) = Self::shape_metadata(&shape);
+    pub fn insert(
+        &mut self,
+        value: u32,
+        shape: ShapeEnum,
+        entity_type: Option<u32>,
+    ) -> QuadtreeResult<()> {
+        let (shape_kind, extent, circle_data) = Self::shape_metadata(&shape)?;
         self.insert_with_metadata(value, shape_kind, extent, circle_data, entity_type);
+        Ok(())
     }
 
     pub fn insert_rect_extent(
@@ -598,9 +607,10 @@ impl QuadTreeInner {
         max_x: f32,
         max_y: f32,
         entity_type: Option<u32>,
-    ) {
-        let extent = RectExtent::from_min_max(min_x, min_y, max_x, max_y);
+    ) -> QuadtreeResult<()> {
+        let extent = RectExtent::from_min_max(min_x, min_y, max_x, max_y)?;
         self.insert_with_metadata(value, SHAPE_RECT, extent, None, entity_type);
+        Ok(())
     }
 
     pub fn insert_circle_raw(
@@ -610,11 +620,12 @@ impl QuadTreeInner {
         y: f32,
         radius: f32,
         entity_type: Option<u32>,
-    ) {
-        validate_circle_radius(radius);
-        let extent = RectExtent::from_min_max(x - radius, y - radius, x + radius, y + radius);
+    ) -> QuadtreeResult<()> {
+        validate_circle_radius(radius)?;
+        let extent = RectExtent::from_min_max(x - radius, y - radius, x + radius, y + radius)?;
         let circle = CircleData::new(x, y, radius);
         self.insert_with_metadata(value, SHAPE_CIRCLE, extent, Some(circle), entity_type);
+        Ok(())
     }
 
     fn insert_with_metadata(

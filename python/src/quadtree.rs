@@ -1,12 +1,13 @@
-use ::quadtree::quadtree::{Config, QuadTree, RelocationRequest};
+use ::quadtree::quadtree::{Config, EntityTypeUpdate, QuadTree, RelocationRequest};
+use ::quadtree::QuadtreeError;
 use common::shapes::{Circle, Rectangle, Shape, ShapeEnum};
 
 use crate::{extract_entity_types, extract_shape, PyCircle, PyRectangle};
-use pyo3::exceptions::PyTypeError;
+use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::pyclass;
 use pyo3::pymethods;
 use pyo3::types::{PyAny, PyAnyMethods, PyList, PyListMethods, PyTuple, PyTupleMethods};
-use pyo3::{Bound, Py, PyResult, Python};
+use pyo3::{Bound, Py, PyErr, PyResult, Python};
 
 #[derive(Clone)]
 #[pyclass(name = "Config")]
@@ -50,23 +51,27 @@ pub struct QuadTreeWrapper {
     quadtree: QuadTree,
 }
 
+fn map_quadtree_error(err: QuadtreeError) -> PyErr {
+    PyValueError::new_err(err.to_string())
+}
+
 #[pymethods]
 impl QuadTreeWrapper {
     #[new]
-    pub fn new(bounding_box: PyRectangle) -> Self {
+    pub fn new(bounding_box: PyRectangle) -> PyResult<Self> {
         let bounding_rect = Rectangle {
             x: bounding_box.x() + bounding_box.width() / 2.0,
             y: bounding_box.y() + bounding_box.height() / 2.0,
             width: bounding_box.width(),
             height: bounding_box.height(),
         };
-        QuadTreeWrapper {
-            quadtree: QuadTree::new(bounding_rect),
-        }
+        Ok(QuadTreeWrapper {
+            quadtree: QuadTree::new(bounding_rect).map_err(map_quadtree_error)?,
+        })
     }
 
     #[staticmethod]
-    pub fn new_with_config(bounding_box: PyRectangle, config: PyConfig) -> Self {
+    pub fn new_with_config(bounding_box: PyRectangle, config: PyConfig) -> PyResult<Self> {
         let bounding_rect = Rectangle {
             x: bounding_box.x() + bounding_box.width() / 2.0,
             y: bounding_box.y() + bounding_box.height() / 2.0,
@@ -84,9 +89,10 @@ impl QuadTreeWrapper {
             profile_detail: false,
             profile_limit: 5,
         };
-        QuadTreeWrapper {
-            quadtree: QuadTree::new_with_config(bounding_rect, rust_config),
-        }
+        Ok(QuadTreeWrapper {
+            quadtree: QuadTree::new_with_config(bounding_rect, rust_config)
+                .map_err(map_quadtree_error)?,
+        })
     }
 
     #[pyo3(signature = (value, shape, entity_type=None))]
@@ -98,7 +104,9 @@ impl QuadTreeWrapper {
         entity_type: Option<u32>,
     ) -> PyResult<()> {
         let shape = extract_shape(py, shape)?;
-        self.quadtree.insert(value, shape, entity_type);
+        self.quadtree
+            .insert(value, shape, entity_type)
+            .map_err(map_quadtree_error)?;
         Ok(())
     }
 
@@ -123,7 +131,8 @@ impl QuadTreeWrapper {
 
         let mut collisions = Vec::new();
         self.quadtree
-            .collisions_filter(shape, entity_types, &mut collisions);
+            .collisions_filter(shape, entity_types, &mut collisions)
+            .map_err(map_quadtree_error)?;
         Ok(collisions)
     }
 
@@ -149,7 +158,9 @@ impl QuadTreeWrapper {
 
         let entity_types = extract_entity_types(entity_types)?;
 
-        Ok(self.quadtree.collisions_batch_filter(shapes, entity_types))
+        self.quadtree
+            .collisions_batch_filter(shapes, entity_types)
+            .map_err(map_quadtree_error)
     }
 
     #[pyo3(signature = (value, shape, entity_type=None))]
@@ -158,10 +169,37 @@ impl QuadTreeWrapper {
         py: Python,
         value: u32,
         shape: Py<PyAny>,
-        entity_type: Option<u32>,
+        entity_type: Option<Py<PyAny>>,
     ) -> PyResult<()> {
         let shape = extract_shape(py, shape)?;
-        self.quadtree.relocate(value, shape, entity_type);
+        let update = match entity_type {
+            None => EntityTypeUpdate::Preserve,
+            Some(obj) => {
+                let obj = obj.bind(py);
+                if obj.is_none() {
+                    EntityTypeUpdate::Preserve
+                } else if let Ok(value) = obj.extract::<u32>() {
+                    EntityTypeUpdate::Set(value)
+                } else if let Ok(text) = obj.extract::<String>() {
+                    match text.as_str() {
+                        "clear" => EntityTypeUpdate::Clear,
+                        "preserve" => EntityTypeUpdate::Preserve,
+                        _ => {
+                            return Err(PyTypeError::new_err(
+                                "entity_type must be an int, 'clear', 'preserve', or None",
+                            ));
+                        }
+                    }
+                } else {
+                    return Err(PyTypeError::new_err(
+                        "entity_type must be an int, 'clear', 'preserve', or None",
+                    ));
+                }
+            }
+        };
+        self.quadtree
+            .relocate(value, shape, update)
+            .map_err(map_quadtree_error)?;
         Ok(())
     }
 
@@ -176,9 +214,27 @@ impl QuadTreeWrapper {
             .map(|tuple| {
                 let value = tuple.get_item(0)?.extract::<u32>()?;
                 let shape = extract_shape(py, tuple.get_item(1)?.unbind())?;
-                let entity_type: Option<u32> = match tuple.get_item(2)? {
-                    obj if obj.is_none() => None,
-                    obj => Some(obj.extract::<u32>()?),
+                let entity_type = match tuple.get_item(2)? {
+                    obj if obj.is_none() => EntityTypeUpdate::Preserve,
+                    obj => {
+                        if let Ok(value) = obj.extract::<u32>() {
+                            EntityTypeUpdate::Set(value)
+                        } else if let Ok(text) = obj.extract::<String>() {
+                            match text.as_str() {
+                                "clear" => EntityTypeUpdate::Clear,
+                                "preserve" => EntityTypeUpdate::Preserve,
+                                _ => {
+                                    return Err(PyTypeError::new_err(
+                                        "entity_type must be an int, 'clear', 'preserve', or None",
+                                    ));
+                                }
+                            }
+                        } else {
+                            return Err(PyTypeError::new_err(
+                                "entity_type must be an int, 'clear', 'preserve', or None",
+                            ));
+                        }
+                    }
                 };
                 Ok(RelocationRequest {
                     value,
@@ -188,12 +244,14 @@ impl QuadTreeWrapper {
             })
             .collect::<PyResult<_>>()?;
 
-        self.quadtree.relocate_batch(requests);
+        self.quadtree
+            .relocate_batch(requests)
+            .map_err(map_quadtree_error)?;
 
         Ok(())
     }
 
-    pub fn all_node_bounding_boxes(&self) -> Vec<(f32, f32, f32, f32)> {
+    pub fn all_node_bounding_boxes(&mut self) -> Vec<(f32, f32, f32, f32)> {
         let mut bounding_boxes = Vec::new();
         self.quadtree.all_node_bounding_boxes(&mut bounding_boxes);
         bounding_boxes

@@ -1,4 +1,5 @@
 use super::QuadTreeInner;
+use crate::error::{QuadtreeError, QuadtreeResult};
 use common::shapes::{Rectangle, ShapeEnum};
 use smallvec::SmallVec;
 
@@ -22,21 +23,41 @@ pub(crate) struct RectExtent {
 
 impl RectExtent {
     #[inline(always)]
-    pub(crate) fn from_rect(rect: &Rectangle) -> Self {
-        validate_rect_dims(rect.width, rect.height);
+    pub(crate) fn from_rect(rect: &Rectangle) -> QuadtreeResult<Self> {
+        validate_rect_dims(rect.width, rect.height)?;
         let half_w = rect.width * 0.5;
         let half_h = rect.height * 0.5;
-        Self {
+        Ok(Self {
             min_x: rect.x - half_w,
             min_y: rect.y - half_h,
             max_x: rect.x + half_w,
             max_y: rect.y + half_h,
-        }
+        })
     }
 
     #[inline(always)]
-    pub(crate) fn from_min_max(min_x: f32, min_y: f32, max_x: f32, max_y: f32) -> Self {
-        validate_rect_extent_bounds(min_x, min_y, max_x, max_y);
+    pub(crate) fn from_min_max(
+        min_x: f32,
+        min_y: f32,
+        max_x: f32,
+        max_y: f32,
+    ) -> QuadtreeResult<Self> {
+        validate_rect_extent_bounds(min_x, min_y, max_x, max_y)?;
+        Ok(Self {
+            min_x,
+            min_y,
+            max_x,
+            max_y,
+        })
+    }
+
+    #[inline(always)]
+    pub(crate) fn from_min_max_unchecked(
+        min_x: f32,
+        min_y: f32,
+        max_x: f32,
+        max_y: f32,
+    ) -> Self {
         Self {
             min_x,
             min_y,
@@ -300,34 +321,34 @@ pub(crate) struct Query {
 }
 
 impl Query {
-    pub(crate) fn from_shape(shape: &ShapeEnum) -> Self {
+    pub(crate) fn from_shape(shape: &ShapeEnum) -> QuadtreeResult<Self> {
         match shape {
-            ShapeEnum::Rectangle(rect) => Self {
-                extent: RectExtent::from_rect(rect),
+            ShapeEnum::Rectangle(rect) => Ok(Self {
+                extent: RectExtent::from_rect(rect)?,
                 kind: QueryKind::Rect {
                     x: rect.x,
                     y: rect.y,
                     half_w: rect.width * 0.5,
                     half_h: rect.height * 0.5,
                 },
-            },
+            }),
             ShapeEnum::Circle(circle) => {
                 let radius = circle.radius;
-                validate_circle_radius(radius);
-                Self {
+                validate_circle_radius(radius)?;
+                Ok(Self {
                     extent: RectExtent::from_min_max(
                         circle.x - radius,
                         circle.y - radius,
                         circle.x + radius,
                         circle.y + radius,
-                    ),
+                    )?,
                     kind: QueryKind::Circle {
                         x: circle.x,
                         y: circle.y,
                         radius,
                         radius_sq: radius * radius,
                     },
-                }
+                })
             }
         }
     }
@@ -346,17 +367,17 @@ impl Query {
     }
 
     #[inline(always)]
-    pub(crate) fn from_circle_raw(x: f32, y: f32, radius: f32) -> Self {
-        validate_circle_radius(radius);
-        Self {
-            extent: RectExtent::from_min_max(x - radius, y - radius, x + radius, y + radius),
+    pub(crate) fn from_circle_raw(x: f32, y: f32, radius: f32) -> QuadtreeResult<Self> {
+        validate_circle_radius(radius)?;
+        Ok(Self {
+            extent: RectExtent::from_min_max(x - radius, y - radius, x + radius, y + radius)?,
             kind: QueryKind::Circle {
                 x,
                 y,
                 radius,
                 radius_sq: radius * radius,
             },
-        }
+        })
     }
 }
 
@@ -367,7 +388,7 @@ pub(crate) struct NodeEntity(u32);
 impl NodeEntity {
     #[inline(always)]
     pub(crate) fn new(index: u32) -> Self {
-        assert!(
+        debug_assert!(
             index <= NODE_ENTITY_INDEX_MASK,
             "entity index {} exceeds max {}",
             index,
@@ -398,7 +419,7 @@ impl NodeEntity {
 
     #[inline(always)]
     pub(crate) fn set_index(&mut self, index: u32) {
-        assert!(
+        debug_assert!(
             index <= NODE_ENTITY_INDEX_MASK,
             "entity index {} exceeds max {}",
             index,
@@ -502,29 +523,36 @@ impl EntityMapper for IdentityMapper {
     fn update_in_nodes_if_mapped(&mut self, _old_idx: u32, _in_nodes_minus_one: u32) {}
 }
 
-pub(crate) fn validate_rect_dims(width: f32, height: f32) {
-    assert!(
-        width.is_finite() && height.is_finite(),
-        "rectangle width/height must be finite"
-    );
-    assert!(
-        width >= 0.0 && height >= 0.0,
-        "rectangle width/height must be non-negative"
-    );
+pub(crate) fn validate_rect_dims(width: f32, height: f32) -> QuadtreeResult<()> {
+    if !(width.is_finite() && height.is_finite()) || width < 0.0 || height < 0.0 {
+        return Err(QuadtreeError::InvalidRectangleDims { width, height });
+    }
+    Ok(())
 }
 
-pub(crate) fn validate_circle_radius(radius: f32) {
-    assert!(radius.is_finite(), "circle radius must be finite");
-    assert!(radius >= 0.0, "circle radius must be non-negative");
+pub(crate) fn validate_circle_radius(radius: f32) -> QuadtreeResult<()> {
+    if !(radius.is_finite() && radius >= 0.0) {
+        return Err(QuadtreeError::InvalidCircleRadius { radius });
+    }
+    Ok(())
 }
 
-pub(crate) fn validate_rect_extent_bounds(min_x: f32, min_y: f32, max_x: f32, max_y: f32) {
-    assert!(
-        min_x.is_finite() && min_y.is_finite() && max_x.is_finite() && max_y.is_finite(),
-        "rectangle extents must be finite"
-    );
-    assert!(
-        min_x <= max_x && min_y <= max_y,
-        "rectangle extents must have min <= max"
-    );
+pub(crate) fn validate_rect_extent_bounds(
+    min_x: f32,
+    min_y: f32,
+    max_x: f32,
+    max_y: f32,
+) -> QuadtreeResult<()> {
+    if !(min_x.is_finite() && min_y.is_finite() && max_x.is_finite() && max_y.is_finite())
+        || min_x > max_x
+        || min_y > max_y
+    {
+        return Err(QuadtreeError::InvalidRectExtent {
+            min_x,
+            min_y,
+            max_x,
+            max_y,
+        });
+    }
+    Ok(())
 }

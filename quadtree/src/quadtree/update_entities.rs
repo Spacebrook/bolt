@@ -226,7 +226,8 @@ impl QuadTreeInner {
                 idx
             } else {
                 node_entities.push(NodeEntity::new(0));
-                node_entity_extents.push(RectExtent::from_min_max(0.0, 0.0, 0.0, 0.0));
+                node_entity_extents
+                    .push(RectExtent::from_min_max_unchecked(0.0, 0.0, 0.0, 0.0));
                 node_entity_packed.push(NodeEntityPacked::default());
                 node_entity_values.push(0);
                 node_entities_next.push(0);

@@ -119,6 +119,9 @@ fn main() {
         min_size: bench_min_size(),
         looseness: 1.0,
         large_entity_threshold_factor: 0.0,
+        profile_summary: false,
+        profile_detail: false,
+        profile_limit: 5,
     };
 
     let entities = make_entities(bounds, entity_count, seed);
@@ -130,7 +133,7 @@ fn main() {
             height: ARENA_HEIGHT,
         },
         config,
-    );
+    ).unwrap();
 
     for (i, entity) in entities.iter().enumerate() {
         quadtree.insert_rect_extent(
@@ -140,7 +143,7 @@ fn main() {
             entity.max_x,
             entity.max_y,
             None,
-        );
+        ).unwrap();
     }
 
     quadtree.update();
@@ -152,7 +155,9 @@ fn main() {
         let start = Instant::now();
         for entity in entities.iter().take(query_count) {
             let (min_x, min_y, max_x, max_y) = entity.query_rect_extent();
-            quadtree.collisions_rect_extent_with_mut(min_x, min_y, max_x, max_y, |_| {});
+            quadtree
+                .collisions_rect_extent_with(min_x, min_y, max_x, max_y, |_| {})
+                .unwrap();
         }
         query_total += start.elapsed();
     }

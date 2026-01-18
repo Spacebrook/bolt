@@ -284,7 +284,9 @@ impl QuadTreeInner {
                                 a_circle.y,
                                 a_circle.radius,
                                 a_circle.radius_sq,
-                                RectExtent::from_min_max(b_min_x, b_min_y, b_max_x, b_max_y),
+                                RectExtent::from_min_max_unchecked(
+                                    b_min_x, b_min_y, b_max_x, b_max_y,
+                                ),
                             )
                         } else {
                             circle_extent_raw(
@@ -292,7 +294,9 @@ impl QuadTreeInner {
                                 b_circle.y,
                                 b_circle.radius,
                                 b_circle.radius_sq,
-                                RectExtent::from_min_max(a_min_x, a_min_y, a_max_x, a_max_y),
+                                RectExtent::from_min_max_unchecked(
+                                    a_min_x, a_min_y, a_max_x, a_max_y,
+                                ),
                             )
                         };
                         if hit {

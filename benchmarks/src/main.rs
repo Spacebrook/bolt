@@ -1,6 +1,6 @@
 mod c_quadtree;
 
-use bolt_quadtree::quadtree::{Config, QuadTree as BoltQuadTree};
+use bolt_quadtree::quadtree::{Config, EntityTypeUpdate, QuadTree as BoltQuadTree};
 use common::shapes::{Rectangle, ShapeEnum};
 use quadtree_crate::{Quadtree as QtGeneric, Vec2, shapes::Rect as QtRect, vec2};
 use quadtree_f32::{Item, ItemId, Point as F32Point, QuadTree as QtF32, Rect as RectF32};
@@ -402,7 +402,7 @@ fn bench_bolt(entities_seed: &[Entity], bounds: Bounds, ticks: usize) -> BenchRe
             height: ARENA_HEIGHT,
         },
         config,
-    );
+    ).unwrap();
 
     for (i, entity) in entities.iter().enumerate() {
         if use_raw {
@@ -413,9 +413,9 @@ fn bench_bolt(entities_seed: &[Entity], bounds: Bounds, ticks: usize) -> BenchRe
                 entity.max_x,
                 entity.max_y,
                 None,
-            );
+            ).unwrap();
         } else {
-            quadtree.insert(i as u32, ShapeEnum::Rectangle(entity.to_rectangle()), None);
+            quadtree.insert(i as u32, ShapeEnum::Rectangle(entity.to_rectangle()), None).unwrap();
         }
     }
 
@@ -444,22 +444,26 @@ fn bench_bolt(entities_seed: &[Entity], bounds: Bounds, ticks: usize) -> BenchRe
         let start = Instant::now();
         if use_raw {
             for (value, entity) in entities.iter().enumerate() {
-                quadtree.relocate_rect_extent(
+                quadtree
+                    .relocate_rect_extent(
                     value as u32,
                     entity.min_x,
                     entity.min_y,
                     entity.max_x,
                     entity.max_y,
-                    None,
-                );
+                        EntityTypeUpdate::Preserve,
+                    )
+                    .unwrap();
             }
         } else {
             for (value, entity) in entities.iter().enumerate() {
-                quadtree.relocate(
+                quadtree
+                    .relocate(
                     value as u32,
                     ShapeEnum::Rectangle(entity.to_rectangle()),
-                    None,
-                );
+                        EntityTypeUpdate::Preserve,
+                    )
+                    .unwrap();
             }
         }
         relocate_total += start.elapsed();
@@ -476,18 +480,20 @@ fn bench_bolt(entities_seed: &[Entity], bounds: Bounds, ticks: usize) -> BenchRe
             let q_half_h = QUERY_HEIGHT * 0.5;
             for i in 0..query_count {
                 let entity = unsafe { *entities_ptr.add(i) };
-                quadtree.collisions_rect_extent_with_mut(
-                    entity.min_x - q_half_w,
-                    entity.min_y - q_half_h,
-                    entity.max_x + q_half_w,
-                    entity.max_y + q_half_h,
-                    |_| {},
-                );
+                quadtree
+                    .collisions_rect_extent_with(
+                        entity.min_x - q_half_w,
+                        entity.min_y - q_half_h,
+                        entity.max_x + q_half_w,
+                        entity.max_y + q_half_h,
+                        |_| {},
+                    )
+                    .unwrap();
             }
         } else {
             for i in 0..query_count {
                 let entity = unsafe { &*entities_ptr.add(i) };
-                quadtree.collisions_with(ShapeEnum::Rectangle(entity.query_rectangle()), |_| {});
+                quadtree.collisions_with(ShapeEnum::Rectangle(entity.query_rectangle()), |_| {}).unwrap();
             }
         }
         query_total += start.elapsed();
