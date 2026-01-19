@@ -1,5 +1,5 @@
 use bolt_quadtree::quadtree::{Config, QuadTree as BoltQuadTree};
-use common::shapes::Rectangle;
+use bolt_quadtree::shapes::Rectangle;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use std::env;

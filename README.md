@@ -7,7 +7,7 @@ With Quadtree, you can effortlessly manage spatial data and efficiently perform 
 Here's an example of how to use the quadtree library in Rust:
 
 ```rust
-use common::shapes::{Circle, Rectangle, ShapeEnum};
+use bolt_quadtree::shapes::{Circle, Rectangle, ShapeEnum};
 use quadtree::{QuadtreeResult};
 use quadtree::quadtree::{EntityTypeUpdate, QuadTree};
 

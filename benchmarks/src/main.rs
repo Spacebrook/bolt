@@ -1,7 +1,7 @@
 mod c_quadtree;
 
 use bolt_quadtree::quadtree::{Config, EntityTypeUpdate, QuadTree as BoltQuadTree};
-use common::shapes::{Rectangle, ShapeEnum};
+use bolt_quadtree::shapes::{Rectangle, ShapeEnum};
 use quadtree_crate::{Quadtree as QtGeneric, Vec2, shapes::Rect as QtRect, vec2};
 use quadtree_f32::{Item, ItemId, Point as F32Point, QuadTree as QtF32, Rect as RectF32};
 use quadtree_rs::{Quadtree as QtRs, area::AreaBuilder, point::Point as RsPoint};

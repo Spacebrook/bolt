@@ -6,12 +6,10 @@ edition = "2021"
 [dependencies]
 pyo3 = { version = "0.27.2", features = ["extension-module"] }
 parry2d = "0.17.0"
-rand = "0.8.5"
 smallvec = "1.10.0"
 
 collisions = { path = "../collisions" }
-common = { path = "../common" }
-quadtree = { path = "../quadtree" }
+bolt_quadtree = { version = "0.1.0", package = "bolt-quadtree" }
 serialization = { path = "../serialization" }
 netcode = { path = "../netcode" }
 [lib]

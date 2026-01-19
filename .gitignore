@@ -1,4 +1,5 @@
 /target
+**/target
 **/*.rs.bk
 netcode/schema/gen/net_schema.json
 benchmarks/third_party/*

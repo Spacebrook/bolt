@@ -1,8 +1,0 @@
-[workspace]
-members = [ "benchmarks","collisions", "common", "netcode", "python", "quadtree", "serialization"]
-resolver = "2"
-
-[profile.release]
-lto = "fat"
-codegen-units = 1
-panic = "abort"
