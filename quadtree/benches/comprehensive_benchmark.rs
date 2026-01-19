@@ -277,7 +277,8 @@ fn main() {
             height: ARENA_HEIGHT,
         },
         config,
-    ).unwrap();
+    )
+    .unwrap();
 
     let start = Instant::now();
     for i in 0..ITER {
@@ -315,7 +316,9 @@ fn main() {
             vy: (1.0 - 2.0 * randf(&mut rng)) * INITIAL_VELOCITY,
         };
 
-        quadtree.insert(i as u32, ShapeEnum::Rectangle(entity.to_rectangle()), None).unwrap();
+        quadtree
+            .insert(i as u32, ShapeEnum::Rectangle(entity.to_rectangle()), None)
+            .unwrap();
         entities.push(entity);
     }
 
@@ -363,13 +366,16 @@ fn main() {
         for i in 0..QUERIES_NUM {
             if query_push {
                 collisions.clear();
-                quadtree.collisions(
-                    ShapeEnum::Rectangle(entities[i].query_rectangle()),
-                    &mut collisions,
-                ).unwrap();
+                quadtree
+                    .collisions(
+                        ShapeEnum::Rectangle(entities[i].query_rectangle()),
+                        &mut collisions,
+                    )
+                    .unwrap();
             } else {
                 quadtree
-                    .collisions_with(ShapeEnum::Rectangle(entities[i].query_rectangle()), |_| {}).unwrap();
+                    .collisions_with(ShapeEnum::Rectangle(entities[i].query_rectangle()), |_| {})
+                    .unwrap();
             }
         }
         query_total += start.elapsed();

@@ -557,7 +557,7 @@ pub(crate) struct QuadTreeInner {
     pub(crate) insert_stack: NodeStack,
     pub(crate) remove_stack: NodeStack,
     pub(crate) query_stack: NodeStack,
-    pub(crate) query_info_stack: Vec<NodeQueryInfo>,
+    pub(crate) query_info_stack: Vec<std::mem::MaybeUninit<NodeQueryInfo>>,
     pub(crate) update_stack: NodeStack,
     pub(crate) circle_count: u32,
     pub(crate) typed_count: u32,

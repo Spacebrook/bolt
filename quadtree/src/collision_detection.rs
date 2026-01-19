@@ -16,7 +16,12 @@ pub fn rectangle_contains_rectangle(outer: &Rectangle, inner: &Rectangle) -> Qua
 pub fn rectangle_rectangle(a: &Rectangle, b: &Rectangle) -> QuadtreeResult<bool> {
     validate_rect_dims(a.width, a.height)?;
     validate_rect_dims(b.width, b.height)?;
-    Ok(a.left() < b.right() && a.right() > b.left() && a.top() < b.bottom() && a.bottom() > b.top())
+    Ok(
+        a.left() < b.right()
+            && a.right() > b.left()
+            && a.top() < b.bottom()
+            && a.bottom() > b.top(),
+    )
 }
 
 /// Note: touching edges are not treated as collisions.
@@ -61,7 +66,9 @@ pub fn circle_rectangle(circle: &Circle, rectangle: &Rectangle) -> QuadtreeResul
 /// Note: touching edges are not treated as collisions.
 pub fn shape_shape(a: &ShapeEnum, b: &ShapeEnum) -> QuadtreeResult<bool> {
     match (a, b) {
-        (ShapeEnum::Circle(circle_a), ShapeEnum::Circle(circle_b)) => circle_circle(circle_a, circle_b),
+        (ShapeEnum::Circle(circle_a), ShapeEnum::Circle(circle_b)) => {
+            circle_circle(circle_a, circle_b)
+        }
         (ShapeEnum::Circle(circle), ShapeEnum::Rectangle(rectangle))
         | (ShapeEnum::Rectangle(rectangle), ShapeEnum::Circle(circle)) => {
             circle_rectangle(circle, rectangle)

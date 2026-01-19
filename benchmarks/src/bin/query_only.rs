@@ -133,17 +133,20 @@ fn main() {
             height: ARENA_HEIGHT,
         },
         config,
-    ).unwrap();
+    )
+    .unwrap();
 
     for (i, entity) in entities.iter().enumerate() {
-        quadtree.insert_rect_extent(
-            i as u32,
-            entity.min_x,
-            entity.min_y,
-            entity.max_x,
-            entity.max_y,
-            None,
-        ).unwrap();
+        quadtree
+            .insert_rect_extent(
+                i as u32,
+                entity.min_x,
+                entity.min_y,
+                entity.max_x,
+                entity.max_y,
+                None,
+            )
+            .unwrap();
     }
 
     quadtree.update();

@@ -52,12 +52,7 @@ impl RectExtent {
     }
 
     #[inline(always)]
-    pub(crate) fn from_min_max_unchecked(
-        min_x: f32,
-        min_y: f32,
-        max_x: f32,
-        max_y: f32,
-    ) -> Self {
+    pub(crate) fn from_min_max_unchecked(min_x: f32, min_y: f32, max_x: f32, max_y: f32) -> Self {
         Self {
             min_x,
             min_y,

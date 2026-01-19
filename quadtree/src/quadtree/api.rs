@@ -67,7 +67,7 @@ impl QuadTree {
 
     pub fn relocate_batch(
         &mut self,
-        relocation_requests: Vec<RelocationRequest>,
+        relocation_requests: &[RelocationRequest],
     ) -> QuadtreeResult<()> {
         self.inner.get_mut().relocate_batch(relocation_requests)
     }
@@ -113,14 +113,14 @@ impl QuadTree {
     }
 
     /// Note: touching edges are not treated as collisions.
-    pub fn collisions_batch(&mut self, shapes: Vec<ShapeEnum>) -> QuadtreeResult<Vec<Vec<u32>>> {
+    pub fn collisions_batch(&mut self, shapes: &[ShapeEnum]) -> QuadtreeResult<Vec<Vec<u32>>> {
         self.inner.get_mut().collisions_batch(shapes)
     }
 
     /// Note: touching edges are not treated as collisions.
     pub fn collisions_batch_filter(
         &mut self,
-        shapes: Vec<ShapeEnum>,
+        shapes: &[ShapeEnum],
         filter_entity_types: Option<Vec<u32>>,
     ) -> QuadtreeResult<Vec<Vec<u32>>> {
         self.inner
@@ -252,7 +252,7 @@ impl QuadTree {
         self.inner.get_mut().all_node_bounding_boxes(bounding_boxes);
     }
 
-    pub fn all_shapes(&self, shapes: &mut Vec<ShapeEnum>) {
-        self.inner.borrow().all_shapes(shapes);
+    pub fn all_shapes(&mut self, shapes: &mut Vec<ShapeEnum>) {
+        self.inner.get_mut().all_shapes(shapes);
     }
 }

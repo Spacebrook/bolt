@@ -55,7 +55,8 @@ fn insert_benchmark(c: &mut Criterion) {
         y: 0.0,
         width: BOUNDS,
         height: BOUNDS,
-    }).unwrap();
+    })
+    .unwrap();
 
     c.bench_function("quadtree_insert", |b| {
         b.iter(|| {
@@ -77,7 +78,8 @@ fn delete_benchmark(c: &mut Criterion) {
         y: 0.0,
         width: BOUNDS,
         height: BOUNDS,
-    }).unwrap();
+    })
+    .unwrap();
     let mut items = Vec::new();
     for _ in 0..1000 {
         let shape = ShapeEnum::Rectangle(Rectangle {
@@ -106,7 +108,8 @@ fn relocate_benchmark(c: &mut Criterion) {
         y: 0.0,
         width: BOUNDS,
         height: BOUNDS,
-    }).unwrap();
+    })
+    .unwrap();
     let mut relocation_requests = Vec::new();
     for _ in 0..1000 {
         let shape = ShapeEnum::Rectangle(Rectangle {
@@ -126,7 +129,9 @@ fn relocate_benchmark(c: &mut Criterion) {
 
     c.bench_function("quadtree_relocate", |b| {
         b.iter(|| {
-            quadtree.relocate_batch(black_box(relocation_requests.clone())).unwrap();
+            quadtree
+                .relocate_batch(black_box(&relocation_requests))
+                .unwrap();
         })
     });
 }
@@ -138,7 +143,8 @@ fn collisions_benchmark(c: &mut Criterion) {
         y: 0.0,
         width: BOUNDS,
         height: BOUNDS,
-    }).unwrap();
+    })
+    .unwrap();
     // Insert random items into the quadtree
     for _ in 0..1000 {
         let shape = ShapeEnum::Rectangle(Rectangle {
@@ -161,7 +167,9 @@ fn collisions_benchmark(c: &mut Criterion) {
     c.bench_function("quadtree_collisions", |b| {
         b.iter(|| {
             let mut _collisions: Vec<u32> = Vec::new();
-            quadtree.collisions(black_box(query_shape.clone()), &mut _collisions).unwrap();
+            quadtree
+                .collisions(black_box(query_shape.clone()), &mut _collisions)
+                .unwrap();
         })
     });
 }
@@ -181,11 +189,13 @@ fn collisions_filter_large_filter_benchmark(c: &mut Criterion) {
     c.bench_function("quadtree_collisions_filter_large_filter", |b| {
         b.iter(|| {
             let mut collisions = Vec::new();
-            quadtree.collisions_filter(
-                black_box(query_shape.clone()),
-                Some(filter.clone()),
-                &mut collisions,
-            ).unwrap();
+            quadtree
+                .collisions_filter(
+                    black_box(query_shape.clone()),
+                    Some(filter.clone()),
+                    &mut collisions,
+                )
+                .unwrap();
             black_box(collisions);
         })
     });
@@ -207,8 +217,9 @@ fn collisions_batch_filter_large_filter_benchmark(c: &mut Criterion) {
 
     c.bench_function("quadtree_collisions_batch_filter_large_filter", |b| {
         b.iter(|| {
-            let result =
-                quadtree.collisions_batch_filter(black_box(shapes.clone()), Some(filter.clone())).unwrap();
+            let result = quadtree
+                .collisions_batch_filter(black_box(&shapes), Some(filter.clone()))
+                .unwrap();
             black_box(result);
         })
     });
@@ -254,7 +265,8 @@ fn comprehensive_benchmark(c: &mut Criterion) {
                 y: 0.0,
                 width: BOUNDS,
                 height: BOUNDS,
-            }).unwrap();
+            })
+            .unwrap();
             quadtree_group.push(quadtree);
         }
         quadtree_groups.push(quadtree_group);
@@ -285,7 +297,7 @@ fn comprehensive_benchmark(c: &mut Criterion) {
                             entity_type: EntityTypeUpdate::Preserve,
                         });
                     }
-                    quadtree.relocate_batch(relocation_requests).unwrap();
+                    quadtree.relocate_batch(&relocation_requests).unwrap();
 
                     // Perform collision queries
                     let num_queries = match i {

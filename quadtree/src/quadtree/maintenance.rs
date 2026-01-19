@@ -3,9 +3,12 @@ use crate::error::QuadtreeResult;
 use common::shapes::ShapeEnum;
 
 impl QuadTreeInner {
-    pub fn relocate_batch(&mut self, relocation_requests: Vec<RelocationRequest>) -> QuadtreeResult<()> {
+    pub fn relocate_batch(
+        &mut self,
+        relocation_requests: &[RelocationRequest],
+    ) -> QuadtreeResult<()> {
         for request in relocation_requests {
-            self.relocate(request.value, request.shape, request.entity_type)?;
+            self.relocate(request.value, request.shape.clone(), request.entity_type)?;
         }
         Ok(())
     }

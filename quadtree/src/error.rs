@@ -2,8 +2,13 @@ use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum QuadtreeError {
-    InvalidRectangleDims { width: f32, height: f32 },
-    InvalidCircleRadius { radius: f32 },
+    InvalidRectangleDims {
+        width: f32,
+        height: f32,
+    },
+    InvalidCircleRadius {
+        radius: f32,
+    },
     InvalidRectExtent {
         min_x: f32,
         min_y: f32,

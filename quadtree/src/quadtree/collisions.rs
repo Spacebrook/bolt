@@ -3,12 +3,12 @@ use crate::error::QuadtreeResult;
 use common::shapes::ShapeEnum;
 
 impl QuadTreeInner {
-    pub fn collisions_batch(&mut self, shapes: Vec<ShapeEnum>) -> QuadtreeResult<Vec<Vec<u32>>> {
+    pub fn collisions_batch(&mut self, shapes: &[ShapeEnum]) -> QuadtreeResult<Vec<Vec<u32>>> {
         self.normalize_hard();
         let mut results = Vec::with_capacity(shapes.len());
         for shape in shapes {
             let mut collisions = Vec::new();
-            self.collisions_from_with_normalized(&shape, None, &mut |value| {
+            self.collisions_from_with_normalized(shape, None, &mut |value| {
                 collisions.push(value);
             })?;
             results.push(collisions);
@@ -18,7 +18,7 @@ impl QuadTreeInner {
 
     pub fn collisions_batch_filter(
         &mut self,
-        shapes: Vec<ShapeEnum>,
+        shapes: &[ShapeEnum],
         filter_entity_types: Option<Vec<u32>>,
     ) -> QuadtreeResult<Vec<Vec<u32>>> {
         let filter = filter_entity_types.map(EntityTypeFilter::from_vec);
@@ -30,7 +30,7 @@ impl QuadTreeInner {
         let mut results = Vec::with_capacity(shapes.len());
         for shape in shapes {
             let mut collisions = Vec::new();
-            self.collisions_from_with_normalized(&shape, filter, &mut |value| {
+            self.collisions_from_with_normalized(shape, filter, &mut |value| {
                 collisions.push(value);
             })?;
             results.push(collisions);
@@ -38,7 +38,11 @@ impl QuadTreeInner {
         Ok(results)
     }
 
-    pub fn collisions(&mut self, shape: ShapeEnum, collisions: &mut Vec<u32>) -> QuadtreeResult<()> {
+    pub fn collisions(
+        &mut self,
+        shape: ShapeEnum,
+        collisions: &mut Vec<u32>,
+    ) -> QuadtreeResult<()> {
         self.collisions_from(&shape, None, collisions)
     }
 

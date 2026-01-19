@@ -203,13 +203,13 @@ impl QuadTreeInner {
         let mut node_info = stack_ptr;
         let stack_end = unsafe { stack_ptr.add(stack_cap) };
         unsafe {
-            node_info.write(NodeQueryInfo { node_idx: 0 });
+            node_info.write(std::mem::MaybeUninit::new(NodeQueryInfo { node_idx: 0 }));
         }
         node_info = unsafe { node_info.add(1) };
 
         while node_info != stack_ptr {
             node_info = unsafe { node_info.sub(1) };
-            let info = unsafe { *node_info };
+            let info = unsafe { (*node_info).assume_init() };
             let node = unsafe { &*nodes_ptr.add(info.node_idx as usize) };
             let children = node.children;
             if children[3] != 0 {
@@ -234,7 +234,9 @@ impl QuadTreeInner {
                             if child != 0 {
                                 debug_assert!(node_info < stack_end);
                                 unsafe {
-                                    node_info.write(NodeQueryInfo { node_idx: child });
+                                    node_info.write(std::mem::MaybeUninit::new(NodeQueryInfo {
+                                        node_idx: child,
+                                    }));
                                 }
                                 node_info = unsafe { node_info.add(1) };
                             }
@@ -244,7 +246,9 @@ impl QuadTreeInner {
                             if child != 0 {
                                 debug_assert!(node_info < stack_end);
                                 unsafe {
-                                    node_info.write(NodeQueryInfo { node_idx: child });
+                                    node_info.write(std::mem::MaybeUninit::new(NodeQueryInfo {
+                                        node_idx: child,
+                                    }));
                                 }
                                 node_info = unsafe { node_info.add(1) };
                             }
@@ -256,7 +260,9 @@ impl QuadTreeInner {
                             if child != 0 {
                                 debug_assert!(node_info < stack_end);
                                 unsafe {
-                                    node_info.write(NodeQueryInfo { node_idx: child });
+                                    node_info.write(std::mem::MaybeUninit::new(NodeQueryInfo {
+                                        node_idx: child,
+                                    }));
                                 }
                                 node_info = unsafe { node_info.add(1) };
                             }
@@ -266,7 +272,9 @@ impl QuadTreeInner {
                             if child != 0 {
                                 debug_assert!(node_info < stack_end);
                                 unsafe {
-                                    node_info.write(NodeQueryInfo { node_idx: child });
+                                    node_info.write(std::mem::MaybeUninit::new(NodeQueryInfo {
+                                        node_idx: child,
+                                    }));
                                 }
                                 node_info = unsafe { node_info.add(1) };
                             }
@@ -286,7 +294,9 @@ impl QuadTreeInner {
                         {
                             debug_assert!(node_info < stack_end);
                             unsafe {
-                                node_info.write(NodeQueryInfo { node_idx: child });
+                                node_info.write(std::mem::MaybeUninit::new(NodeQueryInfo {
+                                    node_idx: child,
+                                }));
                             }
                             node_info = unsafe { node_info.add(1) };
                         }

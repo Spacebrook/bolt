@@ -297,7 +297,8 @@ impl QuadTreeInner {
         self.update_stack = stack;
     }
 
-    pub fn all_shapes(&self, shapes: &mut Vec<ShapeEnum>) {
+    pub fn all_shapes(&mut self, shapes: &mut Vec<ShapeEnum>) {
+        self.normalize_hard();
         for (idx, entity) in self.entities.iter().enumerate().skip(1) {
             if entity.alive != 0 {
                 if entity.shape_kind == SHAPE_CIRCLE {

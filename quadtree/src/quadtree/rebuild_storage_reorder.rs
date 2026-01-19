@@ -181,10 +181,8 @@ impl QuadTreeInner {
             new_node_entities_flags.clear();
             new_node_entities_flags.reserve(old_node_entities_flags.len().max(1));
 
-
             new_node_entities.push(NodeEntity::new(0));
-            new_node_entity_extents
-                .push(RectExtent::from_min_max_unchecked(0.0, 0.0, 0.0, 0.0));
+            new_node_entity_extents.push(RectExtent::from_min_max_unchecked(0.0, 0.0, 0.0, 0.0));
             new_node_entity_packed.push(NodeEntityPacked::default());
             new_node_entities_next.push(0);
             new_node_entity_values.push(0);

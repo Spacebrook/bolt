@@ -402,20 +402,25 @@ fn bench_bolt(entities_seed: &[Entity], bounds: Bounds, ticks: usize) -> BenchRe
             height: ARENA_HEIGHT,
         },
         config,
-    ).unwrap();
+    )
+    .unwrap();
 
     for (i, entity) in entities.iter().enumerate() {
         if use_raw {
-            quadtree.insert_rect_extent(
-                i as u32,
-                entity.min_x,
-                entity.min_y,
-                entity.max_x,
-                entity.max_y,
-                None,
-            ).unwrap();
+            quadtree
+                .insert_rect_extent(
+                    i as u32,
+                    entity.min_x,
+                    entity.min_y,
+                    entity.max_x,
+                    entity.max_y,
+                    None,
+                )
+                .unwrap();
         } else {
-            quadtree.insert(i as u32, ShapeEnum::Rectangle(entity.to_rectangle()), None).unwrap();
+            quadtree
+                .insert(i as u32, ShapeEnum::Rectangle(entity.to_rectangle()), None)
+                .unwrap();
         }
     }
 
@@ -446,11 +451,11 @@ fn bench_bolt(entities_seed: &[Entity], bounds: Bounds, ticks: usize) -> BenchRe
             for (value, entity) in entities.iter().enumerate() {
                 quadtree
                     .relocate_rect_extent(
-                    value as u32,
-                    entity.min_x,
-                    entity.min_y,
-                    entity.max_x,
-                    entity.max_y,
+                        value as u32,
+                        entity.min_x,
+                        entity.min_y,
+                        entity.max_x,
+                        entity.max_y,
                         EntityTypeUpdate::Preserve,
                     )
                     .unwrap();
@@ -459,8 +464,8 @@ fn bench_bolt(entities_seed: &[Entity], bounds: Bounds, ticks: usize) -> BenchRe
             for (value, entity) in entities.iter().enumerate() {
                 quadtree
                     .relocate(
-                    value as u32,
-                    ShapeEnum::Rectangle(entity.to_rectangle()),
+                        value as u32,
+                        ShapeEnum::Rectangle(entity.to_rectangle()),
                         EntityTypeUpdate::Preserve,
                     )
                     .unwrap();
@@ -493,7 +498,9 @@ fn bench_bolt(entities_seed: &[Entity], bounds: Bounds, ticks: usize) -> BenchRe
         } else {
             for i in 0..query_count {
                 let entity = unsafe { &*entities_ptr.add(i) };
-                quadtree.collisions_with(ShapeEnum::Rectangle(entity.query_rectangle()), |_| {}).unwrap();
+                quadtree
+                    .collisions_with(ShapeEnum::Rectangle(entity.query_rectangle()), |_| {})
+                    .unwrap();
             }
         }
         query_total += start.elapsed();
