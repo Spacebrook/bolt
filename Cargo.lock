@@ -44,15 +44,16 @@ dependencies = [
  "netcode",
  "parry2d",
  "pyo3",
+ "rand",
  "serialization",
  "smallvec",
 ]
 
 [[package]]
 name = "bolt-quadtree"
-version = "0.1.0"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c47bc719d0035e5d8e5aa99f5a8f70a33f4f7158728467d939ba743dc8670be"
+checksum = "0f313a3408e1f02fc5d90ece0047aecfe4c5002fc0edc3d60b12f70c5628d71b"
 dependencies = [
  "fxhash",
  "rand",

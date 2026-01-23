@@ -18,12 +18,13 @@ pub struct PyConfig {
     min_size: f32,
     looseness: f32,
     large_entity_threshold_factor: f32,
+    auto_expand_bounds: bool,
 }
 
 #[pymethods]
 impl PyConfig {
     #[new]
-    #[pyo3(signature = (pool_size, node_capacity, max_depth, min_size=None, looseness=None, large_entity_threshold_factor=None))]
+    #[pyo3(signature = (pool_size, node_capacity, max_depth, min_size=None, looseness=None, large_entity_threshold_factor=None, auto_expand_bounds=None))]
     pub fn new(
         pool_size: usize,
         node_capacity: usize,
@@ -31,10 +32,12 @@ impl PyConfig {
         min_size: Option<f32>,
         looseness: Option<f32>,
         large_entity_threshold_factor: Option<f32>,
+        auto_expand_bounds: Option<bool>,
     ) -> Self {
         let min_size = min_size.unwrap_or(1.0);
         let looseness = looseness.unwrap_or(1.0).max(1.0);
         let large_entity_threshold_factor = large_entity_threshold_factor.unwrap_or(0.0);
+        let auto_expand_bounds = auto_expand_bounds.unwrap_or(false);
         PyConfig {
             pool_size,
             node_capacity,
@@ -42,6 +45,7 @@ impl PyConfig {
             min_size,
             looseness,
             large_entity_threshold_factor,
+            auto_expand_bounds,
         }
     }
 }
@@ -114,6 +118,7 @@ impl QuadTreeWrapper {
             min_size: config.min_size,
             looseness: config.looseness,
             large_entity_threshold_factor: config.large_entity_threshold_factor,
+            auto_expand_bounds: config.auto_expand_bounds,
             profile_summary: false,
             profile_detail: false,
             profile_limit: 5,
