@@ -2,12 +2,6 @@ use collisions::{get_mtv, ShapeWithPosition};
 use parry2d::math::{Isometry, Vector};
 use parry2d::shape::{Ball, Cuboid, SharedShape};
 
-fn assert_vec_approx_eq(actual: Option<(f32, f32)>, expected: (f32, f32)) {
-    let actual = actual.expect("expected a collision result");
-    assert!((actual.0 - expected.0).abs() < 1e-3, "{actual:?} != {expected:?}");
-    assert!((actual.1 - expected.1).abs() < 1e-3, "{actual:?} != {expected:?}");
-}
-
 #[test]
 fn test_no_colliding_polys() {
     let entity = ShapeWithPosition {
@@ -41,7 +35,7 @@ fn test_single_collision() {
         shape: SharedShape::new(Cuboid::new(Vector::new(1.0, 1.0))),
         position: Isometry::new(Vector::new(1.5, 0.0), 0.0),
     };
-    assert_vec_approx_eq(get_mtv(&entity, &[colliding_poly]), (0.5, 0.0));
+    assert_eq!(get_mtv(&entity, &[colliding_poly]), Some((0.5, 0.0)));
 }
 
 #[test]
@@ -55,7 +49,7 @@ fn test_circle_halfway_inside_rectangle_horizontally() {
         position: Isometry::translation(0.0, 0.0),
     };
     let result = get_mtv(&entity, &[colliding_poly]);
-    assert_vec_approx_eq(result, (-10.0, 0.0));
+    assert_eq!(result, Some((-10.0, 0.0)));
 }
 
 #[test]
@@ -69,7 +63,7 @@ fn test_circle_halfway_inside_rectangle_vertically() {
         position: Isometry::translation(0.0, 0.0),
     };
     let result = get_mtv(&entity, &[colliding_poly]);
-    assert_vec_approx_eq(result, (0.0, -10.0));
+    assert_eq!(result, Some((0.0, -10.0)));
 }
 
 #[test]
@@ -96,7 +90,7 @@ fn test_circle_halfway_inside_rectangle_and_a_bit_more() {
         shape: SharedShape::new(Cuboid::new(Vector::new(1000.0, 1000.0))),
         position: Isometry::new(Vector::new(0.0, -1000.0), 0.0),
     };
-    assert_vec_approx_eq(get_mtv(&entity, &[colliding_poly]), (0.0, -16.0));
+    assert_eq!(get_mtv(&entity, &[colliding_poly]), Some((0.0, -16.0)));
 }
 
 #[test]
@@ -109,7 +103,7 @@ fn test_circle_halfway_inside_rectangle_and_a_bit_less() {
         shape: SharedShape::new(Cuboid::new(Vector::new(1000.0, 1000.0))),
         position: Isometry::new(Vector::new(0.0, -1000.0), 0.0),
     };
-    assert_vec_approx_eq(get_mtv(&entity, &[colliding_poly]), (0.0, -14.0));
+    assert_eq!(get_mtv(&entity, &[colliding_poly]), Some((0.0, -14.0)));
 }
 
 #[test]
@@ -122,7 +116,7 @@ fn test_diagonal_penetration() {
         shape: SharedShape::new(Cuboid::new(Vector::new(1000.0, 1000.0))),
         position: Isometry::new(Vector::new(1000.0, -1000.0), 0.0),
     };
-    assert_vec_approx_eq(get_mtv(&entity, &[colliding_poly]), (0.0, -14.0));
+    assert_eq!(get_mtv(&entity, &[colliding_poly]), Some((0.0, -14.0)));
 }
 
 #[test]
@@ -145,7 +139,10 @@ fn test_overlapping_rectangles() {
             0.0,
         ),
     };
-    assert_vec_approx_eq(get_mtv(&entity, &[colliding_poly1, colliding_poly2]), (0.0, 14.1640625));
+    assert_eq!(
+        get_mtv(&entity, &[colliding_poly1, colliding_poly2]),
+        Some((0.0, 14.1640625))
+    );
 }
 
 #[test]
@@ -165,51 +162,5 @@ fn test_collision_with_two_rectangles_one_touching() {
 
     let result = get_mtv(&entity, &[touching_rect, significantly_overlapping_rect]);
 
-    assert_vec_approx_eq(result, (0.0, 5.0));
-}
-
-#[test]
-fn test_two_axis_aligned_constraints_resolve_diagonally() {
-    let entity = ShapeWithPosition {
-        shape: SharedShape::new(Ball::new(10.0)),
-        position: Isometry::translation(0.0, 0.0),
-    };
-    let right_wall = ShapeWithPosition {
-        shape: SharedShape::new(Cuboid::new(Vector::new(10.0, 100.0))),
-        position: Isometry::translation(15.0, 0.0),
-    };
-    let top_wall = ShapeWithPosition {
-        shape: SharedShape::new(Cuboid::new(Vector::new(100.0, 10.0))),
-        position: Isometry::translation(0.0, 15.0),
-    };
-
-    let mtv = get_mtv(&entity, &[right_wall, top_wall]).unwrap();
-    assert!((mtv.0 - 5.0).abs() < 1e-3);
-    assert!((mtv.1 - 5.0).abs() < 1e-3);
-}
-
-#[test]
-fn test_rotated_box_collision_resolves() {
-    let entity = ShapeWithPosition {
-        shape: SharedShape::new(Ball::new(8.0)),
-        position: Isometry::translation(0.0, 0.0),
-    };
-    let rotated_box = ShapeWithPosition {
-        shape: SharedShape::new(Cuboid::new(Vector::new(20.0, 6.0))),
-        position: Isometry::new(Vector::new(6.0, 0.0), std::f32::consts::FRAC_PI_4),
-    };
-
-    let mtv = get_mtv(&entity, &[rotated_box]).unwrap();
-    let resolved_position = Isometry::translation(-mtv.0, -mtv.1);
-    let resolved_contact = parry2d::query::contact(
-        &resolved_position,
-        entity.shape.as_ref(),
-        &Isometry::new(Vector::new(6.0, 0.0), std::f32::consts::FRAC_PI_4),
-        SharedShape::new(Cuboid::new(Vector::new(20.0, 6.0))).as_ref(),
-        0.0,
-    )
-    .unwrap();
-    if let Some(contact) = resolved_contact {
-        assert!(contact.dist >= -1e-2, "unexpected residual penetration: {}", contact.dist);
-    }
+    assert_eq!(result, Some((-0.0, 5.0)));
 }

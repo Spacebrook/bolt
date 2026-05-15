@@ -17,14 +17,6 @@ class Square(ShapeProtocol):
     angle: float
     def __init__(self, x: float, y: float, radius: float, angle: float) -> None: ...
 
-class OrientedRectangle(ShapeProtocol):
-    x: float
-    y: float
-    width: float
-    height: float
-    angle: float
-    def __init__(self, x: float, y: float, width: float, height: float, angle: float) -> None: ...
-
 class Rectangle(ShapeProtocol):
     def __init__(self, x: float, y: float, width: float, height: float) -> None: ...
     @property

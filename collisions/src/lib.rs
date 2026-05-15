@@ -1,5 +1,4 @@
 use nalgebra::{Isometry2, Vector2};
-use parry2d::query::contact;
 use parry2d::shape::SharedShape;
 
 pub struct ShapeWithPosition {
@@ -7,134 +6,123 @@ pub struct ShapeWithPosition {
     pub position: Isometry2<f32>,
 }
 
-#[derive(Clone, Copy)]
-struct Constraint {
-    normal: Vector2<f32>,
-    penetration: f32,
-}
-
-const CONTACT_MARGIN: f32 = 0.0;
-const CONTACT_SLOP: f32 = 1e-2;
-const MTV_EPSILON: f32 = 1e-6;
-const MAX_SOLVE_ITERATIONS: usize = 8;
-
 pub fn get_mtv(entity: &ShapeWithPosition, others: &[ShapeWithPosition]) -> Option<(f32, f32)> {
-    if others.is_empty() {
-        return None;
-    }
+    if let (Some(circle), true) = (
+        entity.shape.as_ball(),
+        others.iter().all(|s| s.shape.as_cuboid().is_some()),
+    ) {
+        // Existing circle-rectangle collision logic
+        let circle_radius = circle.radius;
+        let circle_center = entity.position.translation.vector;
 
-    let mut mtv = Vector2::new(0.0, 0.0);
-    for _ in 0..MAX_SOLVE_ITERATIONS {
-        let translated_position = Isometry2::new(
-            entity.position.translation.vector - mtv,
-            entity.position.rotation.angle(),
-        );
-        let constraints = contact_constraints(entity, &translated_position, others);
-        if constraints.is_empty() {
-            break;
-        }
+        let mut max_mtv: Vector2<f32> = Vector2::new(0.0, 0.0);
 
-        let step = solve_min_norm_translation(&constraints)?;
-        if step.magnitude_squared() <= MTV_EPSILON * MTV_EPSILON {
-            break;
-        }
-        mtv += step;
-    }
+        for rect in others {
+            let cuboid = rect.shape.as_cuboid().unwrap();
+            let rect_center = rect.position.translation.vector;
+            let rect_half_extents = cuboid.half_extents;
+            let rect_rotation = rect.position.rotation;
 
-    if mtv.magnitude_squared() <= MTV_EPSILON * MTV_EPSILON {
-        None
-    } else {
-        Some((mtv.x, mtv.y))
-    }
-}
+            // Calculate the vector from rectangle center to circle center
+            let to_circle = circle_center - rect_center;
 
-fn contact_constraints(
-    entity: &ShapeWithPosition,
-    translated_position: &Isometry2<f32>,
-    others: &[ShapeWithPosition],
-) -> Vec<Constraint> {
-    others
-        .iter()
-        .filter_map(|other| {
-            contact(
-                translated_position,
-                entity.shape.as_ref(),
-                &other.position,
-                other.shape.as_ref(),
-                CONTACT_MARGIN,
-            )
-            .ok()
-            .flatten()
-        })
-        .filter_map(|contact| {
-            let penetration = -contact.dist;
-            if penetration <= CONTACT_SLOP {
-                return None;
-            }
-            Some(Constraint {
-                normal: contact.normal1.into_inner(),
-                penetration,
-            })
-        })
-        .collect()
-}
+            // Rotate the vector to align with the rectangle's local space
+            let local_circle_pos = rect_rotation.inverse() * to_circle;
 
-fn solve_min_norm_translation(constraints: &[Constraint]) -> Option<Vector2<f32>> {
-    let mut best: Option<Vector2<f32>> = None;
-
-    for constraint in constraints {
-        consider_candidate(
-            constraint.normal * constraint.penetration,
-            constraints,
-            &mut best,
-        );
-    }
-
-    for left_index in 0..constraints.len() {
-        let left = constraints[left_index];
-        for right in &constraints[(left_index + 1)..] {
-            let determinant = left.normal.x * right.normal.y - left.normal.y * right.normal.x;
-            if determinant.abs() <= MTV_EPSILON {
-                continue;
-            }
-
-            let candidate_x = (left.penetration * right.normal.y
-                - left.normal.y * right.penetration)
-                / determinant;
-            let candidate_y = (left.normal.x * right.penetration
-                - left.penetration * right.normal.x)
-                / determinant;
-            consider_candidate(
-                Vector2::new(candidate_x, candidate_y),
-                constraints,
-                &mut best,
+            // Find the closest point on the rectangle to the circle center
+            let closest = Vector2::new(
+                local_circle_pos
+                    .x
+                    .clamp(-rect_half_extents.x, rect_half_extents.x),
+                local_circle_pos
+                    .y
+                    .clamp(-rect_half_extents.y, rect_half_extents.y),
             );
-        }
-    }
 
-    best
-}
+            // Calculate the vector from the closest point to the circle center
+            let to_circle = local_circle_pos - closest;
+            let distance = to_circle.magnitude();
 
-fn consider_candidate(
-    candidate: Vector2<f32>,
-    constraints: &[Constraint],
-    best: &mut Option<Vector2<f32>>,
-) {
-    if !satisfies_constraints(candidate, constraints) {
-        return;
-    }
-    match best {
-        None => *best = Some(candidate),
-        Some(current_best) => {
-            if candidate.magnitude_squared() + MTV_EPSILON < current_best.magnitude_squared() {
-                *best = Some(candidate);
+            if distance <= circle_radius {
+                // Collision detected
+                let penetration = if distance == 0.0 {
+                    // Circle center is inside the rectangle
+                    let dx = rect_half_extents.x - local_circle_pos.x.abs();
+                    let dy = rect_half_extents.y - local_circle_pos.y.abs();
+                    if dx < dy {
+                        rect_half_extents.x + circle_radius - local_circle_pos.x.abs()
+                    } else {
+                        rect_half_extents.y + circle_radius - local_circle_pos.y.abs()
+                    }
+                } else {
+                    circle_radius - distance
+                };
+
+                let normal = if distance == 0.0 {
+                    // Use the axis of least penetration
+                    let dx = rect_half_extents.x - local_circle_pos.x.abs();
+                    let dy = rect_half_extents.y - local_circle_pos.y.abs();
+                    if dx < dy {
+                        Vector2::new(local_circle_pos.x.signum(), 0.0)
+                    } else {
+                        Vector2::new(0.0, local_circle_pos.y.signum())
+                    }
+                } else {
+                    to_circle.normalize()
+                };
+
+                // Rotate the normal back to world space
+                let world_normal = rect_rotation * normal;
+                let mtv = world_normal * penetration;
+
+                if mtv.x.abs() > max_mtv.x.abs() {
+                    max_mtv.x = mtv.x;
+                }
+                if mtv.y.abs() > max_mtv.y.abs() {
+                    max_mtv.y = mtv.y;
+                }
             }
         }
-    }
-}
 
-fn satisfies_constraints(candidate: Vector2<f32>, constraints: &[Constraint]) -> bool {
-    constraints.iter().all(|constraint| {
-        candidate.dot(&constraint.normal) + CONTACT_SLOP >= constraint.penetration
-    })
+        let magnitude = max_mtv.magnitude();
+
+        if magnitude < 1e-6 {
+            None
+        } else {
+            Some((-max_mtv.x, -max_mtv.y))
+        }
+    } else {
+        // General case for any shape combination
+        let max_mtv: Vector2<f32> = others
+            .iter()
+            .filter_map(|other| {
+                parry2d::query::contact(
+                    &entity.position,
+                    entity.shape.as_ref(),
+                    &other.position,
+                    other.shape.as_ref(),
+                    0.001,
+                )
+                .ok()
+                .flatten()
+            })
+            .fold(Vector2::new(0.0, 0.0), |mut max_mtv, contact| {
+                let mtv = contact.normal1.into_inner() * contact.dist.abs();
+                if mtv.x.abs() > max_mtv.x.abs() {
+                    max_mtv.x = mtv.x;
+                }
+                if mtv.y.abs() > max_mtv.y.abs() {
+                    max_mtv.y = mtv.y;
+                }
+                max_mtv
+            });
+
+        let magnitude = max_mtv.magnitude();
+
+        if magnitude < 1e-6 {
+            None
+        } else {
+            Some((max_mtv.x, max_mtv.y))
+        }
+    }
 }
