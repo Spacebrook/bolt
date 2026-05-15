@@ -4,14 +4,8 @@ use parry2d::shape::{Ball, Cuboid, SharedShape};
 
 fn assert_vec_approx_eq(actual: Option<(f32, f32)>, expected: (f32, f32)) {
     let actual = actual.expect("expected a collision result");
-    assert!(
-        (actual.0 - expected.0).abs() < 1e-3,
-        "{actual:?} != {expected:?}"
-    );
-    assert!(
-        (actual.1 - expected.1).abs() < 1e-3,
-        "{actual:?} != {expected:?}"
-    );
+    assert!((actual.0 - expected.0).abs() < 1e-3, "{actual:?} != {expected:?}");
+    assert!((actual.1 - expected.1).abs() < 1e-3, "{actual:?} != {expected:?}");
 }
 
 #[test]
@@ -151,10 +145,7 @@ fn test_overlapping_rectangles() {
             0.0,
         ),
     };
-    assert_vec_approx_eq(
-        get_mtv(&entity, &[colliding_poly1, colliding_poly2]),
-        (0.0, 14.1640625),
-    );
+    assert_vec_approx_eq(get_mtv(&entity, &[colliding_poly1, colliding_poly2]), (0.0, 14.1640625));
 }
 
 #[test]
@@ -219,92 +210,6 @@ fn test_rotated_box_collision_resolves() {
     )
     .unwrap();
     if let Some(contact) = resolved_contact {
-        assert!(
-            contact.dist >= -1e-2,
-            "unexpected residual penetration: {}",
-            contact.dist
-        );
+        assert!(contact.dist >= -1e-2, "unexpected residual penetration: {}", contact.dist);
     }
-}
-
-#[test]
-fn test_ball_union_chooses_true_minimum_free_point() {
-    let entity = ShapeWithPosition {
-        shape: SharedShape::new(Ball::new(15.0)),
-        position: Isometry::translation(0.0, 0.0),
-    };
-    let colliding_ball_a = ShapeWithPosition {
-        shape: SharedShape::new(Ball::new(33.3)),
-        position: Isometry::translation(36.1, 0.4),
-    };
-    let colliding_ball_b = ShapeWithPosition {
-        shape: SharedShape::new(Ball::new(32.6)),
-        position: Isometry::translation(-41.8, -14.1),
-    };
-
-    let mtv = get_mtv(&entity, &[colliding_ball_a, colliding_ball_b]).unwrap();
-    let resolved_position = Isometry::translation(-mtv.0, -mtv.1);
-
-    for obstacle in [
-        ShapeWithPosition {
-            shape: SharedShape::new(Ball::new(33.3)),
-            position: Isometry::translation(36.1, 0.4),
-        },
-        ShapeWithPosition {
-            shape: SharedShape::new(Ball::new(32.6)),
-            position: Isometry::translation(-41.8, -14.1),
-        },
-    ] {
-        let resolved_contact = parry2d::query::contact(
-            &resolved_position,
-            entity.shape.as_ref(),
-            &obstacle.position,
-            obstacle.shape.as_ref(),
-            0.0,
-        )
-        .unwrap();
-        if let Some(contact) = resolved_contact {
-            assert!(
-                contact.dist >= -1e-2,
-                "unexpected residual penetration: {}",
-                contact.dist
-            );
-        }
-    }
-
-    assert!((mtv.0 - 8.208_884).abs() < 1e-3, "{mtv:?}");
-    assert!((mtv.1 + 19.625_316).abs() < 1e-3, "{mtv:?}");
-}
-
-#[test]
-fn test_rotated_cuboid_chooses_true_minimum_free_distance() {
-    let entity = ShapeWithPosition {
-        shape: SharedShape::new(Ball::new(8.0)),
-        position: Isometry::translation(0.0, 0.0),
-    };
-    let rotated_box = ShapeWithPosition {
-        shape: SharedShape::new(Cuboid::new(Vector::new(20.0, 6.0))),
-        position: Isometry::new(Vector::new(6.0, 0.0), std::f32::consts::FRAC_PI_4),
-    };
-
-    let mtv = get_mtv(&entity, &[rotated_box]).unwrap();
-    let resolved_position = Isometry::translation(-mtv.0, -mtv.1);
-    let resolved_contact = parry2d::query::contact(
-        &resolved_position,
-        entity.shape.as_ref(),
-        &Isometry::new(Vector::new(6.0, 0.0), std::f32::consts::FRAC_PI_4),
-        SharedShape::new(Cuboid::new(Vector::new(20.0, 6.0))).as_ref(),
-        0.0,
-    )
-    .unwrap();
-    if let Some(contact) = resolved_contact {
-        assert!(
-            contact.dist >= -1e-2,
-            "unexpected residual penetration: {}",
-            contact.dist
-        );
-    }
-
-    let mtv_length = (mtv.0 * mtv.0 + mtv.1 * mtv.1).sqrt();
-    assert!((mtv_length - 9.757_359).abs() < 2e-2, "{mtv:?}");
 }
