@@ -142,9 +142,12 @@ impl NetCodec {
 
         let entities = get_list(payload, "entities")?;
         let global_entities = get_list(payload, "global_entities")?;
+        let debug_objects = get_list(payload, "debug_objects")?;
         let entity_schema = get_schema("Entity")?;
+        let debug_object_schema = get_schema("ServerDebugObject")?;
         encode_entity_list(py, entity_schema, entities, &mut buffer)?;
         encode_entity_list(py, entity_schema, global_entities, &mut buffer)?;
+        encode_entity_list(py, debug_object_schema, debug_objects, &mut buffer)?;
 
         Ok(PyBytes::new(py, &buffer).unbind())
     }
