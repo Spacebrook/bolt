@@ -4,7 +4,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyBytesMethods, PyDict, PyDictMethods, PyList, PyListMethods};
 use pyo3::{Bound, IntoPyObjectExt};
 
-const FRAME_VERSION: u8 = 1;
+const FRAME_VERSION: u8 = 2;
 
 #[pyclass(name = "NetCodec")]
 pub struct NetCodec;
@@ -41,6 +41,8 @@ impl NetCodec {
         let y_entities = get_bytes(payload, "y_entities")?;
         let xy_entities = get_bytes(payload, "xy_entities")?;
         let xy_radius_entities = get_bytes(payload, "xy_radius_entities")?;
+
+        let spectating = get_bool(payload, "spectating")?;
 
         let mut flags1 = 0u8;
         if complete {
@@ -94,9 +96,15 @@ impl NetCodec {
             flags2 |= 1 << 7;
         }
 
+        let mut flags3 = 0u8;
+        if spectating {
+            flags3 |= 1 << 0;
+        }
+
         buffer.push(FRAME_VERSION);
         buffer.push(flags1);
         buffer.push(flags2);
+        buffer.push(flags3);
         write_u32(&mut buffer, sequence);
 
         if let Some(value) = self_id {
