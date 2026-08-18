@@ -43,6 +43,7 @@ impl NetCodec {
         let xy_radius_entities = get_bytes(payload, "xy_radius_entities")?;
 
         let spectating = get_bool(payload, "spectating")?;
+        let server_time = get_u32(payload, "server_time")?;
 
         let mut flags1 = 0u8;
         if complete {
@@ -100,6 +101,9 @@ impl NetCodec {
         if spectating {
             flags3 |= 1 << 0;
         }
+        if server_time.is_some() {
+            flags3 |= 1 << 1;
+        }
 
         buffer.push(FRAME_VERSION);
         buffer.push(flags1);
@@ -146,6 +150,9 @@ impl NetCodec {
         }
         if let Some(value) = xy_radius_entities {
             write_bytes(&mut buffer, &value);
+        }
+        if let Some(value) = server_time {
+            write_u32(&mut buffer, value);
         }
 
         let entities = get_list(payload, "entities")?;
