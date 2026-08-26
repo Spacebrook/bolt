@@ -394,6 +394,24 @@ fn closest_point_on_piece(point: Vector2<f32>, piece: BoundaryPiece) -> Vector2<
 
 fn closest_point_on_segment(point: Vector2<f32>, segment: Segment) -> Vector2<f32> {
     let delta = segment.end - segment.start;
+    if delta.x == 0.0 {
+        return Vector2::new(
+            segment.start.x,
+            point.y.clamp(
+                segment.start.y.min(segment.end.y),
+                segment.start.y.max(segment.end.y),
+            ),
+        );
+    }
+    if delta.y == 0.0 {
+        return Vector2::new(
+            point.x.clamp(
+                segment.start.x.min(segment.end.x),
+                segment.start.x.max(segment.end.x),
+            ),
+            segment.start.y,
+        );
+    }
     let length_sq = delta.magnitude_squared();
     if length_sq <= MTV_EPSILON * MTV_EPSILON {
         return segment.start;

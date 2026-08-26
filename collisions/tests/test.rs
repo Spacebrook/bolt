@@ -119,6 +119,33 @@ fn test_circle_halfway_inside_rectangle_and_a_bit_less() {
 }
 
 #[test]
+fn test_axis_aligned_wall_mtv_has_no_tangential_component() {
+    let horizontal_wall_entity = ShapeWithPosition {
+        shape: SharedShape::new(Ball::new(18.0)),
+        position: Isometry::translation(1000.3, 470.0),
+    };
+    let horizontal_wall = ShapeWithPosition {
+        shape: SharedShape::new(Cuboid::new(Vector::new(1600.0, 1000.0))),
+        position: Isometry::translation(1600.0, 1480.0),
+    };
+    let mtv = get_mtv(&horizontal_wall_entity, &[horizontal_wall]).unwrap();
+    assert_eq!(mtv.0, 0.0, "horizontal wall introduced x drift: {mtv:?}");
+    assert!((mtv.1 - 8.0).abs() < 1e-3, "{mtv:?}");
+
+    let vertical_wall_entity = ShapeWithPosition {
+        shape: SharedShape::new(Ball::new(18.0)),
+        position: Isometry::translation(310.0, 1000.3),
+    };
+    let vertical_wall = ShapeWithPosition {
+        shape: SharedShape::new(Cuboid::new(Vector::new(1000.0, 1600.0))),
+        position: Isometry::translation(1320.0, 1600.0),
+    };
+    let mtv = get_mtv(&vertical_wall_entity, &[vertical_wall]).unwrap();
+    assert!((mtv.0 - 8.0).abs() < 1e-3, "{mtv:?}");
+    assert_eq!(mtv.1, 0.0, "vertical wall introduced y drift: {mtv:?}");
+}
+
+#[test]
 fn test_diagonal_penetration() {
     let entity = ShapeWithPosition {
         shape: SharedShape::new(Ball::new(15.0)),
