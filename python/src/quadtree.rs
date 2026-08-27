@@ -53,6 +53,17 @@ impl PyConfig {
 #[pyclass(name = "QuadTree", unsendable)]
 pub struct QuadTreeWrapper {
     quadtree: QuadTree,
+    pending_deletions: bool,
+}
+
+impl QuadTreeWrapper {
+    fn flush_deletions(&mut self) {
+        if self.pending_deletions {
+            // Resolve removals before a later mutation can expand the root bounds.
+            self.quadtree.update();
+            self.pending_deletions = false;
+        }
+    }
 }
 
 fn map_quadtree_error(err: QuadtreeError) -> PyErr {
@@ -100,6 +111,7 @@ impl QuadTreeWrapper {
         };
         Ok(QuadTreeWrapper {
             quadtree: QuadTree::new(bounding_rect).map_err(map_quadtree_error)?,
+            pending_deletions: false,
         })
     }
 
@@ -126,6 +138,7 @@ impl QuadTreeWrapper {
         Ok(QuadTreeWrapper {
             quadtree: QuadTree::new_with_config(bounding_rect, rust_config)
                 .map_err(map_quadtree_error)?,
+            pending_deletions: false,
         })
     }
 
@@ -138,6 +151,7 @@ impl QuadTreeWrapper {
         entity_type: Option<u32>,
     ) -> PyResult<()> {
         let shape = extract_shape(py, shape)?;
+        self.flush_deletions();
         self.quadtree
             .insert(value, shape, entity_type)
             .map_err(map_quadtree_error)?;
@@ -154,6 +168,7 @@ impl QuadTreeWrapper {
         max_y: f32,
         entity_type: Option<u32>,
     ) -> PyResult<()> {
+        self.flush_deletions();
         self.quadtree
             .insert_rect_extent(value, min_x, min_y, max_x, max_y, entity_type)
             .map_err(map_quadtree_error)?;
@@ -169,6 +184,7 @@ impl QuadTreeWrapper {
         radius: f32,
         entity_type: Option<u32>,
     ) -> PyResult<()> {
+        self.flush_deletions();
         self.quadtree
             .insert_circle_raw(value, x, y, radius, entity_type)
             .map_err(map_quadtree_error)?;
@@ -177,6 +193,7 @@ impl QuadTreeWrapper {
 
     pub fn delete(&mut self, value: u32) {
         self.quadtree.delete(value);
+        self.pending_deletions = true;
     }
 
     pub fn collisions(&mut self, py: Python, shape: Py<PyAny>) -> PyResult<Vec<u32>> {
@@ -276,6 +293,7 @@ impl QuadTreeWrapper {
     ) -> PyResult<()> {
         let shape = extract_shape(py, shape)?;
         let update = parse_entity_type_update(py, entity_type)?;
+        self.flush_deletions();
         self.quadtree
             .relocate(value, shape, update)
             .map_err(map_quadtree_error)?;
@@ -294,6 +312,7 @@ impl QuadTreeWrapper {
         entity_type: Option<Py<PyAny>>,
     ) -> PyResult<()> {
         let update = parse_entity_type_update(py, entity_type)?;
+        self.flush_deletions();
         self.quadtree
             .relocate_rect_extent(value, min_x, min_y, max_x, max_y, update)
             .map_err(map_quadtree_error)?;
@@ -311,6 +330,7 @@ impl QuadTreeWrapper {
         entity_type: Option<Py<PyAny>>,
     ) -> PyResult<()> {
         let update = parse_entity_type_update(py, entity_type)?;
+        self.flush_deletions();
         self.quadtree
             .relocate_circle_raw(value, x, y, radius, update)
             .map_err(map_quadtree_error)?;
@@ -358,6 +378,7 @@ impl QuadTreeWrapper {
             })
             .collect::<PyResult<_>>()?;
 
+        self.flush_deletions();
         self.quadtree
             .relocate_batch(&requests)
             .map_err(map_quadtree_error)?;
