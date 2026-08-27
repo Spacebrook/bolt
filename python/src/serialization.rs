@@ -51,6 +51,22 @@ impl PackedEntityBuffers {
         self.xy_radius.clear();
         (x, y, xy, xy_radius)
     }
+
+    pub fn update_xy_batch(
+        &mut self,
+        py: Python,
+        updates: Vec<(Py<DiffFieldSetWrapper>, u32, f32, f32)>,
+    ) -> PyResult<Vec<(u32, Py<PyAny>)>> {
+        let mut fallback = Vec::new();
+        for (fields, entity_id, x, y) in updates {
+            if let Some(diff) =
+                update_xy_packed_internal(&mut fields.borrow_mut(py), py, entity_id, x, y, self)?
+            {
+                fallback.push((entity_id, diff));
+            }
+        }
+        Ok(fallback)
+    }
 }
 
 #[pymethods]
@@ -271,39 +287,7 @@ impl DiffFieldSetWrapper {
         y: f32,
         buffers: &mut PackedEntityBuffers,
     ) -> PyResult<Option<Py<PyAny>>> {
-        let x_index = self
-            .x_index
-            .ok_or_else(|| PyTypeError::new_err("Missing x field"))?;
-        let y_index = self
-            .y_index
-            .ok_or_else(|| PyTypeError::new_err("Missing y field"))?;
-        self.diff_field_set.changed_fields.clear();
-        for (index, value) in [
-            (x_index, FieldValue::Float(x)),
-            (y_index, FieldValue::Float(y)),
-        ] {
-            if self.diff_field_set.fields[index] != value {
-                self.diff_field_set.fields[index] = value;
-                self.diff_field_set.changed_fields.push(index);
-            }
-        }
-        if !self.diff_field_set.has_changed() {
-            return Ok(None);
-        }
-        if append_packed_entity(entity_id, &self.field_names, &self.diff_field_set, buffers)
-            .is_some()
-        {
-            return Ok(None);
-        }
-        let dict = PyDict::new(py);
-        fill_py_dict_from_indices(
-            py,
-            &dict,
-            &self.field_names,
-            &self.diff_field_set.fields,
-            &self.diff_field_set.changed_fields,
-        )?;
-        Ok(Some(dict.unbind().into_any()))
+        update_xy_packed_internal(self, py, entity_id, x, y, buffers)
     }
 
     #[staticmethod]
@@ -606,6 +590,54 @@ fn set_py_dict_value(
     };
     dict.set_item(name.as_str(), py_value)?;
     Ok(())
+}
+
+fn update_xy_packed_internal(
+    fields: &mut DiffFieldSetWrapper,
+    py: Python,
+    entity_id: u32,
+    x: f32,
+    y: f32,
+    buffers: &mut PackedEntityBuffers,
+) -> PyResult<Option<Py<PyAny>>> {
+    let x_index = fields
+        .x_index
+        .ok_or_else(|| PyTypeError::new_err("Missing x field"))?;
+    let y_index = fields
+        .y_index
+        .ok_or_else(|| PyTypeError::new_err("Missing y field"))?;
+    fields.diff_field_set.changed_fields.clear();
+    for (index, value) in [
+        (x_index, FieldValue::Float(x)),
+        (y_index, FieldValue::Float(y)),
+    ] {
+        if fields.diff_field_set.fields[index] != value {
+            fields.diff_field_set.fields[index] = value;
+            fields.diff_field_set.changed_fields.push(index);
+        }
+    }
+    if !fields.diff_field_set.has_changed() {
+        return Ok(None);
+    }
+    if append_packed_entity(
+        entity_id,
+        &fields.field_names,
+        &fields.diff_field_set,
+        buffers,
+    )
+    .is_some()
+    {
+        return Ok(None);
+    }
+    let dict = PyDict::new(py);
+    fill_py_dict_from_indices(
+        py,
+        &dict,
+        &fields.field_names,
+        &fields.diff_field_set.fields,
+        &fields.diff_field_set.changed_fields,
+    )?;
+    Ok(Some(dict.unbind().into_any()))
 }
 
 fn update_from_getters_internal(
