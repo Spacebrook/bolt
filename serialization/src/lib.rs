@@ -46,7 +46,6 @@ pub struct DiffFieldSet {
     pub field_defaults: SmallVec<[FieldValue; 16]>,
     pub fields: SmallVec<[FieldValue; 16]>,
     pub changed_fields: SmallVec<[usize; 16]>,
-    pub fields_without_defaults: SmallVec<[usize; 16]>,
 }
 
 impl DiffFieldSet {
@@ -59,21 +58,16 @@ impl DiffFieldSet {
             field_types,
             field_defaults,
             fields: smallvec![FieldValue::None; len],
-            fields_without_defaults: SmallVec::with_capacity(len),
             changed_fields: SmallVec::with_capacity(len),
         }
     }
 
     pub fn update(&mut self, updates: SmallVec<[FieldValue; 16]>) {
         self.changed_fields.clear();
-        self.fields_without_defaults.clear();
         for (index, value) in updates.into_iter().enumerate() {
             if self.fields[index] != value {
                 self.fields[index] = value.clone();
                 self.changed_fields.push(index);
-            }
-            if self.field_defaults[index] != value {
-                self.fields_without_defaults.push(index);
             }
         }
     }
@@ -90,9 +84,11 @@ impl DiffFieldSet {
     }
 
     pub fn get_all(&self) -> SmallVec<[(usize, FieldValue); 16]> {
-        self.fields_without_defaults
+        self.fields
             .iter()
-            .map(|&index| (index, self.fields[index].clone()))
+            .enumerate()
+            .filter(|(index, value)| self.field_defaults[*index] != **value)
+            .map(|(index, value)| (index, value.clone()))
             .collect()
     }
 }

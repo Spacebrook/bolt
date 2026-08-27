@@ -5,7 +5,9 @@ use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use pyo3::pyclass;
 use pyo3::pymethods;
-use pyo3::types::{PyAny, PyBool, PyDict, PyFloat, PyInt, PyList, PyString, PyStringMethods};
+use pyo3::types::{
+    PyAny, PyBool, PyBytes, PyDict, PyFloat, PyInt, PyList, PyString, PyStringMethods,
+};
 use pyo3::IntoPyObjectExt;
 use smallvec::SmallVec;
 use std::collections::HashMap;
@@ -14,6 +16,41 @@ use std::collections::HashMap;
 pub struct DiffFieldSetWrapper {
     diff_field_set: DiffFieldSet,
     field_names: Vec<String>,
+    x_index: Option<usize>,
+    y_index: Option<usize>,
+}
+
+#[pyclass(name = "PackedEntityBuffers", unsendable)]
+pub struct PackedEntityBuffers {
+    x: Vec<u8>,
+    y: Vec<u8>,
+    xy: Vec<u8>,
+    xy_radius: Vec<u8>,
+}
+
+#[pymethods]
+impl PackedEntityBuffers {
+    #[new]
+    pub fn new() -> Self {
+        Self {
+            x: Vec::new(),
+            y: Vec::new(),
+            xy: Vec::new(),
+            xy_radius: Vec::new(),
+        }
+    }
+
+    pub fn take(&mut self, py: Python) -> (Py<PyBytes>, Py<PyBytes>, Py<PyBytes>, Py<PyBytes>) {
+        let x = PyBytes::new(py, &self.x).unbind();
+        let y = PyBytes::new(py, &self.y).unbind();
+        let xy = PyBytes::new(py, &self.xy).unbind();
+        let xy_radius = PyBytes::new(py, &self.xy_radius).unbind();
+        self.x.clear();
+        self.y.clear();
+        self.xy.clear();
+        self.xy_radius.clear();
+        (x, y, xy, xy_radius)
+    }
 }
 
 #[pymethods]
@@ -44,6 +81,8 @@ impl DiffFieldSetWrapper {
         Ok(Self {
             diff_field_set: DiffFieldSet::new(rust_field_types, rust_field_defaults),
             field_names: Vec::new(),
+            x_index: None,
+            y_index: None,
         })
     }
 
@@ -94,6 +133,8 @@ impl DiffFieldSetWrapper {
 
         Ok(Self {
             diff_field_set: DiffFieldSet::new(rust_field_types, rust_field_defaults),
+            x_index: field_names.iter().position(|name| name == "x"),
+            y_index: field_names.iter().position(|name| name == "y"),
             field_names,
         })
     }
@@ -179,6 +220,8 @@ impl DiffFieldSetWrapper {
 
         Ok(Self {
             diff_field_set: DiffFieldSet::new(rust_field_types, rust_field_defaults),
+            x_index: field_names.iter().position(|name| name == "x"),
+            y_index: field_names.iter().position(|name| name == "y"),
             field_names,
         })
     }
@@ -218,6 +261,49 @@ impl DiffFieldSetWrapper {
         update_from_getters_internal(self, obj, getters)?;
         update_children_internal(obj, children)?;
         Ok(())
+    }
+
+    pub fn update_xy_packed(
+        &mut self,
+        py: Python,
+        entity_id: u32,
+        x: f32,
+        y: f32,
+        buffers: &mut PackedEntityBuffers,
+    ) -> PyResult<Option<Py<PyAny>>> {
+        let x_index = self
+            .x_index
+            .ok_or_else(|| PyTypeError::new_err("Missing x field"))?;
+        let y_index = self
+            .y_index
+            .ok_or_else(|| PyTypeError::new_err("Missing y field"))?;
+        self.diff_field_set.changed_fields.clear();
+        for (index, value) in [
+            (x_index, FieldValue::Float(x)),
+            (y_index, FieldValue::Float(y)),
+        ] {
+            if self.diff_field_set.fields[index] != value {
+                self.diff_field_set.fields[index] = value;
+                self.diff_field_set.changed_fields.push(index);
+            }
+        }
+        if !self.diff_field_set.has_changed() {
+            return Ok(None);
+        }
+        if append_packed_entity(entity_id, &self.field_names, &self.diff_field_set, buffers)
+            .is_some()
+        {
+            return Ok(None);
+        }
+        let dict = PyDict::new(py);
+        fill_py_dict_from_indices(
+            py,
+            &dict,
+            &self.field_names,
+            &self.diff_field_set.fields,
+            &self.diff_field_set.changed_fields,
+        )?;
+        Ok(Some(dict.unbind().into_any()))
     }
 
     #[staticmethod]
@@ -285,6 +371,30 @@ impl DiffFieldSetWrapper {
             obj,
             children,
             extras,
+            None,
+        )
+    }
+
+    pub fn build_payload_if_changed_packed(
+        &self,
+        entity_id: u32,
+        obj: &Bound<'_, PyAny>,
+        children: &Bound<'_, PyDict>,
+        extras: &Bound<'_, PyList>,
+        buffers: &mut PackedEntityBuffers,
+    ) -> PyResult<Option<Py<PyAny>>> {
+        if self.field_names.is_empty() {
+            return Err(PyTypeError::new_err(
+                "Field names not configured for DiffFieldSet",
+            ));
+        }
+        build_payload_if_changed_internal(
+            &self.field_names,
+            &self.diff_field_set,
+            obj,
+            children,
+            extras,
+            Some((entity_id, buffers)),
         )
     }
 
@@ -504,7 +614,6 @@ fn update_from_getters_internal(
     getters: &Bound<'_, PyList>,
 ) -> PyResult<()> {
     wrapper.diff_field_set.changed_fields.clear();
-    wrapper.diff_field_set.fields_without_defaults.clear();
     for (index, getter) in getters.iter().enumerate() {
         let field_type = &wrapper.diff_field_set.field_types[index];
         let field_name = wrapper.field_names.get(index).map(String::as_str);
@@ -516,9 +625,6 @@ fn update_from_getters_internal(
         if wrapper.diff_field_set.fields[index] != value {
             wrapper.diff_field_set.fields[index] = value.clone();
             wrapper.diff_field_set.changed_fields.push(index);
-        }
-        if wrapper.diff_field_set.field_defaults[index] != value {
-            wrapper.diff_field_set.fields_without_defaults.push(index);
         }
     }
     Ok(())
@@ -607,6 +713,7 @@ fn build_payload_if_changed_internal(
     obj: &Bound<'_, PyAny>,
     children: &Bound<'_, PyDict>,
     extras: &Bound<'_, PyList>,
+    packed: Option<(u32, &mut PackedEntityBuffers)>,
 ) -> PyResult<Option<Py<PyAny>>> {
     let py = obj.py();
     let mut child_payloads: Vec<(Bound<'_, PyAny>, Bound<'_, PyAny>)> = Vec::new();
@@ -628,14 +735,19 @@ fn build_payload_if_changed_internal(
     if !changed {
         return Ok(None);
     }
+    let packed_indices = packed.and_then(|(entity_id, buffers)| {
+        append_packed_entity(entity_id, names, field_set, buffers)
+    });
     let dict = PyDict::new(py);
-    fill_py_dict_from_indices(
-        py,
-        &dict,
-        names,
-        &field_set.fields,
-        &field_set.changed_fields,
-    )?;
+    for &index in &field_set.changed_fields {
+        if packed_indices
+            .as_ref()
+            .is_some_and(|indices| indices.contains(&index))
+        {
+            continue;
+        }
+        set_py_dict_value(py, &dict, names, index, &field_set.fields[index])?;
+    }
     for (key, payload) in child_payloads {
         dict.set_item(key, payload)?;
     }
@@ -649,7 +761,58 @@ fn build_payload_if_changed_internal(
         };
         dict.set_item(key, value)?;
     }
-    Ok(Some(dict.unbind().into_any()))
+    if dict.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(dict.unbind().into_any()))
+    }
+}
+
+fn append_packed_entity(
+    entity_id: u32,
+    names: &[String],
+    field_set: &DiffFieldSet,
+    buffers: &mut PackedEntityBuffers,
+) -> Option<SmallVec<[usize; 3]>> {
+    if entity_id > 0x00ff_ffff {
+        return None;
+    }
+
+    let changed = field_set.changed_fields.as_slice();
+    let find = |name| changed.iter().copied().find(|&index| names[index] == name);
+    let x = find("x");
+    let y = find("y");
+    let radius = find("radius");
+    let indices: SmallVec<[usize; 3]> = match (x, y, radius) {
+        (Some(x), Some(y), Some(radius)) => smallvec::smallvec![x, y, radius],
+        (Some(x), Some(y), _) => smallvec::smallvec![x, y],
+        (Some(x), _, _) => smallvec::smallvec![x],
+        (_, Some(y), _) => smallvec::smallvec![y],
+        _ => return None,
+    };
+
+    let buffer = match indices.len() {
+        1 if Some(indices[0]) == x => &mut buffers.x,
+        1 => &mut buffers.y,
+        2 => &mut buffers.xy,
+        3 => &mut buffers.xy_radius,
+        _ => unreachable!(),
+    };
+    if indices
+        .iter()
+        .any(|&index| !matches!(field_set.fields[index], FieldValue::Float(_)))
+    {
+        return None;
+    }
+    let id = entity_id.to_le_bytes();
+    buffer.extend_from_slice(&id[..3]);
+    for &index in &indices {
+        let FieldValue::Float(value) = field_set.fields[index] else {
+            unreachable!();
+        };
+        buffer.extend_from_slice(&value.to_le_bytes());
+    }
+    Some(indices)
 }
 fn build_payload_internal(
     fields: Option<(&[String], &DiffFieldSet)>,
@@ -667,13 +830,14 @@ fn build_payload_internal(
             ));
         }
         if include_all {
-            fill_py_dict_from_indices(
-                py,
-                &dict,
-                names,
-                &field_set.fields,
-                &field_set.fields_without_defaults,
-            )?;
+            let non_default_indices: SmallVec<[usize; 16]> = field_set
+                .fields
+                .iter()
+                .enumerate()
+                .filter(|(index, value)| field_set.field_defaults[*index] != **value)
+                .map(|(index, _)| index)
+                .collect();
+            fill_py_dict_from_indices(py, &dict, names, &field_set.fields, &non_default_indices)?;
         } else {
             fill_py_dict_from_indices(
                 py,

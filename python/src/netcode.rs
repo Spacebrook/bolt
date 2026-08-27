@@ -4,7 +4,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyBytesMethods, PyDict, PyDictMethods, PyList, PyListMethods};
 use pyo3::{Bound, IntoPyObjectExt};
 
-const FRAME_VERSION: u8 = 2;
+const FRAME_VERSION: u8 = 3;
 
 #[pyclass(name = "NetCodec")]
 pub struct NetCodec;

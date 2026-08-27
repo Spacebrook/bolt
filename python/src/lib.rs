@@ -18,7 +18,7 @@ mod serialization;
 use crate::collisions::get_mtv;
 use crate::netcode::NetCodec;
 use crate::quadtree::{PyConfig, QuadTreeWrapper};
-use crate::serialization::DiffFieldSetWrapper;
+use crate::serialization::{DiffFieldSetWrapper, PackedEntityBuffers};
 
 #[pymodule]
 fn pycollisions(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -29,6 +29,7 @@ fn pycollisions(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
 #[pymodule]
 fn pyserialization(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<DiffFieldSetWrapper>()?;
+    m.add_class::<PackedEntityBuffers>()?;
     Ok(())
 }
 
@@ -48,6 +49,7 @@ fn bolt(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<QuadTreeWrapper>()?;
     m.add_class::<PyConfig>()?;
     m.add_class::<DiffFieldSetWrapper>()?;
+    m.add_class::<PackedEntityBuffers>()?;
     m.add_class::<NetCodec>()?;
 
     m.add_class::<PyCircle>()?;
