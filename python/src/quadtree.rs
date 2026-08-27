@@ -205,6 +205,22 @@ impl QuadTreeWrapper {
         Ok(collisions)
     }
 
+    pub fn collisions_circle_batch_raw(
+        &mut self,
+        circles: Vec<(f32, f32, f32)>,
+    ) -> PyResult<Vec<Vec<u32>>> {
+        circles
+            .into_iter()
+            .map(|(x, y, radius)| {
+                let mut collisions = Vec::new();
+                self.quadtree
+                    .collisions_circle_raw(x, y, radius, &mut collisions)
+                    .map_err(map_quadtree_error)?;
+                Ok(collisions)
+            })
+            .collect()
+    }
+
     #[pyo3(signature = (shape, entity_types=None))]
     pub fn collisions_filter(
         &mut self,
