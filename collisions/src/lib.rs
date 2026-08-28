@@ -504,19 +504,22 @@ fn segment_segment_intersections(left: Segment, right: Segment) -> Vec<Vector2<f
 }
 
 fn segment_arc_intersections(segment: Segment, arc: Arc) -> Vec<Vector2<f32>> {
-    let delta = segment.end - segment.start;
-    let offset = segment.start - arc.center;
+    // Long wall segments lose the small circle intersection in the quadratic's
+    // subtraction at f32 precision, leaving only the far side of the wall as an exit.
+    let delta = segment.end.cast::<f64>() - segment.start.cast::<f64>();
+    let offset = segment.start.cast::<f64>() - arc.center.cast::<f64>();
+    let epsilon = f64::from(MTV_EPSILON);
     let a = delta.dot(&delta);
-    if a <= MTV_EPSILON * MTV_EPSILON {
+    if a <= epsilon * epsilon {
         return Vec::new();
     }
     let b = 2.0 * offset.dot(&delta);
-    let c = offset.dot(&offset) - arc.radius * arc.radius;
+    let c = offset.dot(&offset) - f64::from(arc.radius).powi(2);
     let discriminant = b * b - 4.0 * a * c;
-    if discriminant < -MTV_EPSILON {
+    if discriminant < -epsilon {
         return Vec::new();
     }
-    if discriminant.abs() <= MTV_EPSILON {
+    if discriminant.abs() <= epsilon {
         let t = -b / (2.0 * a);
         return segment_arc_candidate(segment, arc, t).into_iter().collect();
     }
@@ -534,11 +537,13 @@ fn segment_arc_intersections(segment: Segment, arc: Arc) -> Vec<Vector2<f32>> {
     points
 }
 
-fn segment_arc_candidate(segment: Segment, arc: Arc, t: f32) -> Option<Vector2<f32>> {
-    if !(-MTV_EPSILON..=1.0 + MTV_EPSILON).contains(&t) {
+fn segment_arc_candidate(segment: Segment, arc: Arc, t: f64) -> Option<Vector2<f32>> {
+    let epsilon = f64::from(MTV_EPSILON);
+    if !(-epsilon..=1.0 + epsilon).contains(&t) {
         return None;
     }
-    let point = segment.start + (segment.end - segment.start) * t.clamp(0.0, 1.0);
+    let start = segment.start.cast::<f64>();
+    let point = (start + (segment.end.cast::<f64>() - start) * t.clamp(0.0, 1.0)).cast::<f32>();
     let angle = (point.y - arc.center.y).atan2(point.x - arc.center.x);
     if arc.full || angle_in_arc(angle, arc) {
         Some(point)
