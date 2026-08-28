@@ -100,12 +100,15 @@ fn get_exact_ball_union_mtv(
     others: &[ShapeWithPosition],
 ) -> Option<Vector2<f32>> {
     let entity_ball = entity.shape.as_ball()?;
+    // Work relative to the ball so large world coordinates cannot round a
+    // boundary candidate back inside an obstacle and reject the nearest exit.
+    let origin = entity.position.translation.vector;
     let obstacles: Option<Vec<InflatedObstacle>> = others
         .iter()
-        .map(|other| inflated_obstacle(entity_ball.radius, other))
+        .map(|other| inflated_obstacle(entity_ball.radius, other, origin))
         .collect();
     let obstacles = obstacles?;
-    let start = entity.position.translation.vector;
+    let start = Vector2::zeros();
 
     if !obstacles
         .iter()
@@ -141,10 +144,15 @@ fn get_exact_ball_union_mtv(
     best_point.map(|point| start - point)
 }
 
-fn inflated_obstacle(entity_radius: f32, other: &ShapeWithPosition) -> Option<InflatedObstacle> {
+fn inflated_obstacle(
+    entity_radius: f32,
+    other: &ShapeWithPosition,
+    origin: Vector2<f32>,
+) -> Option<InflatedObstacle> {
+    let center = other.position.translation.vector - origin;
     if let Some(other_ball) = other.shape.as_ball() {
         return Some(InflatedObstacle::Disc(Disc {
-            center: other.position.translation.vector,
+            center,
             radius: entity_radius + other_ball.radius,
         }));
     }
@@ -154,7 +162,7 @@ fn inflated_obstacle(entity_radius: f32, other: &ShapeWithPosition) -> Option<In
     let axis_x = Vector2::new(rotation.cos(), rotation.sin());
     let axis_y = Vector2::new(-rotation.sin(), rotation.cos());
     Some(InflatedObstacle::RoundedRect(RoundedRect {
-        center: other.position.translation.vector,
+        center,
         axis_x,
         axis_y,
         half_width: other_cuboid.half_extents.x,
