@@ -4,7 +4,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyBytesMethods, PyDict, PyDictMethods, PyList, PyListMethods};
 use pyo3::{Bound, IntoPyObjectExt};
 
-const FRAME_VERSION: u8 = 3;
+const FRAME_VERSION: u8 = 4;
 
 #[pyclass(name = "NetCodec")]
 pub struct NetCodec;
@@ -30,7 +30,7 @@ impl NetCodec {
         let pong = get_u32(payload, "pong")?;
 
         let area = get_message_bytes(py, payload, "area", "Area")?;
-        let map = get_message_bytes(py, payload, "map", "Map")?;
+        let map = get_bytes(payload, "map")?;
         let chat = get_message_bytes(py, payload, "chat", "Chat")?;
         let settings = get_message_bytes(py, payload, "settings", "Settings")?;
         let mod_tools_response =

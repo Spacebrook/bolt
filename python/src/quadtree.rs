@@ -443,7 +443,7 @@ mod tests {
 
     #[test]
     fn quadtree_wrapper_preserves_top_left_bounds() {
-        let qt = QuadTreeWrapper::new(PyRectangle::new(10.0, 20.0, 100.0, 200.0));
+        let mut qt = QuadTreeWrapper::new(PyRectangle::new(10.0, 20.0, 100.0, 200.0)).unwrap();
         let bounding_boxes = qt.all_node_bounding_boxes();
         assert_eq!(bounding_boxes.len(), 1);
         let (x, y, width, height) = bounding_boxes[0];
